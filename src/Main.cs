@@ -16,7 +16,6 @@
 
             OpenAIClient client = new OpenAIClient(new Uri(uri), new AzureKeyCredential(key));
 
-            // ### If streaming is not selected
             Response<ChatCompletions> responseWithoutStream = await client.GetChatCompletionsAsync(
                 model,
                 new ChatCompletionsOptions()
