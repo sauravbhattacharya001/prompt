@@ -11,7 +11,7 @@
     <PackageId>prompt-llm-aoi</PackageId>
     <RepositoryUrl>https://github.com/sauravbhattacharya001/prompt</RepositoryUrl>
     <PackageTags>llm;aoi</PackageTags>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
   </PropertyGroup>
 
   <ItemGroup>
