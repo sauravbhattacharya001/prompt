@@ -1,0 +1,33 @@
+# Copilot Coding Agent Setup Steps
+# Installs dependencies and builds the project so Copilot agents
+# (Claude, Codex) can work on issues and PRs autonomously.
+
+name: "Copilot Setup Steps"
+
+on: workflow_dispatch
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore Prompt.sln
+
+      - name: Build solution
+        run: dotnet build Prompt.sln --no-restore --configuration Release
+
+      - name: Run tests (if test project exists)
+        run: |
+          if [ -d "PromptTests" ]; then
+            dotnet test Prompt.sln --no-build --configuration Release --verbosity normal
+          else
+            echo "No test project found, skipping tests"
+          fi
