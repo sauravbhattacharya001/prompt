@@ -25,6 +25,7 @@
         private static AzureOpenAIClient? _cachedAzureClient;
         private static ChatClient? _cachedChatClient;
         private static string? _cachedModel;
+        private static int _cachedMaxRetries = -1;
 
         /// <summary>
         /// Creates an <see cref="AzureOpenAIClientOptions"/> with retry configuration.
@@ -40,22 +41,18 @@
 
         /// <summary>
         /// Returns a cached <see cref="ChatClient"/>, creating it on first use.
-        /// The client reads environment variables once and reuses the HTTP
-        /// connection pool across calls. Thread-safe via double-check locking.
+        /// If <paramref name="maxRetries"/> differs from the previously cached value,
+        /// the client is automatically recreated with the new retry policy (fixes #7).
+        /// Thread-safe via double-check locking.
         /// </summary>
-        /// <remarks>
-        /// The <paramref name="maxRetries"/> value is only used during first initialization.
-        /// Subsequent calls return the cached client regardless of the value passed.
-        /// Call <see cref="ResetClient"/> to force re-creation with a new retry policy.
-        /// </remarks>
         private static ChatClient GetOrCreateChatClient(int maxRetries = 3)
         {
-            if (_cachedChatClient != null)
+            if (_cachedChatClient != null && _cachedMaxRetries == maxRetries)
                 return _cachedChatClient;
 
             lock (_clientLock)
             {
-                if (_cachedChatClient != null)
+                if (_cachedChatClient != null && _cachedMaxRetries == maxRetries)
                     return _cachedChatClient;
 
                 var uri = GetRequiredEnvVar("AZURE_OPENAI_API_URI",
@@ -81,6 +78,7 @@
                     clientOptions);
 
                 _cachedChatClient = _cachedAzureClient.GetChatClient(_cachedModel);
+                _cachedMaxRetries = maxRetries;
                 return _cachedChatClient;
             }
         }
@@ -98,6 +96,7 @@
                 _cachedChatClient = null;
                 _cachedAzureClient = null;
                 _cachedModel = null;
+                _cachedMaxRetries = -1;
             }
         }
 
