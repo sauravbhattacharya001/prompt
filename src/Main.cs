@@ -20,12 +20,19 @@
         // Cached client instances for connection reuse (fixes #6).
         // AzureOpenAIClient and ChatClient are thread-safe and designed
         // to be long-lived singletons, so we avoid recreating them on
-        // every call. The Lazy<T> wrapper ensures one-time initialization.
+        // every call.
+        //
+        // _cachedChatClient is marked volatile so that the double-checked
+        // locking pattern in GetOrCreateChatClient works correctly across
+        // all CPU architectures. Without volatile, a thread could observe
+        // a non-null _cachedChatClient before the writes to _cachedMaxRetries
+        // and _cachedModel have been flushed — leading to use of stale
+        // companion fields.
         private static readonly object _clientLock = new object();
         private static AzureOpenAIClient? _cachedAzureClient;
-        private static ChatClient? _cachedChatClient;
+        private static volatile ChatClient? _cachedChatClient;
         private static string? _cachedModel;
-        private static int _cachedMaxRetries = -1;
+        private static volatile int _cachedMaxRetries = -1;
 
         /// <summary>
         /// Creates an <see cref="AzureOpenAIClientOptions"/> with retry configuration.
@@ -182,14 +189,21 @@
             var value = Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process);
 
             // On Windows, also check User and Machine scopes
-            if (string.IsNullOrEmpty(value) && OperatingSystem.IsWindows())
+            if (string.IsNullOrWhiteSpace(value) && OperatingSystem.IsWindows())
             {
-                value = Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.User)
-                     ?? Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Machine);
+                value = Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.User);
+                if (string.IsNullOrWhiteSpace(value))
+                    value = Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Machine);
             }
 
-            return value ?? throw new InvalidOperationException(
-                $"Environment variable {name} is not set. {hint}");
+            // Treat empty/whitespace-only values as unset — they are never
+            // valid for URIs, API keys, or model names and would cause
+            // confusing downstream errors if allowed through.
+            if (string.IsNullOrWhiteSpace(value))
+                throw new InvalidOperationException(
+                    $"Environment variable {name} is not set or is empty. {hint}");
+
+            return value;
         }
     }
 }
