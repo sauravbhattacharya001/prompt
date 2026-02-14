@@ -17,6 +17,15 @@
     /// </remarks>
     public class Main
     {
+        // Cached client instances for connection reuse (fixes #6).
+        // AzureOpenAIClient and ChatClient are thread-safe and designed
+        // to be long-lived singletons, so we avoid recreating them on
+        // every call. The Lazy<T> wrapper ensures one-time initialization.
+        private static readonly object _clientLock = new object();
+        private static AzureOpenAIClient? _cachedAzureClient;
+        private static ChatClient? _cachedChatClient;
+        private static string? _cachedModel;
+
         /// <summary>
         /// Creates an <see cref="AzureOpenAIClientOptions"/> with retry configuration.
         /// Uses exponential backoff (1s base, 30s max) which handles 429 rate-limit
@@ -27,6 +36,41 @@
             var options = new AzureOpenAIClientOptions();
             options.RetryPolicy = new ClientRetryPolicy(maxRetries);
             return options;
+        }
+
+        /// <summary>
+        /// Returns a cached <see cref="ChatClient"/>, creating it on first use.
+        /// The client reads environment variables once and reuses the HTTP
+        /// connection pool across calls. Thread-safe via double-check locking.
+        /// </summary>
+        private static ChatClient GetOrCreateChatClient(int maxRetries = 3)
+        {
+            if (_cachedChatClient != null)
+                return _cachedChatClient;
+
+            lock (_clientLock)
+            {
+                if (_cachedChatClient != null)
+                    return _cachedChatClient;
+
+                var uri = GetRequiredEnvVar("AZURE_OPENAI_API_URI",
+                    "Set it pointing to your Azure OpenAI endpoint.");
+
+                var key = GetRequiredEnvVar("AZURE_OPENAI_API_KEY",
+                    "Set it with your Azure OpenAI API key.");
+
+                _cachedModel = GetRequiredEnvVar("AZURE_OPENAI_API_MODEL",
+                    "Set it with your deployed model name (e.g. gpt-4).");
+
+                var clientOptions = CreateClientOptions(maxRetries);
+                _cachedAzureClient = new AzureOpenAIClient(
+                    new Uri(uri),
+                    new ApiKeyCredential(key),
+                    clientOptions);
+
+                _cachedChatClient = _cachedAzureClient.GetChatClient(_cachedModel);
+                return _cachedChatClient;
+            }
         }
 
         /// <summary>
@@ -53,22 +97,7 @@
             if (string.IsNullOrWhiteSpace(prompt))
                 throw new ArgumentException("Prompt cannot be null or empty.", nameof(prompt));
 
-            var uri = GetRequiredEnvVar("AZURE_OPENAI_API_URI",
-                "Set it pointing to your Azure OpenAI endpoint.");
-
-            var key = GetRequiredEnvVar("AZURE_OPENAI_API_KEY",
-                "Set it with your Azure OpenAI API key.");
-
-            var model = GetRequiredEnvVar("AZURE_OPENAI_API_MODEL",
-                "Set it with your deployed model name (e.g. gpt-4).");
-
-            var clientOptions = CreateClientOptions(maxRetries);
-            var azureClient = new AzureOpenAIClient(
-                new Uri(uri),
-                new ApiKeyCredential(key),
-                clientOptions);
-
-            ChatClient chatClient = azureClient.GetChatClient(model);
+            ChatClient chatClient = GetOrCreateChatClient(maxRetries);
 
             var messages = new List<ChatMessage>();
             if (!string.IsNullOrWhiteSpace(systemPrompt))
