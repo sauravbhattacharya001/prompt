@@ -35,6 +35,33 @@ string? response = await Main.GetResponseAsync("Explain quantum computing in sim
 Console.WriteLine(response);
 ```
 
+### System Prompt
+
+Provide a system prompt to set the assistant's behavior:
+
+```csharp
+string? response = await Main.GetResponseAsync(
+    "Summarize this text: ...",
+    systemPrompt: "You are a concise summarizer. Respond in 2-3 sentences max.");
+```
+
+### Cancellation
+
+Pass a `CancellationToken` to cancel long-running requests:
+
+```csharp
+using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+try
+{
+    string? response = await Main.GetResponseAsync("Hello!", cancellationToken: cts.Token);
+}
+catch (OperationCanceledException)
+{
+    Console.WriteLine("Request timed out.");
+}
+```
+
 ## How It Works
 
 The library reads your Azure OpenAI credentials from environment variables and uses the official `Azure.AI.OpenAI` SDK to send a chat completions request with sensible defaults:

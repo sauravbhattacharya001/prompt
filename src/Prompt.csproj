@@ -10,6 +10,7 @@
     <Description>Library for prompting LLMs</Description>
     <PackageId>prompt-llm-aoi</PackageId>
     <RepositoryUrl>https://github.com/sauravbhattacharya001/prompt</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/sauravbhattacharya001/prompt</PackageProjectUrl>
     <PackageTags>llm;aoi</PackageTags>
     <Version>2.0.0</Version>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
