@@ -19,13 +19,14 @@
         /// <summary>
         /// Sends a prompt to Azure OpenAI and returns the response text.
         /// </summary>
-        /// <param name="prompt">The user prompt to send as a system message.</param>
+        /// <param name="prompt">The user prompt to send as a user message.</param>
+        /// <param name="systemPrompt">Optional system prompt to set the assistant's behavior.</param>
         /// <returns>The model's response text, or <c>null</c> if no response was generated.</returns>
         /// <exception cref="ArgumentException">Thrown when <paramref name="prompt"/> is null or empty.</exception>
         /// <exception cref="InvalidOperationException">
         /// Thrown when a required environment variable is not set.
         /// </exception>
-        public static async Task<string?> GetResponseTest(string prompt)
+        public static async Task<string?> GetResponseTest(string prompt, string? systemPrompt = null)
         {
             if (string.IsNullOrWhiteSpace(prompt))
                 throw new ArgumentException("Prompt cannot be null or empty.", nameof(prompt));
@@ -47,20 +48,21 @@
 
             OpenAIClient client = new OpenAIClient(new Uri(uri), new AzureKeyCredential(key));
 
+            var options = new ChatCompletionsOptions()
+            {
+                Temperature = (float)0.7,
+                MaxTokens = 800,
+                NucleusSamplingFactor = (float)0.95,
+                FrequencyPenalty = 0,
+                PresencePenalty = 0,
+            };
+
+            if (!string.IsNullOrWhiteSpace(systemPrompt))
+                options.Messages.Add(new ChatMessage(ChatRole.System, systemPrompt));
+            options.Messages.Add(new ChatMessage(ChatRole.User, prompt));
+
             Response<ChatCompletions> responseWithoutStream = await client.GetChatCompletionsAsync(
-                model,
-                new ChatCompletionsOptions()
-                {
-                    Messages =
-                    {
-                        new ChatMessage(ChatRole.System, prompt),
-                    },
-                    Temperature = (float)0.7,
-                    MaxTokens = 800,
-                    NucleusSamplingFactor = (float)0.95,
-                    FrequencyPenalty = 0,
-                    PresencePenalty = 0,
-                });
+                model, options);
 
             ChatCompletions completions = responseWithoutStream.Value;
 
