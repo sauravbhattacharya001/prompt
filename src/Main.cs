@@ -38,20 +38,14 @@
             if (string.IsNullOrWhiteSpace(prompt))
                 throw new ArgumentException("Prompt cannot be null or empty.", nameof(prompt));
 
-            var uri = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_URI", EnvironmentVariableTarget.User)
-                ?? throw new InvalidOperationException(
-                    "Environment variable AZURE_OPENAI_API_URI is not set. " +
-                    "Set it as a user-level variable pointing to your Azure OpenAI endpoint.");
+            var uri = GetRequiredEnvVar("AZURE_OPENAI_API_URI",
+                "Set it pointing to your Azure OpenAI endpoint.");
 
-            var key = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_KEY", EnvironmentVariableTarget.User)
-                ?? throw new InvalidOperationException(
-                    "Environment variable AZURE_OPENAI_API_KEY is not set. " +
-                    "Set it as a user-level variable with your Azure OpenAI API key.");
+            var key = GetRequiredEnvVar("AZURE_OPENAI_API_KEY",
+                "Set it with your Azure OpenAI API key.");
 
-            var model = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_MODEL", EnvironmentVariableTarget.User)
-                ?? throw new InvalidOperationException(
-                    "Environment variable AZURE_OPENAI_API_MODEL is not set. " +
-                    "Set it as a user-level variable with your deployed model name (e.g. gpt-4).");
+            var model = GetRequiredEnvVar("AZURE_OPENAI_API_MODEL",
+                "Set it with your deployed model name (e.g. gpt-4).");
 
             OpenAIClient client = new OpenAIClient(new Uri(uri), new AzureKeyCredential(key));
 
@@ -74,6 +68,33 @@
             ChatCompletions completions = responseWithoutStream.Value;
 
             return completions?.Choices?.FirstOrDefault()?.Message.Content;
+        }
+
+        /// <summary>
+        /// Reads an environment variable with a cross-platform fallback chain:
+        /// Process → User (Windows only) → Machine (Windows only).
+        /// </summary>
+        /// <remarks>
+        /// <c>EnvironmentVariableTarget.User</c> only works on Windows.
+        /// On Linux/macOS it silently returns <c>null</c>, so we try
+        /// <c>EnvironmentVariableTarget.Process</c> first, which reads
+        /// variables set via shell profiles, Docker, systemd, etc.
+        /// Fixes <see href="https://github.com/sauravbhattacharya001/prompt/issues/2">#2</see>.
+        /// </remarks>
+        private static string GetRequiredEnvVar(string name, string hint)
+        {
+            // Process-level covers shell exports, Docker env, CI, etc. — works everywhere
+            var value = Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process);
+
+            // On Windows, also check User and Machine scopes
+            if (string.IsNullOrEmpty(value) && OperatingSystem.IsWindows())
+            {
+                value = Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.User)
+                     ?? Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Machine);
+            }
+
+            return value ?? throw new InvalidOperationException(
+                $"Environment variable {name} is not set. {hint}");
         }
     }
 }
