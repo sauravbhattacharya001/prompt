@@ -5,6 +5,16 @@ All notable changes to the `prompt-llm-aoi` NuGet package will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-02-14
+
+### Removed
+- Deprecated `GetResponseTest` method (use `GetResponseAsync` instead)
+- Unused `_cachedModel` static field — model name is now a local variable
+- Orphaned `PromptTests` project reference from solution file (directory was already removed)
+
+### Fixed
+- Solution file now builds cleanly without phantom test project errors
+
 ## [2.0.0] - 2026-02-08
 
 ### Added

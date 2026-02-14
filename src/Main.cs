@@ -25,13 +25,11 @@
         // _cachedChatClient is marked volatile so that the double-checked
         // locking pattern in GetOrCreateChatClient works correctly across
         // all CPU architectures. Without volatile, a thread could observe
-        // a non-null _cachedChatClient before the writes to _cachedMaxRetries
-        // and _cachedModel have been flushed — leading to use of stale
-        // companion fields.
+        // a non-null _cachedChatClient before the write to _cachedMaxRetries
+        // has been flushed — leading to use of a stale companion field.
         private static readonly object _clientLock = new object();
         private static AzureOpenAIClient? _cachedAzureClient;
         private static volatile ChatClient? _cachedChatClient;
-        private static string? _cachedModel;
         private static volatile int _cachedMaxRetries = -1;
 
         /// <summary>
@@ -75,7 +73,7 @@
                 var key = GetRequiredEnvVar("AZURE_OPENAI_API_KEY",
                     "Set it with your Azure OpenAI API key.");
 
-                _cachedModel = GetRequiredEnvVar("AZURE_OPENAI_API_MODEL",
+                var model = GetRequiredEnvVar("AZURE_OPENAI_API_MODEL",
                     "Set it with your deployed model name (e.g. gpt-4).");
 
                 var clientOptions = CreateClientOptions(maxRetries);
@@ -84,7 +82,7 @@
                     new ApiKeyCredential(key),
                     clientOptions);
 
-                _cachedChatClient = _cachedAzureClient.GetChatClient(_cachedModel);
+                _cachedChatClient = _cachedAzureClient.GetChatClient(model);
                 _cachedMaxRetries = maxRetries;
                 return _cachedChatClient;
             }
@@ -102,7 +100,6 @@
             {
                 _cachedChatClient = null;
                 _cachedAzureClient = null;
-                _cachedModel = null;
                 _cachedMaxRetries = -1;
             }
         }
@@ -156,21 +153,6 @@
 
             return completion?.Content?.FirstOrDefault()?.Text;
         }
-
-        /// <summary>
-        /// Sends a prompt to Azure OpenAI and returns the response text.
-        /// </summary>
-        /// <remarks>
-        /// Deprecated: use <see cref="GetResponseAsync"/> instead.
-        /// This method exists for backward compatibility and will be removed in a future major version.
-        /// </remarks>
-        [Obsolete("Use GetResponseAsync instead. This method will be removed in a future major version.")]
-        public static Task<string?> GetResponseTest(
-            string prompt,
-            string? systemPrompt = null,
-            int maxRetries = 3,
-            CancellationToken cancellationToken = default)
-            => GetResponseAsync(prompt, systemPrompt, maxRetries, cancellationToken);
 
         /// <summary>
         /// Reads an environment variable with a cross-platform fallback chain:
