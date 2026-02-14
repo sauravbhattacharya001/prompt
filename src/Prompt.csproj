@@ -11,13 +11,13 @@
     <PackageId>prompt-llm-aoi</PackageId>
     <RepositoryUrl>https://github.com/sauravbhattacharya001/prompt</RepositoryUrl>
     <PackageTags>llm;aoi</PackageTags>
-    <Version>1.0.4</Version>
+    <Version>2.0.0</Version>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.AI.OpenAI" Version="1.0.0-beta.6" />
+    <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
     <None Include="..\README.md" Pack="true" PackagePath="\"/>
     <None Include="..\LICENSE" Pack="true" PackagePath="\"/>
   </ItemGroup>

@@ -1,7 +1,8 @@
 ﻿namespace Prompt
 {
-    using Azure;
+    using System.ClientModel;
     using Azure.AI.OpenAI;
+    using OpenAI.Chat;
 
     /// <summary>
     /// Entry point for sending chat completions requests to Azure OpenAI.
@@ -17,18 +18,14 @@
     public class Main
     {
         /// <summary>
-        /// Default retry configuration for transient Azure OpenAI failures.
-        /// Uses exponential backoff (1s base, 30s max, 3 retries) which
-        /// handles 429 rate-limit and 503 service-unavailable responses
-        /// automatically via the Azure.Core pipeline.
+        /// Creates an <see cref="AzureOpenAIClientOptions"/> with retry configuration.
+        /// Uses exponential backoff (1s base, 30s max) which handles 429 rate-limit
+        /// and 503 service-unavailable responses automatically via the Azure.Core pipeline.
         /// </summary>
-        private static OpenAIClientOptions CreateClientOptions(int maxRetries = 3)
+        private static AzureOpenAIClientOptions CreateClientOptions(int maxRetries = 3)
         {
-            var options = new OpenAIClientOptions();
-            options.Retry.MaxRetries = maxRetries;
-            options.Retry.Mode = RetryMode.Exponential;
-            options.Retry.Delay = TimeSpan.FromSeconds(1);
-            options.Retry.MaxDelay = TimeSpan.FromSeconds(30);
+            var options = new AzureOpenAIClientOptions();
+            options.RetryPolicy = new ClientRetryPolicy(maxRetries);
             return options;
         }
 
@@ -66,27 +63,31 @@
                 "Set it with your deployed model name (e.g. gpt-4).");
 
             var clientOptions = CreateClientOptions(maxRetries);
-            OpenAIClient client = new OpenAIClient(new Uri(uri), new AzureKeyCredential(key), clientOptions);
+            var azureClient = new AzureOpenAIClient(
+                new Uri(uri),
+                new ApiKeyCredential(key),
+                clientOptions);
 
-            var options = new ChatCompletionsOptions()
+            ChatClient chatClient = azureClient.GetChatClient(model);
+
+            var messages = new List<ChatMessage>();
+            if (!string.IsNullOrWhiteSpace(systemPrompt))
+                messages.Add(new SystemChatMessage(systemPrompt));
+            messages.Add(new UserChatMessage(prompt));
+
+            var completionOptions = new ChatCompletionOptions()
             {
-                Temperature = (float)0.7,
-                MaxTokens = 800,
-                NucleusSamplingFactor = (float)0.95,
-                FrequencyPenalty = 0,
-                PresencePenalty = 0,
+                Temperature = 0.7f,
+                MaxOutputTokenCount = 800,
+                TopP = 0.95f,
+                FrequencyPenalty = 0f,
+                PresencePenalty = 0f,
             };
 
-            if (!string.IsNullOrWhiteSpace(systemPrompt))
-                options.Messages.Add(new ChatMessage(ChatRole.System, systemPrompt));
-            options.Messages.Add(new ChatMessage(ChatRole.User, prompt));
+            ChatCompletion completion = await chatClient.CompleteChatAsync(
+                messages, completionOptions, cancellationToken);
 
-            Response<ChatCompletions> responseWithoutStream = await client.GetChatCompletionsAsync(
-                model, options, cancellationToken);
-
-            ChatCompletions completions = responseWithoutStream.Value;
-
-            return completions?.Choices?.FirstOrDefault()?.Message.Content;
+            return completion?.Content?.FirstOrDefault()?.Text;
         }
 
         /// <summary>

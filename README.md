@@ -4,7 +4,7 @@ A lightweight C# library for connecting to **Azure OpenAI (AOI)** and sending ch
 
 ## Prerequisites
 
-- [.NET 6.0](https://dotnet.microsoft.com/download/dotnet/6.0) or later
+- [.NET 8.0](https://dotnet.microsoft.com/download/dotnet/8.0) or later
 - An [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service) resource with a deployed model
 
 ## Installation
