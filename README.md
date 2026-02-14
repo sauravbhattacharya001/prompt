@@ -30,7 +30,7 @@ Set the following **user-level** environment variables:
 ```csharp
 using Prompt;
 
-string? response = await Main.GetResponseTest("Explain quantum computing in simple terms.");
+string? response = await Main.GetResponseAsync("Explain quantum computing in simple terms.");
 
 Console.WriteLine(response);
 ```
@@ -54,10 +54,10 @@ Transient failures (429 rate-limit, 503 service unavailable, network timeouts) a
 
 ```csharp
 // Use default retries (3)
-string? response = await Main.GetResponseTest("Hello!");
+string? response = await Main.GetResponseAsync("Hello!");
 
 // Custom retry count
-string? response = await Main.GetResponseTest("Hello!", maxRetries: 5);
+string? response = await Main.GetResponseAsync("Hello!", maxRetries: 5);
 ```
 
 ## License

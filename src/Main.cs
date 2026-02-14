@@ -44,7 +44,7 @@
         /// <exception cref="OperationCanceledException">
         /// Thrown when the operation is cancelled via <paramref name="cancellationToken"/>.
         /// </exception>
-        public static async Task<string?> GetResponseTest(
+        public static async Task<string?> GetResponseAsync(
             string prompt,
             string? systemPrompt = null,
             int maxRetries = 3,
@@ -89,6 +89,21 @@
 
             return completion?.Content?.FirstOrDefault()?.Text;
         }
+
+        /// <summary>
+        /// Sends a prompt to Azure OpenAI and returns the response text.
+        /// </summary>
+        /// <remarks>
+        /// Deprecated: use <see cref="GetResponseAsync"/> instead.
+        /// This method exists for backward compatibility and will be removed in a future major version.
+        /// </remarks>
+        [Obsolete("Use GetResponseAsync instead. This method will be removed in a future major version.")]
+        public static Task<string?> GetResponseTest(
+            string prompt,
+            string? systemPrompt = null,
+            int maxRetries = 3,
+            CancellationToken cancellationToken = default)
+            => GetResponseAsync(prompt, systemPrompt, maxRetries, cancellationToken);
 
         /// <summary>
         /// Reads an environment variable with a cross-platform fallback chain:
