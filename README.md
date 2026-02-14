@@ -24,6 +24,7 @@ Send prompts to Azure OpenAI and get responses — with built-in retry logic, ca
 
 - **Single method call** — `GetResponseAsync()` handles everything
 - **Multi-turn conversations** — `Conversation` class maintains message history across turns
+- **Save & load conversations** — Serialize to JSON (string or file), restore later with full state
 - **Configurable parameters** — Temperature, max tokens, top-p, frequency/presence penalty per conversation
 - **Automatic retries** — Exponential backoff for 429 rate-limit and 503 errors
 - **System prompts** — Set assistant behavior with an optional parameter
@@ -141,6 +142,51 @@ conv.AddUserMessage("Hello");
 conv.Clear(); // Removes user/assistant messages, keeps system prompt
 ```
 
+### Save & Load Conversations
+
+Save a conversation to JSON and restore it later — perfect for persisting sessions across app restarts, sharing conversations, or implementing conversation history:
+
+```csharp
+var conv = new Conversation("You are a coding tutor.");
+await conv.SendAsync("Explain SOLID principles");
+await conv.SendAsync("Show me an example of SRP");
+
+// Save to JSON string
+string json = conv.SaveToJson();
+
+// Save to file
+await conv.SaveToFileAsync("session.json");
+
+// Later... restore from JSON
+var restored = Conversation.LoadFromJson(json);
+
+// Or restore from file
+var fromFile = await Conversation.LoadFromFileAsync("session.json");
+
+// Continue the conversation with full context
+string? response = await fromFile.SendAsync("Now show me OCP");
+```
+
+The serialized JSON includes all messages and model parameters (temperature, max tokens, etc.), so the restored conversation is an exact replica:
+
+```json
+{
+  "messages": [
+    { "role": "system", "content": "You are a coding tutor." },
+    { "role": "user", "content": "Explain SOLID principles" },
+    { "role": "assistant", "content": "SOLID stands for..." }
+  ],
+  "parameters": {
+    "temperature": 0.7,
+    "maxTokens": 800,
+    "topP": 0.95,
+    "frequencyPenalty": 0,
+    "presencePenalty": 0,
+    "maxRetries": 3
+  }
+}
+```
+
 ## Usage Examples
 
 ### System Prompt
@@ -248,6 +294,10 @@ Multi-turn conversation manager with full message history and configurable model
 | `AddAssistantMessage(message)` | `void` | Adds an assistant message to history without calling the API. |
 | `Clear()` | `void` | Clears history but preserves the system prompt. |
 | `GetHistory()` | `List<(string Role, string Content)>` | Returns a snapshot of the conversation. |
+| `SaveToJson(indented)` | `string` | Serializes the conversation (messages + parameters) to a JSON string. |
+| `LoadFromJson(json)` | `Conversation` | *Static.* Restores a conversation from a JSON string. |
+| `SaveToFileAsync(filePath, indented, cancellationToken)` | `Task` | Saves the conversation to a JSON file. |
+| `LoadFromFileAsync(filePath, cancellationToken)` | `Task<Conversation>` | *Static.* Loads a conversation from a JSON file. |
 
 #### Properties
 

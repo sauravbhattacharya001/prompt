@@ -1,6 +1,8 @@
 namespace Prompt
 {
     using System.ClientModel;
+    using System.Text.Json;
+    using System.Text.Json.Serialization;
     using Azure.AI.OpenAI;
     using OpenAI.Chat;
 
@@ -297,6 +299,226 @@ namespace Prompt
                 }
                 return history;
             }
+        }
+
+        // ──────────────── Serialization ────────────────
+
+        /// <summary>
+        /// Serializes the conversation to a JSON string, including all
+        /// messages and model parameters. The output can be saved to a
+        /// file or transmitted and later restored with <see cref="LoadFromJson"/>.
+        /// </summary>
+        /// <param name="indented">Whether to format the JSON with indentation (default true).</param>
+        /// <returns>A JSON string representing the full conversation state.</returns>
+        public string SaveToJson(bool indented = true)
+        {
+            lock (_lock)
+            {
+                var data = new ConversationData
+                {
+                    Messages = new List<MessageData>(),
+                    Parameters = new ParameterData
+                    {
+                        Temperature = _temperature,
+                        MaxTokens = _maxTokens,
+                        TopP = _topP,
+                        FrequencyPenalty = _frequencyPenalty,
+                        PresencePenalty = _presencePenalty,
+                        MaxRetries = _maxRetries
+                    }
+                };
+
+                foreach (var msg in _messages)
+                {
+                    string role = msg switch
+                    {
+                        SystemChatMessage => "system",
+                        UserChatMessage => "user",
+                        AssistantChatMessage => "assistant",
+                        _ => "unknown"
+                    };
+
+                    string content = "";
+                    if (msg.Content != null)
+                    {
+                        foreach (var part in msg.Content)
+                        {
+                            if (part.Text != null)
+                                content += part.Text;
+                        }
+                    }
+
+                    data.Messages.Add(new MessageData { Role = role, Content = content });
+                }
+
+                var options = new JsonSerializerOptions
+                {
+                    WriteIndented = indented,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                };
+
+                return JsonSerializer.Serialize(data, options);
+            }
+        }
+
+        /// <summary>
+        /// Restores a conversation from a JSON string produced by
+        /// <see cref="SaveToJson"/>. All messages and model parameters
+        /// are restored to their saved state.
+        /// </summary>
+        /// <param name="json">The JSON string to deserialize.</param>
+        /// <returns>A new <see cref="Conversation"/> instance with the restored state.</returns>
+        /// <exception cref="ArgumentException">Thrown when <paramref name="json"/> is null or empty.</exception>
+        /// <exception cref="JsonException">Thrown when the JSON is malformed.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the JSON structure is invalid (missing messages array).</exception>
+        public static Conversation LoadFromJson(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                throw new ArgumentException(
+                    "JSON string cannot be null or empty.", nameof(json));
+
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+
+            var data = JsonSerializer.Deserialize<ConversationData>(json, options);
+
+            if (data?.Messages == null)
+                throw new InvalidOperationException(
+                    "Invalid conversation JSON: missing messages array.");
+
+            // Create without system prompt — we'll add messages manually
+            var conv = new Conversation();
+
+            // Restore parameters if present
+            if (data.Parameters != null)
+            {
+                conv.Temperature = data.Parameters.Temperature;
+                conv.MaxTokens = data.Parameters.MaxTokens;
+                conv.TopP = data.Parameters.TopP;
+                conv.FrequencyPenalty = data.Parameters.FrequencyPenalty;
+                conv.PresencePenalty = data.Parameters.PresencePenalty;
+                conv.MaxRetries = data.Parameters.MaxRetries;
+            }
+
+            // Restore messages
+            foreach (var msg in data.Messages)
+            {
+                if (string.IsNullOrEmpty(msg.Content))
+                    continue;
+
+                switch (msg.Role?.ToLowerInvariant())
+                {
+                    case "system":
+                        lock (conv._lock)
+                            conv._messages.Add(new SystemChatMessage(msg.Content));
+                        break;
+                    case "user":
+                        conv.AddUserMessage(msg.Content);
+                        break;
+                    case "assistant":
+                        conv.AddAssistantMessage(msg.Content);
+                        break;
+                }
+            }
+
+            return conv;
+        }
+
+        /// <summary>
+        /// Saves the conversation to a JSON file. Creates the file if it
+        /// doesn't exist, overwrites if it does.
+        /// </summary>
+        /// <param name="filePath">Path to the output file.</param>
+        /// <param name="indented">Whether to format the JSON with indentation (default true).</param>
+        /// <param name="cancellationToken">Optional cancellation token.</param>
+        /// <exception cref="ArgumentException">Thrown when <paramref name="filePath"/> is null or empty.</exception>
+        public async Task SaveToFileAsync(
+            string filePath,
+            bool indented = true,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException(
+                    "File path cannot be null or empty.", nameof(filePath));
+
+            string json = SaveToJson(indented);
+            await File.WriteAllTextAsync(filePath, json, cancellationToken);
+        }
+
+        /// <summary>
+        /// Loads a conversation from a JSON file.
+        /// </summary>
+        /// <param name="filePath">Path to the JSON file.</param>
+        /// <param name="cancellationToken">Optional cancellation token.</param>
+        /// <returns>A new <see cref="Conversation"/> instance with the restored state.</returns>
+        /// <exception cref="ArgumentException">Thrown when <paramref name="filePath"/> is null or empty.</exception>
+        /// <exception cref="FileNotFoundException">Thrown when the file doesn't exist.</exception>
+        public static async Task<Conversation> LoadFromFileAsync(
+            string filePath,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException(
+                    "File path cannot be null or empty.", nameof(filePath));
+
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException(
+                    $"Conversation file not found: {filePath}", filePath);
+
+            string json = await File.ReadAllTextAsync(filePath, cancellationToken);
+            return LoadFromJson(json);
+        }
+
+        // ──────────────── Serialization DTOs ────────────────
+
+        /// <summary>
+        /// Data transfer object for conversation serialization.
+        /// </summary>
+        internal class ConversationData
+        {
+            [JsonPropertyName("messages")]
+            public List<MessageData> Messages { get; set; } = new();
+
+            [JsonPropertyName("parameters")]
+            public ParameterData? Parameters { get; set; }
+        }
+
+        /// <summary>
+        /// Data transfer object for individual messages.
+        /// </summary>
+        internal class MessageData
+        {
+            [JsonPropertyName("role")]
+            public string Role { get; set; } = "";
+
+            [JsonPropertyName("content")]
+            public string Content { get; set; } = "";
+        }
+
+        /// <summary>
+        /// Data transfer object for model parameters.
+        /// </summary>
+        internal class ParameterData
+        {
+            [JsonPropertyName("temperature")]
+            public float Temperature { get; set; } = 0.7f;
+
+            [JsonPropertyName("maxTokens")]
+            public int MaxTokens { get; set; } = 800;
+
+            [JsonPropertyName("topP")]
+            public float TopP { get; set; } = 0.95f;
+
+            [JsonPropertyName("frequencyPenalty")]
+            public float FrequencyPenalty { get; set; } = 0f;
+
+            [JsonPropertyName("presencePenalty")]
+            public float PresencePenalty { get; set; } = 0f;
+
+            [JsonPropertyName("maxRetries")]
+            public int MaxRetries { get; set; } = 3;
         }
     }
 }
