@@ -43,6 +43,11 @@
         /// The client reads environment variables once and reuses the HTTP
         /// connection pool across calls. Thread-safe via double-check locking.
         /// </summary>
+        /// <remarks>
+        /// The <paramref name="maxRetries"/> value is only used during first initialization.
+        /// Subsequent calls return the cached client regardless of the value passed.
+        /// Call <see cref="ResetClient"/> to force re-creation with a new retry policy.
+        /// </remarks>
         private static ChatClient GetOrCreateChatClient(int maxRetries = 3)
         {
             if (_cachedChatClient != null)
@@ -56,6 +61,13 @@
                 var uri = GetRequiredEnvVar("AZURE_OPENAI_API_URI",
                     "Set it pointing to your Azure OpenAI endpoint.");
 
+                if (!Uri.TryCreate(uri, UriKind.Absolute, out var endpoint)
+                    || (endpoint.Scheme != "https" && endpoint.Scheme != "http"))
+                {
+                    throw new InvalidOperationException(
+                        $"AZURE_OPENAI_API_URI value '{uri}' is not a valid HTTP(S) URI.");
+                }
+
                 var key = GetRequiredEnvVar("AZURE_OPENAI_API_KEY",
                     "Set it with your Azure OpenAI API key.");
 
@@ -64,12 +76,28 @@
 
                 var clientOptions = CreateClientOptions(maxRetries);
                 _cachedAzureClient = new AzureOpenAIClient(
-                    new Uri(uri),
+                    endpoint,
                     new ApiKeyCredential(key),
                     clientOptions);
 
                 _cachedChatClient = _cachedAzureClient.GetChatClient(_cachedModel);
                 return _cachedChatClient;
+            }
+        }
+
+        /// <summary>
+        /// Resets the cached client so the next call to <see cref="GetResponseAsync"/>
+        /// re-reads environment variables and applies a fresh retry policy.
+        /// Useful when environment variables change at runtime or when a different
+        /// <c>maxRetries</c> value is needed.
+        /// </summary>
+        public static void ResetClient()
+        {
+            lock (_clientLock)
+            {
+                _cachedChatClient = null;
+                _cachedAzureClient = null;
+                _cachedModel = null;
             }
         }
 
