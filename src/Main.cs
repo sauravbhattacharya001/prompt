@@ -21,12 +21,19 @@
         /// </summary>
         /// <param name="prompt">The user prompt to send as a user message.</param>
         /// <param name="systemPrompt">Optional system prompt to set the assistant's behavior.</param>
+        /// <param name="cancellationToken">Optional cancellation token to cancel the request.</param>
         /// <returns>The model's response text, or <c>null</c> if no response was generated.</returns>
         /// <exception cref="ArgumentException">Thrown when <paramref name="prompt"/> is null or empty.</exception>
         /// <exception cref="InvalidOperationException">
         /// Thrown when a required environment variable is not set.
         /// </exception>
-        public static async Task<string?> GetResponseTest(string prompt, string? systemPrompt = null)
+        /// <exception cref="OperationCanceledException">
+        /// Thrown when the operation is cancelled via <paramref name="cancellationToken"/>.
+        /// </exception>
+        public static async Task<string?> GetResponseTest(
+            string prompt,
+            string? systemPrompt = null,
+            CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(prompt))
                 throw new ArgumentException("Prompt cannot be null or empty.", nameof(prompt));
@@ -62,7 +69,7 @@
             options.Messages.Add(new ChatMessage(ChatRole.User, prompt));
 
             Response<ChatCompletions> responseWithoutStream = await client.GetChatCompletionsAsync(
-                model, options);
+                model, options, cancellationToken);
 
             ChatCompletions completions = responseWithoutStream.Value;
 
