@@ -1,10 +1,38 @@
-﻿################################################################################
-# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
-################################################################################
+## .NET / Visual Studio
+/.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
 
-/.vs
-/PromptTests
-/src/bin/Debug
-/src/obj
-/src/bin/Release/net6.0
+## Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+
+## NuGet
 *.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## User-specific
+*.rsuser
+*.DotSettings.user
+
+## Test results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+## OS files
+.DS_Store
+Thumbs.db
+
+## Rider / JetBrains
+.idea/
+*.sln.iml
+
+## PromptTests (separate test project)
+/PromptTests/
