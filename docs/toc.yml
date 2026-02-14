@@ -1,0 +1,8 @@
+- name: Home
+  href: index.md
+- name: API Reference
+  href: api/
+- name: Articles
+  href: articles/
+- name: Changelog
+  href: ../CHANGELOG.md
