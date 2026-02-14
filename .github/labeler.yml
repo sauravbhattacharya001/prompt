@@ -1,0 +1,45 @@
+# Labeler configuration — maps file path patterns to PR labels.
+# Used by actions/labeler@v5 in the auto-label workflow.
+
+core:
+  - changed-files:
+    - any-glob-to-any-file: 'src/**'
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'docs/**'
+      - '**/*.md'
+
+ci/cd:
+  - changed-files:
+    - any-glob-to-any-file: '.github/workflows/**'
+
+docker:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'docker-compose*.yml'
+
+security:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/workflows/codeql.yml'
+      - '.github/dependabot.yml'
+
+config:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '*.sln'
+      - 'src/*.csproj'
+      - '.editorconfig'
+      - '.gitignore'
+      - 'NuGet.Config'
+
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/*.csproj'

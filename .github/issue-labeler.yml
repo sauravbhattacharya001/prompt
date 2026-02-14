@@ -1,0 +1,15 @@
+# Issue labeler configuration — maps title/body regex patterns to labels.
+# Used by github/issue-labeler@v3.4 in the auto-label workflow.
+
+bug:
+  - "(bug|error|crash|fail|broken|not working|exception|issue)"
+enhancement:
+  - "(feature|request|enhancement|add support|improve|suggest)"
+question:
+  - "(question|how to|how do|is it possible|can i|help)"
+documentation:
+  - "(doc|documentation|readme|typo|spelling)"
+security:
+  - "(security|vulnerability|cve|exploit|injection|xss)"
+dependencies:
+  - "(dependency|dependencies|update|upgrade|package|nuget|version)"

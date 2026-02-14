@@ -1,0 +1,60 @@
+name: Auto Label
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  label-pr:
+    name: Label PRs by file path
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+          sync-labels: true
+
+  label-issue:
+    name: Label issues by keywords
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: github/issue-labeler@v3.4
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/issue-labeler.yml
+          enable-versioned-regex: 0
+
+  stale:
+    name: Mark stale issues and PRs
+    runs-on: ubuntu-latest
+    # Run on schedule only — add a schedule trigger at repo level or use
+    # a separate workflow. This job is included here for discoverability
+    # but will only fire when called from a scheduled event.
+    if: false
+    steps:
+      - uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          stale-issue-message: >
+            This issue has been automatically marked as stale because it has not
+            had recent activity. It will be closed in 14 days if no further
+            activity occurs. Thank you for your contributions.
+          stale-pr-message: >
+            This pull request has been automatically marked as stale because it
+            has not had recent activity. It will be closed in 14 days if no
+            further activity occurs.
+          stale-issue-label: stale
+          stale-pr-label: stale
+          days-before-stale: 60
+          days-before-close: 14
+          exempt-issue-labels: enhancement,help wanted
