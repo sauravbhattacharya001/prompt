@@ -1,0 +1,8 @@
+# Ignore build artifacts and IDE files in Docker builds
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/*.user
+**/*.suo
+**/TestResults/
