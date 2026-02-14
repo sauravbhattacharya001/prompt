@@ -43,6 +43,23 @@ The library reads your Azure OpenAI credentials from environment variables and u
 - **Max Tokens:** 800
 - **Nucleus Sampling:** 0.95
 
+### Retry Policy
+
+Transient failures (429 rate-limit, 503 service unavailable, network timeouts) are handled automatically with exponential backoff:
+
+- **Max Retries:** 3 (configurable via `maxRetries` parameter)
+- **Base Delay:** 1 second
+- **Max Delay:** 30 seconds
+- **Strategy:** Exponential backoff with jitter (via `Azure.Core`)
+
+```csharp
+// Use default retries (3)
+string? response = await Main.GetResponseTest("Hello!");
+
+// Custom retry count
+string? response = await Main.GetResponseTest("Hello!", maxRetries: 5);
+```
+
 ## License
 
 [MIT](LICENSE)

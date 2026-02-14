@@ -17,10 +17,27 @@
     public class Main
     {
         /// <summary>
+        /// Default retry configuration for transient Azure OpenAI failures.
+        /// Uses exponential backoff (1s base, 30s max, 3 retries) which
+        /// handles 429 rate-limit and 503 service-unavailable responses
+        /// automatically via the Azure.Core pipeline.
+        /// </summary>
+        private static OpenAIClientOptions CreateClientOptions(int maxRetries = 3)
+        {
+            var options = new OpenAIClientOptions();
+            options.Retry.MaxRetries = maxRetries;
+            options.Retry.Mode = RetryMode.Exponential;
+            options.Retry.Delay = TimeSpan.FromSeconds(1);
+            options.Retry.MaxDelay = TimeSpan.FromSeconds(30);
+            return options;
+        }
+
+        /// <summary>
         /// Sends a prompt to Azure OpenAI and returns the response text.
         /// </summary>
         /// <param name="prompt">The user prompt to send as a user message.</param>
         /// <param name="systemPrompt">Optional system prompt to set the assistant's behavior.</param>
+        /// <param name="maxRetries">Maximum number of retries for transient failures (default 3).</param>
         /// <param name="cancellationToken">Optional cancellation token to cancel the request.</param>
         /// <returns>The model's response text, or <c>null</c> if no response was generated.</returns>
         /// <exception cref="ArgumentException">Thrown when <paramref name="prompt"/> is null or empty.</exception>
@@ -33,6 +50,7 @@
         public static async Task<string?> GetResponseTest(
             string prompt,
             string? systemPrompt = null,
+            int maxRetries = 3,
             CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(prompt))
@@ -47,7 +65,8 @@
             var model = GetRequiredEnvVar("AZURE_OPENAI_API_MODEL",
                 "Set it with your deployed model name (e.g. gpt-4).");
 
-            OpenAIClient client = new OpenAIClient(new Uri(uri), new AzureKeyCredential(key));
+            var clientOptions = CreateClientOptions(maxRetries);
+            OpenAIClient client = new OpenAIClient(new Uri(uri), new AzureKeyCredential(key), clientOptions);
 
             var options = new ChatCompletionsOptions()
             {
