@@ -50,7 +50,7 @@
         /// the client is automatically recreated with the new retry policy (fixes #7).
         /// Thread-safe via double-check locking.
         /// </summary>
-        private static ChatClient GetOrCreateChatClient(int maxRetries = 3)
+        internal static ChatClient GetOrCreateChatClient(int maxRetries = 3)
         {
             if (_cachedChatClient != null && _cachedMaxRetries == maxRetries)
                 return _cachedChatClient;

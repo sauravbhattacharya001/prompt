@@ -23,6 +23,8 @@ Send prompts to Azure OpenAI and get responses — with built-in retry logic, ca
 ## ✨ Features
 
 - **Single method call** — `GetResponseAsync()` handles everything
+- **Multi-turn conversations** — `Conversation` class maintains message history across turns
+- **Configurable parameters** — Temperature, max tokens, top-p, frequency/presence penalty per conversation
 - **Automatic retries** — Exponential backoff for 429 rate-limit and 503 errors
 - **System prompts** — Set assistant behavior with an optional parameter
 - **Cancellation support** — Pass `CancellationToken` to cancel long-running requests
@@ -58,9 +60,85 @@ Set the following environment variables:
 ```csharp
 using Prompt;
 
-// Simple prompt
+// Simple prompt (single-turn)
 string? response = await Main.GetResponseAsync("Explain quantum computing in simple terms.");
 Console.WriteLine(response);
+```
+
+## Multi-Turn Conversations
+
+The `Conversation` class maintains message history so the model has full context:
+
+```csharp
+using Prompt;
+
+var conv = new Conversation("You are a helpful math tutor.");
+
+string? r1 = await conv.SendAsync("What is 2+2?");
+Console.WriteLine(r1); // "4"
+
+string? r2 = await conv.SendAsync("Now multiply that by 3.");
+Console.WriteLine(r2); // "12" — the model remembers the context!
+
+string? r3 = await conv.SendAsync("What was my first question?");
+Console.WriteLine(r3); // It knows: "What is 2+2?"
+```
+
+### Customizing Parameters
+
+Each conversation can have its own model parameters:
+
+```csharp
+var conv = new Conversation("You are a creative writer.")
+{
+    Temperature = 1.2f,     // More creative
+    MaxTokens = 2000,       // Longer responses
+    TopP = 0.9f,
+    FrequencyPenalty = 0.5f // Less repetition
+};
+
+string? story = await conv.SendAsync("Write a short story about a robot.");
+```
+
+### Replaying Conversations
+
+Inject prior messages to give the model context from a previous session:
+
+```csharp
+var conv = new Conversation("You are a coding assistant.");
+conv.AddUserMessage("How do I sort a list in C#?");
+conv.AddAssistantMessage("Use list.Sort() for in-place sorting or list.OrderBy() for LINQ.");
+
+// Now continue the conversation with full context
+string? response = await conv.SendAsync("Show me the LINQ version with a custom comparer.");
+```
+
+### Conversation History
+
+Export the conversation for logging, serialization, or display:
+
+```csharp
+var conv = new Conversation("System prompt");
+conv.AddUserMessage("Hello");
+conv.AddAssistantMessage("Hi there!");
+
+List<(string Role, string Content)> history = conv.GetHistory();
+foreach (var (role, content) in history)
+    Console.WriteLine($"[{role}] {content}");
+
+// [system] System prompt
+// [user] Hello
+// [assistant] Hi there!
+```
+
+### Clearing History
+
+Reset the conversation while preserving the system prompt:
+
+```csharp
+var conv = new Conversation("You are helpful.");
+conv.AddUserMessage("Hello");
+conv.Clear(); // Removes user/assistant messages, keeps system prompt
 ```
 
 ## Usage Examples
@@ -146,6 +224,42 @@ public static void ResetClient()
 ```
 
 Clears the cached client, forcing re-initialization on the next call. Thread-safe.
+
+### `Conversation` Class
+
+```csharp
+public class Conversation
+```
+
+Multi-turn conversation manager with full message history and configurable model parameters.
+
+#### Constructor
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `systemPrompt` | `string?` | `null` | Optional system prompt for the entire conversation |
+
+#### Methods
+
+| Method | Returns | Description |
+|---|---|---|
+| `SendAsync(message, cancellationToken)` | `Task<string?>` | Sends a message and returns the response. Both are added to history. |
+| `AddUserMessage(message)` | `void` | Adds a user message to history without calling the API. |
+| `AddAssistantMessage(message)` | `void` | Adds an assistant message to history without calling the API. |
+| `Clear()` | `void` | Clears history but preserves the system prompt. |
+| `GetHistory()` | `List<(string Role, string Content)>` | Returns a snapshot of the conversation. |
+
+#### Properties
+
+| Property | Type | Default | Range | Description |
+|---|---|---|---|---|
+| `MessageCount` | `int` | — | — | Number of messages including system prompt |
+| `Temperature` | `float` | `0.7` | `0.0–2.0` | Sampling temperature |
+| `MaxTokens` | `int` | `800` | `≥ 1` | Maximum response tokens |
+| `TopP` | `float` | `0.95` | `0.0–1.0` | Nucleus sampling |
+| `FrequencyPenalty` | `float` | `0.0` | `-2.0–2.0` | Frequency penalty |
+| `PresencePenalty` | `float` | `0.0` | `-2.0–2.0` | Presence penalty |
+| `MaxRetries` | `int` | `3` | `≥ 0` | Retry count for transient failures |
 
 ### Default Model Parameters
 
