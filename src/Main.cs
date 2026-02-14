@@ -125,6 +125,10 @@
             if (string.IsNullOrWhiteSpace(prompt))
                 throw new ArgumentException("Prompt cannot be null or empty.", nameof(prompt));
 
+            if (maxRetries < 0)
+                throw new ArgumentOutOfRangeException(nameof(maxRetries),
+                    maxRetries, "maxRetries must be non-negative.");
+
             ChatClient chatClient = GetOrCreateChatClient(maxRetries);
 
             var messages = new List<ChatMessage>();
