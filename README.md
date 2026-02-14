@@ -1,6 +1,32 @@
-# Prompt
+<div align="center">
 
-A lightweight C# library for connecting to **Azure OpenAI (AOI)** and sending chat completions requests. Send prompts, receive responses, and integrate AI capabilities into your .NET applications.
+# 🤖 Prompt
+
+**A lightweight .NET library for Azure OpenAI chat completions**
+
+[![NuGet](https://img.shields.io/nuget/v/prompt-llm-aoi?style=flat-square&logo=nuget&color=004880)](https://www.nuget.org/packages/prompt-llm-aoi)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/prompt-llm-aoi?style=flat-square&logo=nuget&color=004880)](https://www.nuget.org/packages/prompt-llm-aoi)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![.NET](https://img.shields.io/badge/.NET-8.0-blueviolet?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/download/dotnet/8.0)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/codeql.yml?style=flat-square&label=CodeQL&logo=github)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/codeql.yml)
+
+Send prompts to Azure OpenAI and get responses — with built-in retry logic, cancellation support, and singleton client management. Zero boilerplate.
+
+[Installation](#installation) · [Quick Start](#quick-start) · [API Reference](#api-reference) · [Changelog](CHANGELOG.md)
+
+</div>
+
+---
+
+## ✨ Features
+
+- **Single method call** — `GetResponseAsync()` handles everything
+- **Automatic retries** — Exponential backoff for 429 rate-limit and 503 errors
+- **System prompts** — Set assistant behavior with an optional parameter
+- **Cancellation support** — Pass `CancellationToken` to cancel long-running requests
+- **Connection pooling** — Thread-safe singleton client with double-check locking
+- **Cross-platform** — Environment variable resolution works on Windows, Linux, and macOS
+- **NuGet ready** — Published as [`prompt-llm-aoi`](https://www.nuget.org/packages/prompt-llm-aoi)
 
 ## Prerequisites
 
@@ -9,35 +35,37 @@ A lightweight C# library for connecting to **Azure OpenAI (AOI)** and sending ch
 
 ## Installation
 
-Install via NuGet:
-
 ```bash
 dotnet add package prompt-llm-aoi
 ```
 
 ## Configuration
 
-Set the following **user-level** environment variables:
+Set the following environment variables:
 
-| Variable | Description |
-|---|---|
-| `AZURE_OPENAI_API_URI` | Your Azure OpenAI endpoint URI |
-| `AZURE_OPENAI_API_KEY` | Your Azure OpenAI API key |
-| `AZURE_OPENAI_API_MODEL` | The deployed model name (e.g. `gpt-4`) |
+| Variable | Description | Example |
+|---|---|---|
+| `AZURE_OPENAI_API_URI` | Your Azure OpenAI endpoint URI | `https://myresource.openai.azure.com/` |
+| `AZURE_OPENAI_API_KEY` | Your Azure OpenAI API key | `sk-...` |
+| `AZURE_OPENAI_API_MODEL` | The deployed model name | `gpt-4` |
 
-## Usage
+> **Note:** On Windows, the library checks Process → User → Machine scopes. On Linux/macOS, it reads from the process environment (shell exports, Docker env, systemd, etc.).
+
+## Quick Start
 
 ```csharp
 using Prompt;
 
+// Simple prompt
 string? response = await Main.GetResponseAsync("Explain quantum computing in simple terms.");
-
 Console.WriteLine(response);
 ```
 
+## Usage Examples
+
 ### System Prompt
 
-Provide a system prompt to set the assistant's behavior:
+Set the assistant's behavior to control the style of responses:
 
 ```csharp
 string? response = await Main.GetResponseAsync(
@@ -47,7 +75,7 @@ string? response = await Main.GetResponseAsync(
 
 ### Cancellation
 
-Pass a `CancellationToken` to cancel long-running requests:
+Cancel long-running requests with a timeout:
 
 ```csharp
 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -62,31 +90,129 @@ catch (OperationCanceledException)
 }
 ```
 
-## How It Works
+### Custom Retry Policy
 
-The library reads your Azure OpenAI credentials from environment variables and uses the official `Azure.AI.OpenAI` SDK to send a chat completions request with sensible defaults:
-
-- **Temperature:** 0.7
-- **Max Tokens:** 800
-- **Nucleus Sampling:** 0.95
-
-### Retry Policy
-
-Transient failures (429 rate-limit, 503 service unavailable, network timeouts) are handled automatically with exponential backoff:
-
-- **Max Retries:** 3 (configurable via `maxRetries` parameter)
-- **Base Delay:** 1 second
-- **Max Delay:** 30 seconds
-- **Strategy:** Exponential backoff with jitter (via `Azure.Core`)
+Adjust the retry count for transient failures:
 
 ```csharp
-// Use default retries (3)
+// Default: 3 retries with exponential backoff
 string? response = await Main.GetResponseAsync("Hello!");
 
-// Custom retry count
+// Custom: 5 retries for high-reliability scenarios
 string? response = await Main.GetResponseAsync("Hello!", maxRetries: 5);
 ```
 
+### Reset Client
+
+Force the client to re-read environment variables (useful for runtime config changes):
+
+```csharp
+Main.ResetClient();
+```
+
+## API Reference
+
+### `Main.GetResponseAsync()`
+
+```csharp
+public static async Task<string?> GetResponseAsync(
+    string prompt,
+    string? systemPrompt = null,
+    int maxRetries = 3,
+    CancellationToken cancellationToken = default)
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `prompt` | `string` | *(required)* | The user prompt to send |
+| `systemPrompt` | `string?` | `null` | Optional system prompt for assistant behavior |
+| `maxRetries` | `int` | `3` | Maximum retries for transient failures |
+| `cancellationToken` | `CancellationToken` | `default` | Token to cancel the operation |
+
+**Returns:** `Task<string?>` — The model's response text, or `null` if no response was generated.
+
+**Throws:**
+- `ArgumentException` — if `prompt` is null or empty
+- `ArgumentOutOfRangeException` — if `maxRetries` is negative
+- `InvalidOperationException` — if required environment variables are missing
+- `OperationCanceledException` — if cancelled via token
+
+### `Main.ResetClient()`
+
+```csharp
+public static void ResetClient()
+```
+
+Clears the cached client, forcing re-initialization on the next call. Thread-safe.
+
+### Default Model Parameters
+
+| Parameter | Value |
+|---|---|
+| Temperature | 0.7 |
+| Max Tokens | 800 |
+| Top P | 0.95 |
+| Frequency Penalty | 0 |
+| Presence Penalty | 0 |
+
+## Tech Stack
+
+| Component | Technology |
+|---|---|
+| Language | C# 12 |
+| Framework | .NET 8.0 |
+| SDK | [Azure.AI.OpenAI](https://www.nuget.org/packages/Azure.AI.OpenAI) 2.1.0 |
+| Retry | Azure.Core pipeline (exponential backoff with jitter) |
+| Security | [CodeQL](https://github.com/sauravbhattacharya001/prompt/actions/workflows/codeql.yml) |
+| Package | [NuGet](https://www.nuget.org/packages/prompt-llm-aoi) |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────┐
+│              Your Application           │
+│                                         │
+│  await Main.GetResponseAsync(prompt)    │
+└──────────────────┬──────────────────────┘
+                   │
+┌──────────────────▼──────────────────────┐
+│          Prompt Library (this)          │
+│  ┌─────────────┐  ┌──────────────────┐ │
+│  │ Env Config   │  │ Singleton Client │ │
+│  │ Resolution   │  │ (Thread-Safe)    │ │
+│  └──────┬──────┘  └────────┬─────────┘ │
+│         └─────────┬────────┘           │
+│                   │                     │
+│  ┌────────────────▼──────────────────┐ │
+│  │ Azure.Core Retry Pipeline         │ │
+│  │ (Exponential Backoff + Jitter)    │ │
+│  └────────────────┬──────────────────┘ │
+└───────────────────┼─────────────────────┘
+                    │
+┌───────────────────▼─────────────────────┐
+│         Azure OpenAI Service            │
+│     Chat Completions API (GPT-4)        │
+└─────────────────────────────────────────┘
+```
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
 ## License
 
-[MIT](LICENSE)
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+
+Made by [Saurav Bhattacharya](https://github.com/sauravbhattacharya001)
+
+</div>
