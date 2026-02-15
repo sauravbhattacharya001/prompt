@@ -31,6 +31,7 @@ Send prompts to Azure OpenAI and get responses — with built-in retry logic, ca
 - **Cancellation support** — Pass `CancellationToken` to cancel long-running requests
 - **Connection pooling** — Thread-safe singleton client with double-check locking
 - **Cross-platform** — Environment variable resolution works on Windows, Linux, and macOS
+- **Prompt templates** — Reusable `PromptTemplate` with `{{variable}}` placeholders, defaults, validation, and composition
 - **NuGet ready** — Published as [`prompt-llm-aoi`](https://www.nuget.org/packages/prompt-llm-aoi)
 
 ## Prerequisites
@@ -187,6 +188,115 @@ The serialized JSON includes all messages and model parameters (temperature, max
 }
 ```
 
+## Prompt Templates
+
+The `PromptTemplate` class lets you define reusable prompts with `{{variable}}` placeholders. Set defaults, validate inputs, compose templates together, and serialize them for sharing.
+
+### Basic Usage
+
+```csharp
+using Prompt;
+
+var template = new PromptTemplate(
+    "You are a {{role}} assistant. Help the user with {{topic}}.",
+    new Dictionary<string, string> { ["role"] = "helpful" }
+);
+
+// Render with variables (role uses default, topic is provided)
+string prompt = template.Render(new Dictionary<string, string>
+{
+    ["topic"] = "C# programming"
+});
+// → "You are a helpful assistant. Help the user with C# programming."
+```
+
+### Variable Introspection
+
+```csharp
+var template = new PromptTemplate(
+    "Translate {{text}} from {{source}} to {{target}}.",
+    new Dictionary<string, string> { ["source"] = "English" }
+);
+
+HashSet<string> all = template.GetVariables();
+// { "text", "source", "target" }
+
+HashSet<string> required = template.GetRequiredVariables();
+// { "text", "target" } — source has a default
+```
+
+### Strict vs. Non-Strict Rendering
+
+```csharp
+var template = new PromptTemplate("Hello {{name}}, you are {{role}}!");
+
+// Strict (default) — throws if variables are missing
+template.Render(); // ❌ InvalidOperationException
+
+// Non-strict — leaves unresolved placeholders as-is
+string result = template.Render(strict: false);
+// → "Hello {{name}}, you are {{role}}!"
+```
+
+### Composing Templates
+
+Chain templates together to build complex prompts from reusable parts:
+
+```csharp
+var persona = new PromptTemplate(
+    "You are a {{role}} with expertise in {{domain}}.",
+    new Dictionary<string, string> { ["role"] = "senior developer" }
+);
+
+var task = new PromptTemplate(
+    "Review this code and suggest improvements:\n{{code}}");
+
+var combined = persona.Compose(task);
+
+string prompt = combined.Render(new Dictionary<string, string>
+{
+    ["domain"] = "C#",
+    ["code"] = "public void Foo() { /* ... */ }"
+});
+```
+
+### Render & Send in One Call
+
+Skip the manual render step — send directly to Azure OpenAI:
+
+```csharp
+// Single-turn
+var template = new PromptTemplate("Explain {{concept}} in simple terms.");
+string? response = await template.RenderAndSendAsync(
+    new Dictionary<string, string> { ["concept"] = "recursion" },
+    systemPrompt: "You are a teacher."
+);
+
+// Multi-turn (with existing Conversation)
+var conv = new Conversation("You are a coding tutor.");
+await template.RenderAndSendAsync(conv,
+    new Dictionary<string, string> { ["concept"] = "closures" });
+```
+
+### Save & Load Templates
+
+```csharp
+var template = new PromptTemplate(
+    "Summarize {{text}} in {{style}} style.",
+    new Dictionary<string, string> { ["style"] = "concise" }
+);
+
+// Save to file
+await template.SaveToFileAsync("summarizer.json");
+
+// Load from file
+var loaded = await PromptTemplate.LoadFromFileAsync("summarizer.json");
+
+// Or use JSON strings directly
+string json = template.ToJson();
+var restored = PromptTemplate.FromJson(json);
+```
+
 ## Usage Examples
 
 ### System Prompt
@@ -310,6 +420,45 @@ Multi-turn conversation manager with full message history and configurable model
 | `FrequencyPenalty` | `float` | `0.0` | `-2.0–2.0` | Frequency penalty |
 | `PresencePenalty` | `float` | `0.0` | `-2.0–2.0` | Presence penalty |
 | `MaxRetries` | `int` | `3` | `≥ 0` | Retry count for transient failures |
+
+### `PromptTemplate` Class
+
+```csharp
+public class PromptTemplate
+```
+
+Reusable prompt template with `{{variable}}` placeholders, default values, and composition.
+
+#### Constructor
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `template` | `string` | *(required)* | Template string with `{{variable}}` placeholders |
+| `defaults` | `Dictionary<string, string>?` | `null` | Default values for variables |
+
+#### Methods
+
+| Method | Returns | Description |
+|---|---|---|
+| `Render(variables, strict)` | `string` | Renders the template by replacing placeholders. Strict mode throws on missing variables. |
+| `RenderAndSendAsync(variables, systemPrompt, maxRetries, cancellationToken)` | `Task<string?>` | Renders and sends as a single-turn prompt via `Main.GetResponseAsync()`. |
+| `RenderAndSendAsync(conversation, variables, cancellationToken)` | `Task<string?>` | Renders and sends as a message in an existing `Conversation`. |
+| `GetVariables()` | `HashSet<string>` | Returns all variable names found in the template. |
+| `GetRequiredVariables()` | `HashSet<string>` | Returns variable names that have no default value. |
+| `SetDefault(name, value)` | `void` | Sets or updates a default value for a variable. |
+| `RemoveDefault(name)` | `bool` | Removes a default value, making the variable required. |
+| `Compose(other, separator)` | `PromptTemplate` | Combines two templates with merged defaults. |
+| `ToJson(indented)` | `string` | Serializes the template to JSON. |
+| `FromJson(json)` | `PromptTemplate` | *Static.* Deserializes a template from JSON. |
+| `SaveToFileAsync(filePath, indented, cancellationToken)` | `Task` | Saves the template to a JSON file. |
+| `LoadFromFileAsync(filePath, cancellationToken)` | `Task<PromptTemplate>` | *Static.* Loads a template from a JSON file. |
+
+#### Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `Template` | `string` | The raw template string |
+| `Defaults` | `IReadOnlyDictionary<string, string>` | Read-only copy of default values |
 
 ### Default Model Parameters
 
