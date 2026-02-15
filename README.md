@@ -33,6 +33,7 @@ Send prompts to Azure OpenAI and get responses — with built-in retry logic, ca
 - **Connection pooling** — Thread-safe singleton client with double-check locking
 - **Cross-platform** — Environment variable resolution works on Windows, Linux, and macOS
 - **Prompt templates** — Reusable `PromptTemplate` with `{{variable}}` placeholders, defaults, validation, and composition
+- **Prompt chains** — `PromptChain` pipelines multiple prompts sequentially, where each step's output feeds into the next as a variable
 - **NuGet ready** — Published as [`prompt-llm-aoi`](https://www.nuget.org/packages/prompt-llm-aoi)
 
 ## Prerequisites
@@ -298,6 +299,107 @@ string json = template.ToJson();
 var restored = PromptTemplate.FromJson(json);
 ```
 
+## Prompt Chains
+
+The `PromptChain` class lets you build multi-step LLM pipelines where each step's output automatically becomes a variable for subsequent steps. Perfect for summarize-then-translate, extract-then-analyze, or any sequential reasoning pattern.
+
+### Basic Chain
+
+```csharp
+using Prompt;
+
+var chain = new PromptChain()
+    .AddStep("summarize",
+        new PromptTemplate("Summarize this text in 2 sentences: {{text}}"),
+        "summary")
+    .AddStep("translate",
+        new PromptTemplate("Translate to French: {{summary}}"),
+        "french")
+    .AddStep("keywords",
+        new PromptTemplate("Extract 5 keywords from: {{summary}}"),
+        "keywords");
+
+var result = await chain.RunAsync(new Dictionary<string, string>
+{
+    ["text"] = "Your long article text here..."
+});
+
+Console.WriteLine(result.FinalResponse);          // keywords output
+Console.WriteLine(result.GetOutput("summary"));   // the summary
+Console.WriteLine(result.GetOutput("french"));    // the French translation
+```
+
+### Chain Configuration
+
+```csharp
+var chain = new PromptChain()
+    .WithSystemPrompt("You are a precise analyst.")
+    .WithMaxRetries(5)
+    .AddStep("extract",
+        new PromptTemplate("Extract key facts from: {{document}}"),
+        "facts")
+    .AddStep("analyze",
+        new PromptTemplate("Analyze these facts for trends: {{facts}}"),
+        "analysis");
+```
+
+### Validation
+
+Check that all variables are satisfied before running (no API calls):
+
+```csharp
+var chain = new PromptChain()
+    .AddStep("s1", new PromptTemplate("Process: {{input}}"), "result")
+    .AddStep("s2", new PromptTemplate("Refine: {{result}}"), "final");
+
+List<string> errors = chain.Validate(
+    new Dictionary<string, string> { ["input"] = "test" });
+
+if (errors.Count == 0)
+    Console.WriteLine("Chain is valid!");
+else
+    errors.ForEach(Console.WriteLine);
+```
+
+### Chain Results
+
+Every step is tracked with timing, rendered prompts, and responses:
+
+```csharp
+var result = await chain.RunAsync(initialVars);
+
+Console.WriteLine($"Total time: {result.TotalElapsed.TotalSeconds}s");
+Console.WriteLine($"Steps: {result.Steps.Count}");
+
+foreach (var step in result.Steps)
+{
+    Console.WriteLine($"  [{step.StepName}] {step.Elapsed.TotalMilliseconds}ms");
+    Console.WriteLine($"    Prompt: {step.RenderedPrompt}");
+    Console.WriteLine($"    Response: {step.Response}");
+}
+
+// Export results as JSON for logging/analysis
+string json = result.ToJson();
+```
+
+### Save & Load Chains
+
+```csharp
+var chain = new PromptChain()
+    .WithSystemPrompt("Be helpful")
+    .AddStep("step1", new PromptTemplate("Summarize: {{text}}"), "summary");
+
+// Save to file
+await chain.SaveToFileAsync("my-chain.json");
+
+// Load from file
+var loaded = await PromptChain.LoadFromFileAsync("my-chain.json");
+
+// Or use JSON strings
+string chainJson = chain.ToJson();
+var restored = PromptChain.FromJson(chainJson);
+```
+
 ## Usage Examples
 
 ### System Prompt
@@ -460,6 +562,46 @@ Reusable prompt template with `{{variable}}` placeholders, default values, and c
 |---|---|---|
 | `Template` | `string` | The raw template string |
 | `Defaults` | `IReadOnlyDictionary<string, string>` | Read-only copy of default values |
+
+### `PromptChain` Class
+
+```csharp
+public class PromptChain
+```
+
+Multi-step prompt pipeline where each step's output feeds into subsequent steps as template variables.
+
+#### Methods
+
+| Method | Returns | Description |
+|---|---|---|
+| `AddStep(name, template, outputVariable)` | `PromptChain` | Adds a step to the chain (fluent). Output variable must be unique. |
+| `WithSystemPrompt(systemPrompt)` | `PromptChain` | Sets the system prompt for all API calls (fluent). |
+| `WithMaxRetries(maxRetries)` | `PromptChain` | Sets the retry count for API calls (fluent). |
+| `RunAsync(initialVariables, cancellationToken)` | `Task<ChainResult>` | Executes all steps sequentially. |
+| `Validate(initialVariables)` | `List<string>` | Checks that all required variables are satisfiable (no API calls). |
+| `ToJson(indented)` | `string` | Serializes the chain definition to JSON. |
+| `FromJson(json)` | `PromptChain` | *Static.* Deserializes a chain from JSON. |
+| `SaveToFileAsync(filePath, indented, cancellationToken)` | `Task` | Saves the chain definition to a JSON file. |
+| `LoadFromFileAsync(filePath, cancellationToken)` | `Task<PromptChain>` | *Static.* Loads a chain from a JSON file. |
+
+#### Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `StepCount` | `int` | Number of steps in the chain |
+| `Steps` | `IReadOnlyList<ChainStep>` | Read-only view of chain steps |
+
+### `ChainResult` Class
+
+| Property / Method | Type | Description |
+|---|---|---|
+| `Steps` | `IReadOnlyList<StepResult>` | Ordered step results |
+| `Variables` | `IReadOnlyDictionary<string, string>` | All accumulated variables |
+| `TotalElapsed` | `TimeSpan` | Total execution time |
+| `FinalResponse` | `string?` | Last step's response (convenience) |
+| `GetOutput(variableName)` | `string?` | Get a specific step's output by variable name |
+| `ToJson(indented)` | `string` | Serialize results to JSON for logging |
 
 ### Default Model Parameters
 

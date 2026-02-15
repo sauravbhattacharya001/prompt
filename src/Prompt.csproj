@@ -12,11 +12,15 @@
     <RepositoryUrl>https://github.com/sauravbhattacharya001/prompt</RepositoryUrl>
     <PackageProjectUrl>https://github.com/sauravbhattacharya001/prompt</PackageProjectUrl>
     <PackageTags>llm;aoi</PackageTags>
-    <Version>3.1.0</Version>
+    <Version>3.2.0</Version>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Prompt.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />

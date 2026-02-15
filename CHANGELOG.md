@@ -5,6 +5,23 @@ All notable changes to the `prompt-llm-aoi` NuGet package will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2026-02-15
+
+### Added
+- **Prompt chains** — `PromptChain` class for multi-step LLM pipelines
+- `AddStep(name, template, outputVariable)` — add a step where the template is rendered with accumulated variables and the response is stored under `outputVariable`
+- `WithSystemPrompt(systemPrompt)` — set a shared system prompt for all API calls in the chain
+- `WithMaxRetries(maxRetries)` — configure retry policy for the chain
+- `RunAsync(initialVariables, cancellationToken)` — execute all steps sequentially, returning a `ChainResult` with timing, rendered prompts, and responses
+- `Validate(initialVariables)` — static analysis to check all required template variables are satisfiable without calling the API
+- `ToJson(indented)` / `FromJson(json)` — serialize and deserialize chain definitions
+- `SaveToFileAsync()` / `LoadFromFileAsync()` — persist chain definitions to JSON files
+- `ChainResult` with `FinalResponse`, `GetOutput(variable)`, per-step timing, and `ToJson()` for logging
+- `ChainStep` and `StepResult` value types for step definitions and results
+- Duplicate output variable detection (case-insensitive) prevents accidental overwrites
+- `InternalsVisibleTo` for test project to enable internal constructor testing
+- 38 new tests for PromptChain, ChainResult, ChainStep, and StepResult
+
 ## [3.1.0] - 2026-02-14
 
 ### Added
