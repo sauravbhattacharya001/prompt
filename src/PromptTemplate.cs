@@ -198,17 +198,22 @@ namespace Prompt
         /// <param name="variables">Variable values for rendering.</param>
         /// <param name="systemPrompt">Optional system prompt.</param>
         /// <param name="maxRetries">Max retries for the API call.</param>
+        /// <param name="options">
+        /// Optional <see cref="PromptOptions"/> to customize model behavior.
+        /// When <c>null</c>, uses library defaults.
+        /// </param>
         /// <param name="cancellationToken">Optional cancellation token.</param>
         /// <returns>The model's response text.</returns>
         public async Task<string?> RenderAndSendAsync(
             Dictionary<string, string>? variables = null,
             string? systemPrompt = null,
             int maxRetries = 3,
+            PromptOptions? options = null,
             CancellationToken cancellationToken = default)
         {
             string rendered = Render(variables);
             return await Main.GetResponseAsync(
-                rendered, systemPrompt, maxRetries, cancellationToken);
+                rendered, systemPrompt, maxRetries, options, cancellationToken);
         }
 
         /// <summary>

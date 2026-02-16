@@ -12,7 +12,7 @@
     <RepositoryUrl>https://github.com/sauravbhattacharya001/prompt</RepositoryUrl>
     <PackageProjectUrl>https://github.com/sauravbhattacharya001/prompt</PackageProjectUrl>
     <PackageTags>llm;aoi</PackageTags>
-    <Version>3.2.0</Version>
+    <Version>3.3.0</Version>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

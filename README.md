@@ -26,7 +26,7 @@ Send prompts to Azure OpenAI and get responses — with built-in retry logic, ca
 - **Single method call** — `GetResponseAsync()` handles everything
 - **Multi-turn conversations** — `Conversation` class maintains message history across turns
 - **Save & load conversations** — Serialize to JSON (string or file), restore later with full state
-- **Configurable parameters** — Temperature, max tokens, top-p, frequency/presence penalty per conversation
+- **Configurable parameters** — `PromptOptions` class with presets (`ForCodeGeneration()`, `ForCreativeWriting()`, etc.) for temperature, max tokens, top-p, and penalties
 - **Automatic retries** — Exponential backoff for 429 rate-limit and 503 errors
 - **System prompts** — Set assistant behavior with an optional parameter
 - **Cancellation support** — Pass `CancellationToken` to cancel long-running requests
@@ -69,6 +69,46 @@ string? response = await Main.GetResponseAsync("Explain quantum computing in sim
 Console.WriteLine(response);
 ```
 
+### With Custom Options
+
+Use `PromptOptions` to customize model behavior for any use case:
+
+```csharp
+using Prompt;
+
+// Code generation — low temperature, high token limit
+var codeOpts = PromptOptions.ForCodeGeneration();
+string? code = await Main.GetResponseAsync(
+    "Write a merge sort in C#",
+    options: codeOpts);
+
+// Creative writing — high temperature
+var creativeOpts = PromptOptions.ForCreativeWriting();
+string? story = await Main.GetResponseAsync(
+    "Write a short story about a time-traveling cat",
+    options: creativeOpts);
+
+// Custom configuration
+var custom = new PromptOptions
+{
+    Temperature = 0.4f,
+    MaxTokens = 4000,
+    TopP = 0.9f,
+    FrequencyPenalty = 0.3f,
+    PresencePenalty = 0.1f
+};
+string? result = await Main.GetResponseAsync("Summarize this article...", options: custom);
+```
+
+**Built-in presets:**
+
+| Preset | Temperature | MaxTokens | TopP | Use Case |
+|---|---|---|---|---|
+| `ForCodeGeneration()` | 0.1 | 4000 | 0.95 | Deterministic code output |
+| `ForCreativeWriting()` | 0.9 | 2000 | 0.9 | Stories, poems, creative text |
+| `ForDataExtraction()` | 0.0 | 2000 | 1.0 | JSON, structured output |
+| `ForSummarization()` | 0.3 | 1000 | 0.9 | Text summarization |
+
 ## Multi-Turn Conversations
 
 The `Conversation` class maintains message history so the model has full context:
@@ -90,10 +130,15 @@ Console.WriteLine(r3); // It knows: "What is 2+2?"
 
 ### Customizing Parameters
 
-Each conversation can have its own model parameters:
+Each conversation can have its own model parameters, either via `PromptOptions` or individual properties:
 
 ```csharp
-var conv = new Conversation("You are a creative writer.")
+// Using PromptOptions (recommended)
+var opts = PromptOptions.ForCreativeWriting();
+var conv = new Conversation("You are a creative writer.", opts);
+
+// Or set properties individually
+var conv2 = new Conversation("You are a creative writer.")
 {
     Temperature = 1.2f,     // More creative
     MaxTokens = 2000,       // Longer responses

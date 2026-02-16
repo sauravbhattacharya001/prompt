@@ -53,6 +53,32 @@ namespace Prompt
         }
 
         /// <summary>
+        /// Creates a new conversation with a system prompt and
+        /// <see cref="PromptOptions"/> for model parameter configuration.
+        /// </summary>
+        /// <param name="systemPrompt">Optional system prompt.</param>
+        /// <param name="options">
+        /// Options to configure temperature, max tokens, top-p, and penalties.
+        /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// Thrown when <paramref name="options"/> is null.
+        /// </exception>
+        public Conversation(string? systemPrompt, PromptOptions options)
+        {
+            if (options == null)
+                throw new ArgumentNullException(nameof(options));
+
+            if (!string.IsNullOrWhiteSpace(systemPrompt))
+                _messages.Add(new SystemChatMessage(systemPrompt));
+
+            _temperature = options.Temperature;
+            _maxTokens = options.MaxTokens;
+            _topP = options.TopP;
+            _frequencyPenalty = options.FrequencyPenalty;
+            _presencePenalty = options.PresencePenalty;
+        }
+
+        /// <summary>
         /// Gets the number of messages in the conversation (including system prompt).
         /// </summary>
         public int MessageCount

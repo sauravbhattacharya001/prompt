@@ -237,6 +237,7 @@ namespace Prompt
         private readonly List<ChainStep> _steps = new();
         private string? _systemPrompt;
         private int _maxRetries = 3;
+        private PromptOptions? _options;
 
         /// <summary>
         /// Creates a new empty prompt chain.
@@ -278,6 +279,20 @@ namespace Prompt
                 throw new ArgumentOutOfRangeException(nameof(maxRetries),
                     maxRetries, "maxRetries must be non-negative.");
             _maxRetries = maxRetries;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets the <see cref="PromptOptions"/> used for all API calls in the chain.
+        /// Controls temperature, max tokens, top-p, and penalty parameters.
+        /// </summary>
+        /// <param name="options">
+        /// The options to use. Pass <c>null</c> to revert to library defaults.
+        /// </param>
+        /// <returns>This chain instance for fluent chaining.</returns>
+        public PromptChain WithOptions(PromptOptions? options)
+        {
+            _options = options;
             return this;
         }
 
@@ -360,7 +375,7 @@ namespace Prompt
 
                 // Send to Azure OpenAI
                 string? response = await Main.GetResponseAsync(
-                    rendered, _systemPrompt, _maxRetries, cancellationToken);
+                    rendered, _systemPrompt, _maxRetries, _options, cancellationToken);
 
                 stepWatch.Stop();
 
@@ -449,6 +464,14 @@ namespace Prompt
             {
                 SystemPrompt = _systemPrompt,
                 MaxRetries = _maxRetries,
+                Options = _options != null ? new PromptOptionsData
+                {
+                    Temperature = _options.Temperature,
+                    MaxTokens = _options.MaxTokens,
+                    TopP = _options.TopP,
+                    FrequencyPenalty = _options.FrequencyPenalty,
+                    PresencePenalty = _options.PresencePenalty
+                } : null,
                 Steps = _steps.Select(s => new ChainStepData
                 {
                     Name = s.Name,
@@ -502,6 +525,18 @@ namespace Prompt
                 chain.WithSystemPrompt(data.SystemPrompt);
 
             chain.WithMaxRetries(data.MaxRetries);
+
+            if (data.Options != null)
+            {
+                chain.WithOptions(new PromptOptions
+                {
+                    Temperature = data.Options.Temperature,
+                    MaxTokens = data.Options.MaxTokens,
+                    TopP = data.Options.TopP,
+                    FrequencyPenalty = data.Options.FrequencyPenalty,
+                    PresencePenalty = data.Options.PresencePenalty
+                });
+            }
 
             foreach (var stepData in data.Steps)
             {
@@ -571,8 +606,29 @@ namespace Prompt
             [JsonPropertyName("maxRetries")]
             public int MaxRetries { get; set; } = 3;
 
+            [JsonPropertyName("options")]
+            public PromptOptionsData? Options { get; set; }
+
             [JsonPropertyName("steps")]
             public List<ChainStepData> Steps { get; set; } = new();
+        }
+
+        internal class PromptOptionsData
+        {
+            [JsonPropertyName("temperature")]
+            public float Temperature { get; set; } = 0.7f;
+
+            [JsonPropertyName("maxTokens")]
+            public int MaxTokens { get; set; } = 800;
+
+            [JsonPropertyName("topP")]
+            public float TopP { get; set; } = 0.95f;
+
+            [JsonPropertyName("frequencyPenalty")]
+            public float FrequencyPenalty { get; set; } = 0f;
+
+            [JsonPropertyName("presencePenalty")]
+            public float PresencePenalty { get; set; } = 0f;
         }
 
         internal class ChainStepData

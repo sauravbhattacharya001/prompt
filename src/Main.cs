@@ -110,6 +110,11 @@
         /// <param name="prompt">The user prompt to send as a user message.</param>
         /// <param name="systemPrompt">Optional system prompt to set the assistant's behavior.</param>
         /// <param name="maxRetries">Maximum number of retries for transient failures (default 3).</param>
+        /// <param name="options">
+        /// Optional <see cref="PromptOptions"/> to customize model behavior
+        /// (temperature, max tokens, top-p, penalties). When <c>null</c>,
+        /// uses the library defaults (Temperature 0.7, MaxTokens 800, TopP 0.95).
+        /// </param>
         /// <param name="cancellationToken">Optional cancellation token to cancel the request.</param>
         /// <returns>The model's response text, or <c>null</c> if no response was generated.</returns>
         /// <exception cref="ArgumentException">Thrown when <paramref name="prompt"/> is null or empty.</exception>
@@ -123,6 +128,7 @@
             string prompt,
             string? systemPrompt = null,
             int maxRetries = 3,
+            PromptOptions? options = null,
             CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(prompt))
@@ -139,13 +145,15 @@
                 messages.Add(new SystemChatMessage(systemPrompt));
             messages.Add(new UserChatMessage(prompt));
 
+            // Use caller-provided options or fall back to library defaults
+            var opts = options ?? new PromptOptions();
             var completionOptions = new ChatCompletionOptions()
             {
-                Temperature = 0.7f,
-                MaxOutputTokenCount = 800,
-                TopP = 0.95f,
-                FrequencyPenalty = 0f,
-                PresencePenalty = 0f,
+                Temperature = opts.Temperature,
+                MaxOutputTokenCount = opts.MaxTokens,
+                TopP = opts.TopP,
+                FrequencyPenalty = opts.FrequencyPenalty,
+                PresencePenalty = opts.PresencePenalty,
             };
 
             ChatCompletion completion = await chatClient.CompleteChatAsync(

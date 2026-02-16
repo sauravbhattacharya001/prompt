@@ -5,6 +5,24 @@ All notable changes to the `prompt-llm-aoi` NuGet package will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0] - 2026-02-15
+
+### Added
+- **Configurable model parameters** — `PromptOptions` class for customizing Azure OpenAI behavior (fixes #8)
+- `PromptOptions` with validated `Temperature`, `MaxTokens`, `TopP`, `FrequencyPenalty`, `PresencePenalty`
+- Factory presets: `ForCodeGeneration()`, `ForCreativeWriting()`, `ForDataExtraction()`, `ForSummarization()`
+- `Main.GetResponseAsync()` now accepts optional `PromptOptions? options` parameter
+- `PromptTemplate.RenderAndSendAsync()` now accepts optional `PromptOptions? options` parameter
+- `PromptChain.WithOptions(PromptOptions?)` fluent builder for chain-wide model parameters
+- `Conversation(string?, PromptOptions)` constructor overload for initializing from `PromptOptions`
+- `PromptOptions` serializes to/from JSON with `System.Text.Json` attributes
+- Chain JSON serialization preserves `PromptOptions` configuration
+- 37 new tests for `PromptOptions` (validation, presets, JSON round-trip, integration with Conversation and PromptChain)
+
+### Changed
+- `Main.GetResponseAsync()` no longer hardcodes `Temperature=0.7, MaxTokens=800, TopP=0.95` — uses `PromptOptions` defaults instead (same values, but now configurable)
+- **Backward compatible** — all new parameters are optional with null defaults
+
 ## [3.2.0] - 2026-02-15
 
 ### Added
