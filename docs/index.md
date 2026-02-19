@@ -2,35 +2,48 @@
 
 Welcome to the documentation for **Prompt**, a lightweight .NET 8 library for Azure OpenAI chat completions.
 
-## Getting Started
+## Overview
 
-Install via NuGet:
+Prompt provides a clean, minimal API for integrating Azure OpenAI into .NET applications. It handles the boilerplate — connection pooling, retry policies, environment configuration — so you can focus on building.
+
+### Key Features
+
+- **Single-call prompts** — `Main.GetResponseAsync()` for quick one-shot interactions
+- **Multi-turn conversations** — `Conversation` maintains full message history across turns
+- **Template engine** — `PromptTemplate` with `{{variable}}` placeholders and composition
+- **Prompt chaining** — `PromptChain` pipes outputs between steps for multi-step reasoning
+- **Model presets** — `PromptOptions` with factory methods for code generation, creative writing, summarization, and data extraction
+- **Automatic retries** — Exponential backoff for 429 rate-limit and 503 service errors
+- **Serialization** — Save/load conversations, templates, and chains as JSON
+- **Thread-safe** — Singleton client with connection pooling, safe for concurrent use
+
+## Quick Start
 
 ```bash
 dotnet add package prompt-llm-aoi
 ```
 
-## Quick Example
-
 ```csharp
 using Prompt;
 
+// One-shot prompt
 string? response = await Main.GetResponseAsync("Explain quantum computing.");
 Console.WriteLine(response);
 ```
 
-## Features
+## Documentation
 
-- **Single method call** — `GetResponseAsync()` handles everything
-- **Automatic retries** — Exponential backoff for 429 and 503 errors
-- **System prompts** — Control assistant behavior
-- **Cancellation support** — Pass `CancellationToken` to cancel requests
-- **Connection pooling** — Thread-safe singleton client
-- **Cross-platform** — Works on Windows, Linux, and macOS
+| Guide | Description |
+|-------|-------------|
+| [Getting Started](articles/getting-started.md) | Installation, configuration, and first prompt |
+| [Conversations](articles/conversations.md) | Multi-turn dialogue with history and serialization |
+| [Templates](articles/templates.md) | Reusable prompts with `{{variables}}` and composition |
+| [Prompt Chains](articles/chains.md) | Multi-step reasoning pipelines |
+| [Model Options](articles/options.md) | Temperature, tokens, penalties, and presets |
+| [API Reference](api/) | Full class and method documentation |
 
-## Navigation
+## Links
 
-- [API Reference](api/) — Full class and method documentation
-- [Changelog](../CHANGELOG.md) — Version history
 - [GitHub Repository](https://github.com/sauravbhattacharya001/prompt)
 - [NuGet Package](https://www.nuget.org/packages/prompt-llm-aoi)
+- [Changelog](https://github.com/sauravbhattacharya001/prompt/blob/main/CHANGELOG.md)

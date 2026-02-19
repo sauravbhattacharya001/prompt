@@ -1,2 +1,10 @@
 - name: Getting Started
   href: getting-started.md
+- name: Conversations
+  href: conversations.md
+- name: Templates
+  href: templates.md
+- name: Prompt Chains
+  href: chains.md
+- name: Model Options
+  href: options.md

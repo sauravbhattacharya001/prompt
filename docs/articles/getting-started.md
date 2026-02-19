@@ -93,3 +93,11 @@ If you change environment variables at runtime, force the client to re-read them
 Main.ResetClient();
 // Next call will use updated environment variables
 ```
+
+## Next Steps
+
+- [Conversations](conversations.md) — Multi-turn dialogue with message history
+- [Templates](templates.md) — Reusable prompts with `{{variable}}` placeholders
+- [Prompt Chains](chains.md) — Multi-step reasoning pipelines
+- [Model Options](options.md) — Temperature, tokens, and preset configurations
+- [API Reference](../api/) — Full class and method documentation
