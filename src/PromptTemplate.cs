@@ -37,7 +37,7 @@ namespace Prompt
         /// denial-of-service via crafted large payloads.
         /// Default: 10 MB.
         /// </summary>
-        internal const int MaxJsonPayloadBytes = 10 * 1024 * 1024;
+        internal const int MaxJsonPayloadBytes = SerializationGuards.MaxJsonPayloadBytes;
 
         private static readonly Regex VariablePattern =
             new Regex(@"\{\{(\w+)\}\}", RegexOptions.Compiled);
@@ -341,10 +341,7 @@ namespace Prompt
                     "JSON string cannot be null or empty.", nameof(json));
 
             // Guard against oversized payloads
-            if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxJsonPayloadBytes)
-                throw new InvalidOperationException(
-                    $"JSON payload exceeds the maximum allowed size of {MaxJsonPayloadBytes / (1024 * 1024)} MB. " +
-                    "This limit prevents denial-of-service from crafted large payloads.");
+            SerializationGuards.ThrowIfPayloadTooLarge(json);
 
             var options = new JsonSerializerOptions
             {
@@ -400,11 +397,7 @@ namespace Prompt
                 throw new FileNotFoundException(
                     $"Template file not found: {filePath}", filePath);
 
-            var fileInfo = new FileInfo(filePath);
-            if (fileInfo.Length > MaxJsonPayloadBytes)
-                throw new InvalidOperationException(
-                    $"File '{filePath}' is {fileInfo.Length / (1024 * 1024)} MB, " +
-                    $"exceeding the maximum allowed size of {MaxJsonPayloadBytes / (1024 * 1024)} MB.");
+            SerializationGuards.ThrowIfFileTooLarge(filePath);
 
             string json = await File.ReadAllTextAsync(filePath, cancellationToken);
             return FromJson(json);

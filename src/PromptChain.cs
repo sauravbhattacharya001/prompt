@@ -239,7 +239,7 @@ namespace Prompt
         /// denial-of-service via crafted large payloads.
         /// Default: 10 MB.
         /// </summary>
-        internal const int MaxJsonPayloadBytes = 10 * 1024 * 1024;
+        internal const int MaxJsonPayloadBytes = SerializationGuards.MaxJsonPayloadBytes;
 
         /// <summary>
         /// Maximum number of steps allowed when deserializing a chain
@@ -248,6 +248,8 @@ namespace Prompt
         internal const int MaxDeserializedSteps = 100;
 
         private readonly List<ChainStep> _steps = new();
+        private readonly HashSet<string> _outputVariableNames =
+            new(StringComparer.OrdinalIgnoreCase);
         private string? _systemPrompt;
         private int _maxRetries = 3;
         private PromptOptions? _options;
@@ -327,17 +329,17 @@ namespace Prompt
             PromptTemplate template,
             string outputVariable)
         {
-            // Validate uniqueness of output variable names
-            foreach (var existing in _steps)
+            // O(1) duplicate check via HashSet instead of O(n) linear scan
+            if (!_outputVariableNames.Add(outputVariable))
             {
-                if (string.Equals(existing.OutputVariable, outputVariable,
-                    StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new ArgumentException(
-                        $"Output variable '{outputVariable}' is already used by step '{existing.Name}'. " +
-                        "Each step must have a unique output variable.",
-                        nameof(outputVariable));
-                }
+                // Find which step already uses it for the error message
+                var existing = _steps.First(s =>
+                    string.Equals(s.OutputVariable, outputVariable,
+                        StringComparison.OrdinalIgnoreCase));
+                throw new ArgumentException(
+                    $"Output variable '{outputVariable}' is already used by step '{existing.Name}'. " +
+                    "Each step must have a unique output variable.",
+                    nameof(outputVariable));
             }
 
             _steps.Add(new ChainStep(name, template, outputVariable));
@@ -477,14 +479,7 @@ namespace Prompt
             {
                 SystemPrompt = _systemPrompt,
                 MaxRetries = _maxRetries,
-                Options = _options != null ? new PromptOptionsData
-                {
-                    Temperature = _options.Temperature,
-                    MaxTokens = _options.MaxTokens,
-                    TopP = _options.TopP,
-                    FrequencyPenalty = _options.FrequencyPenalty,
-                    PresencePenalty = _options.PresencePenalty
-                } : null,
+                Options = _options,
                 Steps = _steps.Select(s => new ChainStepData
                 {
                     Name = s.Name,
@@ -523,10 +518,7 @@ namespace Prompt
                     "JSON string cannot be null or empty.", nameof(json));
 
             // Guard against oversized payloads
-            if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxJsonPayloadBytes)
-                throw new InvalidOperationException(
-                    $"JSON payload exceeds the maximum allowed size of {MaxJsonPayloadBytes / (1024 * 1024)} MB. " +
-                    "This limit prevents denial-of-service from crafted large payloads.");
+            SerializationGuards.ThrowIfPayloadTooLarge(json);
 
             var data = JsonSerializer.Deserialize<ChainData>(json,
                 new JsonSerializerOptions
@@ -553,14 +545,7 @@ namespace Prompt
 
             if (data.Options != null)
             {
-                chain.WithOptions(new PromptOptions
-                {
-                    Temperature = data.Options.Temperature,
-                    MaxTokens = data.Options.MaxTokens,
-                    TopP = data.Options.TopP,
-                    FrequencyPenalty = data.Options.FrequencyPenalty,
-                    PresencePenalty = data.Options.PresencePenalty
-                });
+                chain.WithOptions(data.Options);
             }
 
             foreach (var stepData in data.Steps)
@@ -620,11 +605,7 @@ namespace Prompt
                 throw new FileNotFoundException(
                     $"Chain file not found: {filePath}", filePath);
 
-            var fileInfo = new FileInfo(filePath);
-            if (fileInfo.Length > MaxJsonPayloadBytes)
-                throw new InvalidOperationException(
-                    $"File '{filePath}' is {fileInfo.Length / (1024 * 1024)} MB, " +
-                    $"exceeding the maximum allowed size of {MaxJsonPayloadBytes / (1024 * 1024)} MB.");
+            SerializationGuards.ThrowIfFileTooLarge(filePath);
 
             string json = await File.ReadAllTextAsync(filePath, cancellationToken);
             return FromJson(json);
@@ -641,28 +622,10 @@ namespace Prompt
             public int MaxRetries { get; set; } = 3;
 
             [JsonPropertyName("options")]
-            public PromptOptionsData? Options { get; set; }
+            public PromptOptions? Options { get; set; }
 
             [JsonPropertyName("steps")]
             public List<ChainStepData> Steps { get; set; } = new();
-        }
-
-        internal class PromptOptionsData
-        {
-            [JsonPropertyName("temperature")]
-            public float Temperature { get; set; } = 0.7f;
-
-            [JsonPropertyName("maxTokens")]
-            public int MaxTokens { get; set; } = 800;
-
-            [JsonPropertyName("topP")]
-            public float TopP { get; set; } = 0.95f;
-
-            [JsonPropertyName("frequencyPenalty")]
-            public float FrequencyPenalty { get; set; } = 0f;
-
-            [JsonPropertyName("presencePenalty")]
-            public float PresencePenalty { get; set; } = 0f;
         }
 
         internal class ChainStepData

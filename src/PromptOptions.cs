@@ -1,6 +1,7 @@
 namespace Prompt
 {
     using System.Text.Json.Serialization;
+    using OpenAI.Chat;
 
     /// <summary>
     /// Configurable options for Azure OpenAI chat completion requests.
@@ -175,5 +176,23 @@ namespace Prompt
             MaxTokens = 1000,
             TopP = 0.9f
         };
+
+        /// <summary>
+        /// Converts this <see cref="PromptOptions"/> into Azure SDK
+        /// <see cref="ChatCompletionOptions"/>. Centralizes the mapping
+        /// so callers don't need to manually copy each property.
+        /// </summary>
+        /// <returns>A new <see cref="ChatCompletionOptions"/> instance.</returns>
+        internal ChatCompletionOptions ToChatCompletionOptions()
+        {
+            return new ChatCompletionOptions()
+            {
+                Temperature = _temperature,
+                MaxOutputTokenCount = _maxTokens,
+                TopP = _topP,
+                FrequencyPenalty = _frequencyPenalty,
+                PresencePenalty = _presencePenalty,
+            };
+        }
     }
 }

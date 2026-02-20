@@ -41,7 +41,7 @@ namespace Prompt
         /// denial-of-service via crafted large payloads.
         /// Default: 10 MB.
         /// </summary>
-        internal const int MaxJsonPayloadBytes = 10 * 1024 * 1024;
+        internal const int MaxJsonPayloadBytes = SerializationGuards.MaxJsonPayloadBytes;
 
         /// <summary>
         /// Maximum number of messages allowed when deserializing from JSON
@@ -257,19 +257,19 @@ namespace Prompt
                 snapshot = new List<ChatMessage>(_messages);
             }
 
-            var options = new ChatCompletionOptions()
+            var completionOptions = new PromptOptions
             {
                 Temperature = _temperature,
-                MaxOutputTokenCount = _maxTokens,
+                MaxTokens = _maxTokens,
                 TopP = _topP,
                 FrequencyPenalty = _frequencyPenalty,
                 PresencePenalty = _presencePenalty,
-            };
+            }.ToChatCompletionOptions();
 
             ChatClient chatClient = Main.GetOrCreateChatClient(_maxRetries);
 
             ChatCompletion completion = await chatClient.CompleteChatAsync(
-                snapshot, options, cancellationToken);
+                snapshot, completionOptions, cancellationToken);
 
             string? responseText = completion?.Content?.FirstOrDefault()?.Text;
 
@@ -384,15 +384,7 @@ namespace Prompt
                 var history = new List<(string, string)>(_messages.Count);
                 foreach (var msg in _messages)
                 {
-                    string role = msg switch
-                    {
-                        SystemChatMessage => "system",
-                        UserChatMessage => "user",
-                        AssistantChatMessage => "assistant",
-                        _ => "unknown"
-                    };
-
-                    history.Add((role, ExtractContent(msg)));
+                    history.Add((GetRole(msg), ExtractContent(msg)));
                 }
                 return history;
             }
@@ -443,6 +435,18 @@ namespace Prompt
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Maps a <see cref="ChatMessage"/> to its role string
+        /// ("system", "user", "assistant", or "unknown").
+        /// </summary>
+        private static string GetRole(ChatMessage msg) => msg switch
+        {
+            SystemChatMessage => "system",
+            UserChatMessage => "user",
+            AssistantChatMessage => "assistant",
+            _ => "unknown"
+        };
+
         // ──────────────── Serialization ────────────────
 
         /// <summary>
@@ -472,15 +476,7 @@ namespace Prompt
 
                 foreach (var msg in _messages)
                 {
-                    string role = msg switch
-                    {
-                        SystemChatMessage => "system",
-                        UserChatMessage => "user",
-                        AssistantChatMessage => "assistant",
-                        _ => "unknown"
-                    };
-
-                    data.Messages.Add(new MessageData { Role = role, Content = ExtractContent(msg) });
+                    data.Messages.Add(new MessageData { Role = GetRole(msg), Content = ExtractContent(msg) });
                 }
 
                 var options = new JsonSerializerOptions
@@ -513,10 +509,7 @@ namespace Prompt
                     "JSON string cannot be null or empty.", nameof(json));
 
             // Guard against oversized payloads that could cause memory exhaustion
-            if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxJsonPayloadBytes)
-                throw new InvalidOperationException(
-                    $"JSON payload exceeds the maximum allowed size of {MaxJsonPayloadBytes / (1024 * 1024)} MB. " +
-                    "This limit prevents denial-of-service from crafted large payloads.");
+            SerializationGuards.ThrowIfPayloadTooLarge(json);
 
             var options = new JsonSerializerOptions
             {
@@ -630,11 +623,7 @@ namespace Prompt
                     $"Conversation file not found: {filePath}", filePath);
 
             // Check file size before reading to prevent memory exhaustion
-            var fileInfo = new FileInfo(filePath);
-            if (fileInfo.Length > MaxJsonPayloadBytes)
-                throw new InvalidOperationException(
-                    $"File '{filePath}' is {fileInfo.Length / (1024 * 1024)} MB, " +
-                    $"exceeding the maximum allowed size of {MaxJsonPayloadBytes / (1024 * 1024)} MB.");
+            SerializationGuards.ThrowIfFileTooLarge(filePath);
 
             string json = await File.ReadAllTextAsync(filePath, cancellationToken);
             return LoadFromJson(json);

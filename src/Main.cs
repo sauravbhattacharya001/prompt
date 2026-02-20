@@ -147,14 +147,7 @@
 
             // Use caller-provided options or fall back to library defaults
             var opts = options ?? new PromptOptions();
-            var completionOptions = new ChatCompletionOptions()
-            {
-                Temperature = opts.Temperature,
-                MaxOutputTokenCount = opts.MaxTokens,
-                TopP = opts.TopP,
-                FrequencyPenalty = opts.FrequencyPenalty,
-                PresencePenalty = opts.PresencePenalty,
-            };
+            var completionOptions = opts.ToChatCompletionOptions();
 
             ChatCompletion completion = await chatClient.CompleteChatAsync(
                 messages, completionOptions, cancellationToken);
