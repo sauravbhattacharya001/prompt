@@ -8,3 +8,7 @@
   href: chains.md
 - name: Model Options
   href: options.md
+- name: Error Handling
+  href: error-handling.md
+- name: Migration Guide
+  href: migration.md

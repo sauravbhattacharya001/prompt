@@ -40,6 +40,8 @@ Console.WriteLine(response);
 | [Templates](articles/templates.md) | Reusable prompts with `{{variables}}` and composition |
 | [Prompt Chains](articles/chains.md) | Multi-step reasoning pipelines |
 | [Model Options](articles/options.md) | Temperature, tokens, penalties, and presets |
+| [Error Handling](articles/error-handling.md) | Exception types, retry behavior, and production patterns |
+| [Migration Guide](articles/migration.md) | Upgrading between versions with breaking change details |
 | [API Reference](api/) | Full class and method documentation |
 
 ## Links
