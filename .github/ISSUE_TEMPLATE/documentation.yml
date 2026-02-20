@@ -1,0 +1,53 @@
+name: 📖 Documentation
+description: Report an issue with documentation or suggest improvements
+title: "[Docs]: "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us improve the documentation! Whether it's a typo, missing info, or a confusing section — we want to know.
+
+  - type: dropdown
+    id: doc-type
+    attributes:
+      label: Documentation Area
+      options:
+        - "README.md"
+        - "API Reference"
+        - "Code examples"
+        - "CHANGELOG.md"
+        - "CONTRIBUTING.md"
+        - "Docs site"
+        - "Inline code comments"
+        - "Other"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue Type
+      options:
+        - "Incorrect information"
+        - "Missing information"
+        - "Confusing or unclear"
+        - "Typo or formatting"
+        - "Outdated"
+        - "Suggestion for new content"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What's wrong or what could be improved?
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested Improvement
+      description: If you have a specific fix or improvement in mind, describe it here.

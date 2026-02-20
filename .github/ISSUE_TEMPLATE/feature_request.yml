@@ -1,0 +1,76 @@
+name: ✨ Feature Request
+description: Suggest a new feature or improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea for improving Prompt? We'd love to hear it! Please describe your suggestion below.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: Is your feature request related to a problem? Describe the pain point.
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe what you'd like to happen. Include code examples if applicable.
+      placeholder: |
+        ```csharp
+        // It would be great if we could do something like:
+        var response = await Main.GetResponseAsync("Hello", streaming: true);
+        await foreach (var chunk in response)
+            Console.Write(chunk);
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you considered any alternative solutions or workarounds?
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the library does this affect?
+      options:
+        - "Core (Main.GetResponseAsync)"
+        - "Conversations"
+        - "Prompt Templates"
+        - "Prompt Chains"
+        - "Configuration / Environment"
+        - "Retry / Error Handling"
+        - "Serialization"
+        - "NuGet Package"
+        - "Documentation"
+        - "Other"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      description: How would you describe the impact of this feature?
+      options:
+        - "Nice to have"
+        - "Would improve my workflow"
+        - "Blocking my use case"
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other context, mockups, or references that help explain the request.

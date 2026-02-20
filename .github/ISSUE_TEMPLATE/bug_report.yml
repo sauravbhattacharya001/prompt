@@ -1,0 +1,94 @@
+name: 🐛 Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this issue! Please fill out the sections below to help us reproduce and fix the bug.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe the bug...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Provide a minimal code example or step-by-step instructions.
+      placeholder: |
+        ```csharp
+        var response = await Main.GetResponseAsync("Hello");
+        // Expected: a valid response
+        // Actual: throws InvalidOperationException
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened? Include any error messages or stack traces.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: version
+    attributes:
+      label: Package Version
+      description: Which version of `prompt-llm-aoi` are you using?
+      options:
+        - "3.3.0 (latest)"
+        - "3.2.x"
+        - "3.1.x"
+        - "3.0.x"
+        - "2.x"
+        - "1.x"
+        - "Built from source"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: dotnet-version
+    attributes:
+      label: .NET Version
+      options:
+        - ".NET 8.0"
+        - ".NET 9.0"
+        - "Other (specify in description)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - "Windows"
+        - "Linux"
+        - "macOS"
+        - "Docker container"
+        - "Other"
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other context, logs, screenshots, or configuration details.

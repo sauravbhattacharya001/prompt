@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Questions & Discussions
+    url: https://github.com/sauravbhattacharya001/prompt/issues
+    about: For general questions, open an issue with [Question] in the title.
+  - name: 📦 NuGet Package
+    url: https://www.nuget.org/packages/prompt-llm-aoi
+    about: View the package on NuGet.org for version history and download stats.
+  - name: 📖 Documentation
+    url: https://sauravbhattacharya001.github.io/prompt/
+    about: Browse the full API documentation and guides.
