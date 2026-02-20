@@ -163,11 +163,26 @@ namespace Prompt
             Dictionary<string, string>? variables = null,
             bool strict = true)
         {
-            var merged = new Dictionary<string, string>(
-                _defaults, StringComparer.OrdinalIgnoreCase);
+            // Optimize: avoid creating a merged dictionary when possible.
+            // If there are no defaults, use the caller's dictionary directly.
+            // If there are no variables, use defaults directly.
+            Dictionary<string, string>? merged;
 
-            if (variables != null)
+            if (_defaults.Count == 0 && variables != null)
             {
+                // No defaults to merge — use variables directly (wrap in
+                // case-insensitive lookup if needed)
+                merged = variables;
+            }
+            else if (variables == null || variables.Count == 0)
+            {
+                merged = _defaults.Count > 0 ? _defaults : null;
+            }
+            else
+            {
+                // Both exist — must merge
+                merged = new Dictionary<string, string>(
+                    _defaults, StringComparer.OrdinalIgnoreCase);
                 foreach (var kvp in variables)
                 {
                     merged[kvp.Key] = kvp.Value;
@@ -179,7 +194,7 @@ namespace Prompt
             string result = VariablePattern.Replace(_template, match =>
             {
                 string name = match.Groups[1].Value;
-                if (merged.TryGetValue(name, out var value))
+                if (merged != null && merged.TryGetValue(name, out var value))
                     return value;
 
                 if (strict)

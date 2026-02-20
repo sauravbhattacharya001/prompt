@@ -1,6 +1,7 @@
 namespace Prompt
 {
     using System.ClientModel;
+    using System.Text;
     using System.Text.Json;
     using System.Text.Json.Serialization;
     using Azure.AI.OpenAI;
@@ -326,23 +327,23 @@ namespace Prompt
         /// Removes the oldest non-system messages when the conversation
         /// exceeds <see cref="MaxMessages"/>. Must be called under <c>_lock</c>.
         /// </summary>
+        /// <remarks>
+        /// Optimized to avoid repeated linear scans: since system messages
+        /// are only ever at index 0, the first non-system message is always
+        /// at index 0 (no system prompt) or index 1 (with system prompt).
+        /// </remarks>
         private void TrimMessagesUnsafe()
         {
+            if (_messages.Count <= _maxMessages)
+                return;
+
+            // Determine the starting index of non-system messages once
+            int firstNonSystem = (_messages.Count > 0 && _messages[0] is SystemChatMessage) ? 1 : 0;
+
             while (_messages.Count > _maxMessages)
             {
-                // Find the first non-system message and remove it
-                int removeIndex = -1;
-                for (int i = 0; i < _messages.Count; i++)
-                {
-                    if (_messages[i] is not SystemChatMessage)
-                    {
-                        removeIndex = i;
-                        break;
-                    }
-                }
-
-                if (removeIndex >= 0)
-                    _messages.RemoveAt(removeIndex);
+                if (firstNonSystem < _messages.Count)
+                    _messages.RemoveAt(firstNonSystem);
                 else
                     break; // Only system messages left, can't trim further
             }
@@ -380,7 +381,7 @@ namespace Prompt
         {
             lock (_lock)
             {
-                var history = new List<(string, string)>();
+                var history = new List<(string, string)>(_messages.Count);
                 foreach (var msg in _messages)
                 {
                     string role = msg switch
@@ -391,22 +392,55 @@ namespace Prompt
                         _ => "unknown"
                     };
 
-                    string content = "";
-                    if (msg.Content != null)
-                    {
-                        foreach (var part in msg.Content)
-                        {
-                            if (part.Text != null)
-                            {
-                                content += part.Text;
-                            }
-                        }
-                    }
-
-                    history.Add((role, content));
+                    history.Add((role, ExtractContent(msg)));
                 }
                 return history;
             }
+        }
+
+        /// <summary>
+        /// Extracts text content from a <see cref="ChatMessage"/>.
+        /// Uses a single-part fast path to avoid <see cref="StringBuilder"/>
+        /// allocation for the common case. Falls back to <see cref="StringBuilder"/>
+        /// only when a message has multiple text content parts.
+        /// </summary>
+        private static string ExtractContent(ChatMessage msg)
+        {
+            if (msg.Content == null)
+                return "";
+
+            // Fast path: most messages have exactly one text part.
+            // Avoid StringBuilder allocation entirely for the common case.
+            string? singleText = null;
+            bool hasMultiple = false;
+
+            foreach (var part in msg.Content)
+            {
+                if (part.Text != null)
+                {
+                    if (singleText == null)
+                    {
+                        singleText = part.Text;
+                    }
+                    else
+                    {
+                        hasMultiple = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!hasMultiple)
+                return singleText ?? "";
+
+            // Slow path: multiple text parts — use StringBuilder
+            var sb = new StringBuilder();
+            foreach (var part in msg.Content)
+            {
+                if (part.Text != null)
+                    sb.Append(part.Text);
+            }
+            return sb.ToString();
         }
 
         // ──────────────── Serialization ────────────────
@@ -424,7 +458,7 @@ namespace Prompt
             {
                 var data = new ConversationData
                 {
-                    Messages = new List<MessageData>(),
+                    Messages = new List<MessageData>(_messages.Count),
                     Parameters = new ParameterData
                     {
                         Temperature = _temperature,
@@ -446,17 +480,7 @@ namespace Prompt
                         _ => "unknown"
                     };
 
-                    string content = "";
-                    if (msg.Content != null)
-                    {
-                        foreach (var part in msg.Content)
-                        {
-                            if (part.Text != null)
-                                content += part.Text;
-                        }
-                    }
-
-                    data.Messages.Add(new MessageData { Role = role, Content = content });
+                    data.Messages.Add(new MessageData { Role = role, Content = ExtractContent(msg) });
                 }
 
                 var options = new JsonSerializerOptions
@@ -527,28 +551,30 @@ namespace Prompt
             }
 
             // Restore messages — set MaxMessages high during restore to
-            // avoid trimming, then apply the restored conversation's limit
+            // avoid trimming, then apply the restored conversation's limit.
+            // Batch all message additions under a single lock acquisition
+            // instead of locking/unlocking per message.
             conv._maxMessages = int.MaxValue;
 
-            foreach (var msg in data.Messages)
+            lock (conv._lock)
             {
-                if (string.IsNullOrEmpty(msg.Content))
-                    continue;
-
-                switch (msg.Role?.ToLowerInvariant())
+                foreach (var msg in data.Messages)
                 {
-                    case "system":
-                        lock (conv._lock)
+                    if (string.IsNullOrEmpty(msg.Content))
+                        continue;
+
+                    switch (msg.Role?.ToLowerInvariant())
+                    {
+                        case "system":
                             conv._messages.Add(new SystemChatMessage(msg.Content));
-                        break;
-                    case "user":
-                        lock (conv._lock)
+                            break;
+                        case "user":
                             conv._messages.Add(new UserChatMessage(msg.Content));
-                        break;
-                    case "assistant":
-                        lock (conv._lock)
+                            break;
+                        case "assistant":
                             conv._messages.Add(new AssistantChatMessage(msg.Content));
-                        break;
+                            break;
+                    }
                 }
             }
 
