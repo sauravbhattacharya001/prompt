@@ -16,7 +16,7 @@ RUN dotnet build src/Prompt.csproj -c Release --no-restore
 RUN dotnet pack src/Prompt.csproj -c Release --no-build -o /packages
 
 # Output stage — slim image with just the NuGet package
-FROM mcr.microsoft.com/dotnet/runtime-deps:8.0-alpine AS output
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-alpine AS output
 WORKDIR /packages
 COPY --from=build /packages/*.nupkg .
 
