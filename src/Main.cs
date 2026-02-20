@@ -1,6 +1,7 @@
 ﻿namespace Prompt
 {
     using System.ClientModel;
+    using System.ClientModel.Primitives;
     using Azure.AI.OpenAI;
     using OpenAI.Chat;
 
