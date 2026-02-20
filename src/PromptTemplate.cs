@@ -32,6 +32,13 @@ namespace Prompt
     /// </remarks>
     public class PromptTemplate
     {
+        /// <summary>
+        /// Maximum allowed JSON payload size for deserialization to prevent
+        /// denial-of-service via crafted large payloads.
+        /// Default: 10 MB.
+        /// </summary>
+        internal const int MaxJsonPayloadBytes = 10 * 1024 * 1024;
+
         private static readonly Regex VariablePattern =
             new Regex(@"\{\{(\w+)\}\}", RegexOptions.Compiled);
 
@@ -310,13 +317,19 @@ namespace Prompt
         /// Thrown when <paramref name="json"/> is null or empty.
         /// </exception>
         /// <exception cref="InvalidOperationException">
-        /// Thrown when the JSON is missing the template field.
+        /// Thrown when the JSON is missing the template field or exceeds security limits.
         /// </exception>
         public static PromptTemplate FromJson(string json)
         {
             if (string.IsNullOrWhiteSpace(json))
                 throw new ArgumentException(
                     "JSON string cannot be null or empty.", nameof(json));
+
+            // Guard against oversized payloads
+            if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxJsonPayloadBytes)
+                throw new InvalidOperationException(
+                    $"JSON payload exceeds the maximum allowed size of {MaxJsonPayloadBytes / (1024 * 1024)} MB. " +
+                    "This limit prevents denial-of-service from crafted large payloads.");
 
             var options = new JsonSerializerOptions
             {
@@ -357,6 +370,7 @@ namespace Prompt
         /// <param name="filePath">Path to the JSON file.</param>
         /// <param name="cancellationToken">Optional cancellation token.</param>
         /// <returns>A new <see cref="PromptTemplate"/> instance.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the file exceeds the maximum allowed size.</exception>
         public static async Task<PromptTemplate> LoadFromFileAsync(
             string filePath,
             CancellationToken cancellationToken = default)
@@ -365,9 +379,17 @@ namespace Prompt
                 throw new ArgumentException(
                     "File path cannot be null or empty.", nameof(filePath));
 
+            filePath = Path.GetFullPath(filePath);
+
             if (!File.Exists(filePath))
                 throw new FileNotFoundException(
                     $"Template file not found: {filePath}", filePath);
+
+            var fileInfo = new FileInfo(filePath);
+            if (fileInfo.Length > MaxJsonPayloadBytes)
+                throw new InvalidOperationException(
+                    $"File '{filePath}' is {fileInfo.Length / (1024 * 1024)} MB, " +
+                    $"exceeding the maximum allowed size of {MaxJsonPayloadBytes / (1024 * 1024)} MB.");
 
             string json = await File.ReadAllTextAsync(filePath, cancellationToken);
             return FromJson(json);

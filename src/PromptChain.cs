@@ -234,6 +234,19 @@ namespace Prompt
     /// </remarks>
     public class PromptChain
     {
+        /// <summary>
+        /// Maximum allowed JSON payload size for deserialization to prevent
+        /// denial-of-service via crafted large payloads.
+        /// Default: 10 MB.
+        /// </summary>
+        internal const int MaxJsonPayloadBytes = 10 * 1024 * 1024;
+
+        /// <summary>
+        /// Maximum number of steps allowed when deserializing a chain
+        /// from JSON to prevent memory exhaustion from crafted payloads.
+        /// </summary>
+        internal const int MaxDeserializedSteps = 100;
+
         private readonly List<ChainStep> _steps = new();
         private string? _systemPrompt;
         private int _maxRetries = 3;
@@ -501,13 +514,19 @@ namespace Prompt
         /// Thrown when <paramref name="json"/> is null or empty.
         /// </exception>
         /// <exception cref="InvalidOperationException">
-        /// Thrown when the JSON structure is invalid.
+        /// Thrown when the JSON structure is invalid or exceeds security limits.
         /// </exception>
         public static PromptChain FromJson(string json)
         {
             if (string.IsNullOrWhiteSpace(json))
                 throw new ArgumentException(
                     "JSON string cannot be null or empty.", nameof(json));
+
+            // Guard against oversized payloads
+            if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxJsonPayloadBytes)
+                throw new InvalidOperationException(
+                    $"JSON payload exceeds the maximum allowed size of {MaxJsonPayloadBytes / (1024 * 1024)} MB. " +
+                    "This limit prevents denial-of-service from crafted large payloads.");
 
             var data = JsonSerializer.Deserialize<ChainData>(json,
                 new JsonSerializerOptions
@@ -518,6 +537,12 @@ namespace Prompt
             if (data?.Steps == null || data.Steps.Count == 0)
                 throw new InvalidOperationException(
                     "Invalid chain JSON: missing or empty steps array.");
+
+            if (data.Steps.Count > MaxDeserializedSteps)
+                throw new InvalidOperationException(
+                    $"Chain JSON contains {data.Steps.Count} steps, " +
+                    $"exceeding the maximum allowed count of {MaxDeserializedSteps}. " +
+                    "This limit prevents denial-of-service from crafted payloads.");
 
             var chain = new PromptChain();
 
@@ -580,6 +605,7 @@ namespace Prompt
         /// <param name="filePath">Path to the JSON file.</param>
         /// <param name="cancellationToken">Optional cancellation token.</param>
         /// <returns>A new <see cref="PromptChain"/> instance.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the file exceeds the maximum allowed size.</exception>
         public static async Task<PromptChain> LoadFromFileAsync(
             string filePath,
             CancellationToken cancellationToken = default)
@@ -588,9 +614,17 @@ namespace Prompt
                 throw new ArgumentException(
                     "File path cannot be null or empty.", nameof(filePath));
 
+            filePath = Path.GetFullPath(filePath);
+
             if (!File.Exists(filePath))
                 throw new FileNotFoundException(
                     $"Chain file not found: {filePath}", filePath);
+
+            var fileInfo = new FileInfo(filePath);
+            if (fileInfo.Length > MaxJsonPayloadBytes)
+                throw new InvalidOperationException(
+                    $"File '{filePath}' is {fileInfo.Length / (1024 * 1024)} MB, " +
+                    $"exceeding the maximum allowed size of {MaxJsonPayloadBytes / (1024 * 1024)} MB.");
 
             string json = await File.ReadAllTextAsync(filePath, cancellationToken);
             return FromJson(json);

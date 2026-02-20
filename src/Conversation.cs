@@ -28,8 +28,29 @@ namespace Prompt
     /// </remarks>
     public class Conversation
     {
+        /// <summary>
+        /// Maximum number of messages allowed in a conversation to prevent
+        /// unbounded memory growth and API token limit exhaustion.
+        /// Default: 1000 messages (system + user + assistant).
+        /// </summary>
+        public const int DefaultMaxMessages = 1000;
+
+        /// <summary>
+        /// Maximum allowed JSON payload size for deserialization to prevent
+        /// denial-of-service via crafted large payloads.
+        /// Default: 10 MB.
+        /// </summary>
+        internal const int MaxJsonPayloadBytes = 10 * 1024 * 1024;
+
+        /// <summary>
+        /// Maximum number of messages allowed when deserializing from JSON
+        /// to prevent memory exhaustion from crafted payloads.
+        /// </summary>
+        internal const int MaxDeserializedMessages = 10_000;
+
         private readonly List<ChatMessage> _messages = new();
         private readonly object _lock = new();
+        private int _maxMessages = DefaultMaxMessages;
 
         // Per-conversation model parameters (defaults match Main.cs)
         private float _temperature = 0.7f;
@@ -186,10 +207,35 @@ namespace Prompt
         }
 
         /// <summary>
+        /// Gets or sets the maximum number of messages allowed in the conversation
+        /// (including system prompt, user messages, and assistant messages).
+        /// When the limit is reached, the oldest non-system messages are removed
+        /// to make room for new ones. This prevents unbounded memory growth and
+        /// helps stay within API token limits for long-running conversations.
+        /// Default: 1000. Set to <see cref="int.MaxValue"/> to disable the limit.
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">Value is less than 2.</exception>
+        public int MaxMessages
+        {
+            get => _maxMessages;
+            set
+            {
+                if (value < 2)
+                    throw new ArgumentOutOfRangeException(nameof(value), value,
+                        "MaxMessages must be at least 2.");
+                _maxMessages = value;
+            }
+        }
+
+        /// <summary>
         /// Sends a user message and returns the assistant's response.
         /// Both the user message and assistant response are added to the
         /// conversation history for future context.
         /// </summary>
+        /// <remarks>
+        /// If the conversation exceeds <see cref="MaxMessages"/>, the oldest
+        /// non-system messages are removed to stay within the limit.
+        /// </remarks>
         /// <param name="message">The user message to send.</param>
         /// <param name="cancellationToken">Optional cancellation token.</param>
         /// <returns>The assistant's response text, or <c>null</c> if none.</returns>
@@ -206,6 +252,7 @@ namespace Prompt
             lock (_lock)
             {
                 _messages.Add(new UserChatMessage(message));
+                TrimMessagesUnsafe();
                 snapshot = new List<ChatMessage>(_messages);
             }
 
@@ -230,6 +277,7 @@ namespace Prompt
                 lock (_lock)
                 {
                     _messages.Add(new AssistantChatMessage(responseText));
+                    TrimMessagesUnsafe();
                 }
             }
 
@@ -248,7 +296,11 @@ namespace Prompt
                 throw new ArgumentException(
                     "Message cannot be null or empty.", nameof(message));
 
-            lock (_lock) _messages.Add(new UserChatMessage(message));
+            lock (_lock)
+            {
+                _messages.Add(new UserChatMessage(message));
+                TrimMessagesUnsafe();
+            }
         }
 
         /// <summary>
@@ -263,7 +315,37 @@ namespace Prompt
                 throw new ArgumentException(
                     "Message cannot be null or empty.", nameof(message));
 
-            lock (_lock) _messages.Add(new AssistantChatMessage(message));
+            lock (_lock)
+            {
+                _messages.Add(new AssistantChatMessage(message));
+                TrimMessagesUnsafe();
+            }
+        }
+
+        /// <summary>
+        /// Removes the oldest non-system messages when the conversation
+        /// exceeds <see cref="MaxMessages"/>. Must be called under <c>_lock</c>.
+        /// </summary>
+        private void TrimMessagesUnsafe()
+        {
+            while (_messages.Count > _maxMessages)
+            {
+                // Find the first non-system message and remove it
+                int removeIndex = -1;
+                for (int i = 0; i < _messages.Count; i++)
+                {
+                    if (_messages[i] is not SystemChatMessage)
+                    {
+                        removeIndex = i;
+                        break;
+                    }
+                }
+
+                if (removeIndex >= 0)
+                    _messages.RemoveAt(removeIndex);
+                else
+                    break; // Only system messages left, can't trim further
+            }
         }
 
         /// <summary>
@@ -396,12 +478,21 @@ namespace Prompt
         /// <returns>A new <see cref="Conversation"/> instance with the restored state.</returns>
         /// <exception cref="ArgumentException">Thrown when <paramref name="json"/> is null or empty.</exception>
         /// <exception cref="JsonException">Thrown when the JSON is malformed.</exception>
-        /// <exception cref="InvalidOperationException">Thrown when the JSON structure is invalid (missing messages array).</exception>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown when the JSON structure is invalid (missing messages array)
+        /// or the payload exceeds security limits.
+        /// </exception>
         public static Conversation LoadFromJson(string json)
         {
             if (string.IsNullOrWhiteSpace(json))
                 throw new ArgumentException(
                     "JSON string cannot be null or empty.", nameof(json));
+
+            // Guard against oversized payloads that could cause memory exhaustion
+            if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxJsonPayloadBytes)
+                throw new InvalidOperationException(
+                    $"JSON payload exceeds the maximum allowed size of {MaxJsonPayloadBytes / (1024 * 1024)} MB. " +
+                    "This limit prevents denial-of-service from crafted large payloads.");
 
             var options = new JsonSerializerOptions
             {
@@ -413,6 +504,13 @@ namespace Prompt
             if (data?.Messages == null)
                 throw new InvalidOperationException(
                     "Invalid conversation JSON: missing messages array.");
+
+            // Guard against message count-based memory exhaustion
+            if (data.Messages.Count > MaxDeserializedMessages)
+                throw new InvalidOperationException(
+                    $"Conversation JSON contains {data.Messages.Count} messages, " +
+                    $"exceeding the maximum allowed count of {MaxDeserializedMessages}. " +
+                    "This limit prevents denial-of-service from crafted payloads.");
 
             // Create without system prompt — we'll add messages manually
             var conv = new Conversation();
@@ -428,7 +526,10 @@ namespace Prompt
                 conv.MaxRetries = data.Parameters.MaxRetries;
             }
 
-            // Restore messages
+            // Restore messages — set MaxMessages high during restore to
+            // avoid trimming, then apply the restored conversation's limit
+            conv._maxMessages = int.MaxValue;
+
             foreach (var msg in data.Messages)
             {
                 if (string.IsNullOrEmpty(msg.Content))
@@ -441,13 +542,18 @@ namespace Prompt
                             conv._messages.Add(new SystemChatMessage(msg.Content));
                         break;
                     case "user":
-                        conv.AddUserMessage(msg.Content);
+                        lock (conv._lock)
+                            conv._messages.Add(new UserChatMessage(msg.Content));
                         break;
                     case "assistant":
-                        conv.AddAssistantMessage(msg.Content);
+                        lock (conv._lock)
+                            conv._messages.Add(new AssistantChatMessage(msg.Content));
                         break;
                 }
             }
+
+            // Restore default max messages limit
+            conv._maxMessages = DefaultMaxMessages;
 
             return conv;
         }
@@ -481,6 +587,7 @@ namespace Prompt
         /// <returns>A new <see cref="Conversation"/> instance with the restored state.</returns>
         /// <exception cref="ArgumentException">Thrown when <paramref name="filePath"/> is null or empty.</exception>
         /// <exception cref="FileNotFoundException">Thrown when the file doesn't exist.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the file exceeds the maximum allowed size.</exception>
         public static async Task<Conversation> LoadFromFileAsync(
             string filePath,
             CancellationToken cancellationToken = default)
@@ -489,9 +596,19 @@ namespace Prompt
                 throw new ArgumentException(
                     "File path cannot be null or empty.", nameof(filePath));
 
+            // Resolve to full path to prevent path traversal ambiguity
+            filePath = Path.GetFullPath(filePath);
+
             if (!File.Exists(filePath))
                 throw new FileNotFoundException(
                     $"Conversation file not found: {filePath}", filePath);
+
+            // Check file size before reading to prevent memory exhaustion
+            var fileInfo = new FileInfo(filePath);
+            if (fileInfo.Length > MaxJsonPayloadBytes)
+                throw new InvalidOperationException(
+                    $"File '{filePath}' is {fileInfo.Length / (1024 * 1024)} MB, " +
+                    $"exceeding the maximum allowed size of {MaxJsonPayloadBytes / (1024 * 1024)} MB.");
 
             string json = await File.ReadAllTextAsync(filePath, cancellationToken);
             return LoadFromJson(json);
