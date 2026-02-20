@@ -42,7 +42,7 @@ jobs:
     # but will only fire when called from a scheduled event.
     if: false
     steps:
-      - uses: actions/stale@v9
+      - uses: actions/stale@v10
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           stale-issue-message: >
