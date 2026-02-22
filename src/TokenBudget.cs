@@ -342,6 +342,25 @@ namespace Prompt
         {
             lock (_lock)
             {
+                // Single pass over messages for role counts and max/sum
+                int systemCount = 0, userCount = 0, assistantCount = 0;
+                int maxTokens = 0;
+                long tokenSum = 0;
+
+                for (int i = 0; i < _messages.Count; i++)
+                {
+                    var msg = _messages[i];
+                    switch (msg.Role)
+                    {
+                        case "system": systemCount++; break;
+                        case "user": userCount++; break;
+                        case "assistant": assistantCount++; break;
+                    }
+                    if (msg.Tokens > maxTokens)
+                        maxTokens = msg.Tokens;
+                    tokenSum += msg.Tokens;
+                }
+
                 return new BudgetSummary
                 {
                     MaxTokens = MaxTokens,
@@ -353,17 +372,15 @@ namespace Prompt
                     UsagePercent = UsagePercent,
                     IsOverBudget = IsOverBudget,
                     MessageCount = _messages.Count,
-                    SystemMessages = _messages.Count(m => m.Role == "system"),
-                    UserMessages = _messages.Count(m => m.Role == "user"),
-                    AssistantMessages = _messages.Count(m => m.Role == "assistant"),
+                    SystemMessages = systemCount,
+                    UserMessages = userCount,
+                    AssistantMessages = assistantCount,
                     TrimmedCount = TrimmedCount,
                     TrimmedTokens = TrimmedTokens,
                     Strategy = Strategy,
-                    LargestMessageTokens = _messages.Count > 0
-                        ? _messages.Max(m => m.Tokens)
-                        : 0,
+                    LargestMessageTokens = maxTokens,
                     AverageMessageTokens = _messages.Count > 0
-                        ? (int)Math.Round(_messages.Average(m => (double)m.Tokens))
+                        ? (int)Math.Round((double)tokenSum / _messages.Count)
                         : 0
                 };
             }

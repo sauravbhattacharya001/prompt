@@ -340,19 +340,27 @@ namespace Prompt
                 estimate = (estimate + wordEstimate) / 2.0;
             }
 
-            // Adjust for code-like content (more special characters = more tokens)
+            // Single pass over characters: count special chars and newlines
+            // together to avoid redundant iteration.
             int specialChars = 0;
+            int newlines = 0;
             foreach (char c in text)
             {
-                if (c == '{' || c == '}' || c == '[' || c == ']' ||
-                    c == '(' || c == ')' || c == ';' || c == ':' ||
-                    c == '<' || c == '>' || c == '=' || c == '|' ||
-                    c == '&' || c == '!' || c == '@' || c == '#')
+                switch (c)
                 {
-                    specialChars++;
+                    case '{': case '}': case '[': case ']':
+                    case '(': case ')': case ';': case ':':
+                    case '<': case '>': case '=': case '|':
+                    case '&': case '!': case '@': case '#':
+                        specialChars++;
+                        break;
+                    case '\n':
+                        newlines++;
+                        break;
                 }
             }
 
+            // Adjust for code-like content (more special characters = more tokens)
             if (specialChars > text.Length * 0.1)
             {
                 // Code-heavy text uses ~3.5 chars per token
@@ -360,11 +368,6 @@ namespace Prompt
             }
 
             // Adjust for newlines (each newline is typically its own token)
-            int newlines = 0;
-            foreach (char c in text)
-            {
-                if (c == '\n') newlines++;
-            }
             estimate += newlines * 0.5;
 
             return Math.Max(1, (int)Math.Ceiling(estimate));
@@ -464,8 +467,9 @@ namespace Prompt
                 analysis.ExceedsTokenLimit = analysis.EstimatedTokens > tokenLimit.Value;
             }
 
-            // Quality scoring
-            analysis.QualityScore = CalculateQualityScore(prompt);
+            // Quality scoring (pass pre-computed word count to avoid
+            // redundant regex matching)
+            analysis.QualityScore = CalculateQualityScore(prompt, analysis.WordCount);
 
             // Warnings
             analysis.Warnings = GenerateWarnings(analysis);
@@ -489,9 +493,20 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(prompt))
                 return 0;
 
-            int score = 50; // Start at a neutral baseline
-
             int wordCount = WordSplitPattern.Matches(prompt).Count;
+            return CalculateQualityScore(prompt, wordCount);
+        }
+
+        /// <summary>
+        /// Internal overload that accepts pre-computed word count to avoid
+        /// redundant regex matching when called from <see cref="Analyze"/>.
+        /// </summary>
+        internal static int CalculateQualityScore(string prompt, int wordCount)
+        {
+            if (string.IsNullOrWhiteSpace(prompt))
+                return 0;
+
+            int score = 50; // Start at a neutral baseline
             int charCount = prompt.Length;
 
             // ── Length scoring ──
