@@ -45,6 +45,61 @@ namespace Prompt
             NumberHandling = JsonNumberHandling.AllowReadingFromString,
         };
 
+        // Pre-compiled regex patterns for ExtractBoolean (avoids per-call allocation)
+        private static readonly Regex[] YesPatterns =
+        {
+            new Regex(@"^\s*yes\b", RegexOptions.Compiled),
+            new Regex(@"^\s*true\b", RegexOptions.Compiled),
+            new Regex(@"^\s*correct\b", RegexOptions.Compiled),
+            new Regex(@"^\s*affirmative\b", RegexOptions.Compiled),
+            new Regex(@"^\s*absolutely\b", RegexOptions.Compiled),
+            new Regex(@"^\s*certainly\b", RegexOptions.Compiled),
+            new Regex(@"^\s*indeed\b", RegexOptions.Compiled),
+            new Regex(@"^\s*definitely\b", RegexOptions.Compiled),
+            new Regex(@"\bthat(?:'s| is) (?:correct|right|true)\b", RegexOptions.Compiled),
+            new Regex(@"\byes,?\s+(?:it|that|this)\b", RegexOptions.Compiled),
+        };
+
+        private static readonly Regex[] NoPatterns =
+        {
+            new Regex(@"^\s*no\b", RegexOptions.Compiled),
+            new Regex(@"^\s*false\b", RegexOptions.Compiled),
+            new Regex(@"^\s*incorrect\b", RegexOptions.Compiled),
+            new Regex(@"^\s*negative\b", RegexOptions.Compiled),
+            new Regex(@"^\s*not?\s+(?:really|exactly)\b", RegexOptions.Compiled),
+            new Regex(@"\bdon'?t think so\b", RegexOptions.Compiled),
+            new Regex(@"\bthat(?:'s| is) (?:incorrect|wrong|false)\b", RegexOptions.Compiled),
+            new Regex(@"\bno,?\s+(?:it|that|this)\b", RegexOptions.Compiled),
+        };
+
+        // Pre-compiled regex for ExtractNumbers
+        private static readonly Regex NumberPattern =
+            new Regex(@"(?<!\w)-?(?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d+)?(?!\w)", RegexOptions.Compiled);
+
+        // Pre-compiled regex for ExtractList
+        private static readonly Regex ListItemPattern =
+            new Regex(@"^\s*(?:\d+[\.\)]\s+|[-\*•]\s+)(.+)$", RegexOptions.Compiled);
+
+        // Pre-compiled regex for ExtractNumberedList
+        private static readonly Regex NumberedListPattern =
+            new Regex(@"^\s*(\d+)[\.\)]\s+(.+)$", RegexOptions.Compiled | RegexOptions.Multiline);
+
+        // Pre-compiled regex for ExtractKeyValuePairs
+        private static readonly Regex KeyValuePattern =
+            new Regex(@"^\s*\*{0,2}([^:=\-\n]+?)\*{0,2}\s*(?::|=|-)\s*(.+)$", RegexOptions.Compiled);
+
+        // Pre-compiled regex for ExtractCodeBlocks
+        private static readonly Regex CodeBlockPattern =
+            new Regex(@"```(\w*)\s*\n([\s\S]*?)```", RegexOptions.Compiled | RegexOptions.Multiline);
+
+        // Pre-compiled regex for ExtractSections (markdown header detection)
+        private static readonly Regex SectionHeaderPattern =
+            new Regex(@"^(#{1,6})\s+(.+)$", RegexOptions.Compiled | RegexOptions.Multiline);
+
+        // Pre-compiled regex for markdown table separator detection
+        private static readonly Regex TableSeparatorPattern =
+            new Regex(@"^\|[\s\-:]+(\|[\s\-:]+)*\|$", RegexOptions.Compiled);
+
         // ═══════════════════════════════════════════════════════
         // JSON Extraction
         // ═══════════════════════════════════════════════════════
@@ -145,11 +200,9 @@ namespace Prompt
             var lines = response.Split('\n');
 
             // Pattern: numbered (1. item, 1) item) or bulleted (- item, * item, • item)
-            var listPattern = new Regex(@"^\s*(?:\d+[\.\)]\s+|[-\*•]\s+)(.+)$");
-
             foreach (var line in lines)
             {
-                var match = listPattern.Match(line);
+                var match = ListItemPattern.Match(line);
                 if (match.Success)
                 {
                     string item = match.Groups[1].Value.Trim();
@@ -170,9 +223,8 @@ namespace Prompt
             ValidateInput(response);
 
             var items = new Dictionary<int, string>();
-            var pattern = new Regex(@"^\s*(\d+)[\.\)]\s+(.+)$", RegexOptions.Multiline);
 
-            foreach (Match match in pattern.Matches(response))
+            foreach (Match match in NumberedListPattern.Matches(response))
             {
                 if (int.TryParse(match.Groups[1].Value, out int number))
                 {
@@ -204,11 +256,9 @@ namespace Prompt
             var lines = response.Split('\n');
 
             // Pattern: key: value, key = value, **key**: value, key - value
-            var kvPattern = new Regex(@"^\s*\*{0,2}([^:=\-\n]+?)\*{0,2}\s*(?::|=|-)\s*(.+)$");
-
             foreach (var line in lines)
             {
-                var match = kvPattern.Match(line);
+                var match = KeyValuePattern.Match(line);
                 if (match.Success)
                 {
                     string key = match.Groups[1].Value.Trim();
@@ -248,9 +298,8 @@ namespace Prompt
             ValidateInput(response);
 
             var blocks = new List<CodeBlock>();
-            var pattern = new Regex(@"```(\w*)\s*\n([\s\S]*?)```", RegexOptions.Multiline);
 
-            foreach (Match match in pattern.Matches(response))
+            foreach (Match match in CodeBlockPattern.Matches(response))
             {
                 string language = match.Groups[1].Value.Trim();
                 string code = match.Groups[2].Value.TrimEnd();
@@ -310,7 +359,7 @@ namespace Prompt
             int dataStart = 1;
             for (int i = 1; i < lines.Count; i++)
             {
-                if (Regex.IsMatch(lines[i], @"^\|[\s\-:]+(\|[\s\-:]+)*\|$"))
+                if (TableSeparatorPattern.IsMatch(lines[i]))
                 {
                     dataStart = i + 1;
                     break;
@@ -402,31 +451,14 @@ namespace Prompt
                 .FirstOrDefault(l => !string.IsNullOrEmpty(l)) ?? "";
             firstLine = firstLine.ToLowerInvariant();
 
-            // Strong affirmative signals
-            var yesPatterns = new[]
-            {
-                @"^\s*yes\b", @"^\s*true\b", @"^\s*correct\b",
-                @"^\s*affirmative\b", @"^\s*absolutely\b",
-                @"^\s*certainly\b", @"^\s*indeed\b", @"^\s*definitely\b",
-                @"\bthat(?:'s| is) (?:correct|right|true)\b",
-                @"\byes,?\s+(?:it|that|this)\b"
-            };
-
-            // Strong negative signals
-            var noPatterns = new[]
-            {
-                @"^\s*no\b", @"^\s*false\b", @"^\s*incorrect\b",
-                @"^\s*negative\b", @"^\s*not?\s+(?:really|exactly)\b",
-                @"\bdon'?t think so\b", @"\bthat(?:'s| is) (?:incorrect|wrong|false)\b",
-                @"\bno,?\s+(?:it|that|this)\b"
-            };
-
-            foreach (var p in yesPatterns)
-                if (Regex.IsMatch(firstLine, p))
+            // Strong affirmative signals (pre-compiled static patterns)
+            foreach (var rx in YesPatterns)
+                if (rx.IsMatch(firstLine))
                     return true;
 
-            foreach (var p in noPatterns)
-                if (Regex.IsMatch(firstLine, p))
+            // Strong negative signals (pre-compiled static patterns)
+            foreach (var rx in NoPatterns)
+                if (rx.IsMatch(firstLine))
                     return false;
 
             return null;
@@ -445,10 +477,8 @@ namespace Prompt
             ValidateInput(response);
 
             var numbers = new List<double>();
-            // Match numbers with optional commas and decimals, but not inside words
-            var pattern = new Regex(@"(?<!\w)-?(?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d+)?(?!\w)");
 
-            foreach (Match match in pattern.Matches(response))
+            foreach (Match match in NumberPattern.Matches(response))
             {
                 string numStr = match.Value.Replace(",", "");
                 if (double.TryParse(numStr, System.Globalization.NumberStyles.Any,
@@ -496,7 +526,7 @@ namespace Prompt
             // Find the target heading
             for (int i = 0; i < lines.Length; i++)
             {
-                var match = Regex.Match(lines[i], @"^(#{1,6})\s+(.+)$");
+                var match = SectionHeaderPattern.Match(lines[i]);
                 if (match.Success &&
                     string.Equals(match.Groups[2].Value.Trim(), heading, StringComparison.OrdinalIgnoreCase))
                 {
@@ -513,7 +543,7 @@ namespace Prompt
             var content = new List<string>();
             for (int i = startIndex; i < lines.Length; i++)
             {
-                var match = Regex.Match(lines[i], @"^(#{1,6})\s+");
+                var match = SectionHeaderPattern.Match(lines[i]);
                 if (match.Success && match.Groups[1].Value.Length <= headingLevel)
                     break;
                 content.Add(lines[i]);
@@ -531,9 +561,8 @@ namespace Prompt
             ValidateInput(response);
 
             var headings = new List<(int Level, string Text)>();
-            var pattern = new Regex(@"^(#{1,6})\s+(.+)$", RegexOptions.Multiline);
 
-            foreach (Match match in pattern.Matches(response))
+            foreach (Match match in SectionHeaderPattern.Matches(response))
             {
                 headings.Add((match.Groups[1].Value.Length, match.Groups[2].Value.Trim()));
             }
