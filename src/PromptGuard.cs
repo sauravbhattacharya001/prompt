@@ -281,6 +281,45 @@ namespace Prompt
                 "Delimiter injection: attempts to inject system-level markers"),
         };
 
+        // ──────────────── Unicode Bypass Prevention ────────────────
+
+        /// <summary>
+        /// Matches Unicode bidirectional override characters (U+202A–U+202E,
+        /// U+2066–U+2069) that reverse the visual order of text, allowing
+        /// injection patterns to evade regex-based detection.
+        /// </summary>
+        private static readonly Regex BidiOverridePattern = new(
+            "[\u202A-\u202E\u2066-\u2069]",
+            RegexOptions.Compiled);
+
+        /// <summary>
+        /// Matches zero-width and invisible formatting characters that break
+        /// regex word-boundary matching without being visible to users:
+        /// ZERO WIDTH SPACE (U+200B), ZERO WIDTH NON-JOINER (U+200C),
+        /// ZERO WIDTH JOINER (U+200D), LEFT-TO-RIGHT MARK (U+200E),
+        /// RIGHT-TO-LEFT MARK (U+200F), BOM/ZWNBSP (U+FEFF).
+        /// </summary>
+        private static readonly Regex ZeroWidthPattern = new(
+            "[\u200B-\u200F\uFEFF]",
+            RegexOptions.Compiled);
+
+        /// <summary>
+        /// Strips all Unicode characters commonly used to bypass text-based
+        /// security checks: bidi overrides, zero-width characters, and
+        /// invisible formatting marks.
+        /// </summary>
+        /// <param name="text">The text to normalize.</param>
+        /// <returns>Text with bypass characters removed.</returns>
+        internal static string StripUnicodeBypassChars(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text ?? "";
+
+            var result = BidiOverridePattern.Replace(text, "");
+            result = ZeroWidthPattern.Replace(result, "");
+            return result;
+        }
+
         // ──────────────── Vague Language Patterns ────────────────
 
         private static readonly Regex VaguePattern = new(
@@ -390,9 +429,14 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(text))
                 return false;
 
+            // Normalize text by stripping Unicode bypass characters
+            // (bidi overrides, zero-width chars) before checking patterns,
+            // so that "ig\u200Bnore" is detected the same as "ignore".
+            var normalized = StripUnicodeBypassChars(text);
+
             foreach (var (pattern, _) in InjectionPatterns)
             {
-                if (pattern.IsMatch(text))
+                if (pattern.IsMatch(normalized))
                     return true;
             }
 
@@ -413,11 +457,14 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(text))
                 return Array.Empty<string>();
 
+            // Normalize text by stripping Unicode bypass characters
+            var normalized = StripUnicodeBypassChars(text);
+
             var detected = new List<string>();
 
             foreach (var (pattern, description) in InjectionPatterns)
             {
-                if (pattern.IsMatch(text))
+                if (pattern.IsMatch(normalized))
                     detected.Add(description);
             }
 
@@ -599,6 +646,12 @@ namespace Prompt
             // Remove null bytes and non-printable control characters
             // (except \t, \n, \r which are legitimate whitespace)
             result = Regex.Replace(result, @"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", "");
+
+            // Remove Unicode bidirectional override characters and
+            // zero-width characters used to bypass injection detection.
+            // Must run before delimiter pattern checks so that obfuscated
+            // markers like "[‮METSYS‬]" are normalized first.
+            result = StripUnicodeBypassChars(result);
 
             // Remove common delimiter injection markers
             result = Regex.Replace(result, @"\[\s*SYSTEM\s*\]", "[BLOCKED_SYSTEM]",
