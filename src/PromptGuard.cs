@@ -345,6 +345,18 @@ namespace Prompt
         private static readonly Regex WordSplitPattern = new(
             @"\S+", RegexOptions.Compiled);
 
+        private static readonly Regex ContextRolePattern = new(
+            @"\b(you\s+are|act\s+as|role|persona|context|background)\b",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex ExamplesProvidedPattern = new(
+            @"\bexample[s]?\s*[:：]|\bfor\s+example\b|\be\.?g\.?\b|\binput\s*[:：].*output\s*[:：]",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+        private static readonly Regex ConstraintsPattern = new(
+            @"\b(must|should|do\s+not|don'?t|avoid|ensure|require|constraint|limit|maximum|minimum|at\s+(most|least))\b",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         // ──────────────── Token Estimation ────────────────
 
         /// <summary>
@@ -588,18 +600,15 @@ namespace Prompt
             score -= Math.Min(vagueMatches * 3, 12);
 
             // ── Context/role setting ──
-            if (Regex.IsMatch(prompt, @"\b(you\s+are|act\s+as|role|persona|context|background)\b",
-                RegexOptions.IgnoreCase))
+            if (ContextRolePattern.IsMatch(prompt))
                 score += 5;
 
             // ── Examples provided ──
-            if (Regex.IsMatch(prompt, @"\bexample[s]?\s*[:：]|\bfor\s+example\b|\be\.?g\.?\b|\binput\s*[:：].*output\s*[:：]",
-                RegexOptions.IgnoreCase | RegexOptions.Singleline))
+            if (ExamplesProvidedPattern.IsMatch(prompt))
                 score += 8;
 
             // ── Constraints specified ──
-            if (Regex.IsMatch(prompt, @"\b(must|should|do\s+not|don'?t|avoid|ensure|require|constraint|limit|maximum|minimum|at\s+(most|least))\b",
-                RegexOptions.IgnoreCase))
+            if (ConstraintsPattern.IsMatch(prompt))
                 score += 5;
 
             // Clamp to 0–100
