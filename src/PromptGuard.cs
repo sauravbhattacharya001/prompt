@@ -357,6 +357,33 @@ namespace Prompt
             @"\b(must|should|do\s+not|don'?t|avoid|ensure|require|constraint|limit|maximum|minimum|at\s+(most|least))\b",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        // ──────────────── Sanitize Patterns ────────────────
+
+        private static readonly Regex ControlCharsPattern =
+            new(@"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", RegexOptions.Compiled);
+        private static readonly Regex SystemDelimiterPattern =
+            new(@"\[\s*SYSTEM\s*\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex InstDelimiterPattern =
+            new(@"\[\s*INST\s*\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex SysDelimiterPattern =
+            new(@"<<\s*SYS\s*>>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex SystemTagPattern =
+            new(@"<\|system\|>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex ImStartTagPattern =
+            new(@"<\|im_start\|>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex ImEndTagPattern =
+            new(@"<\|im_end\|>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex ExcessiveSpacesPattern =
+            new(@" {3,}", RegexOptions.Compiled);
+        private static readonly Regex ExcessiveNewlinesPattern =
+            new(@"\n{3,}", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Pattern for validating prompt/version names: word chars, hyphens, dots only.
+        /// </summary>
+        internal static readonly Regex NameValidationPattern =
+            new(@"^[\w\-\.]+$", RegexOptions.Compiled);
+
         // ──────────────── Token Estimation ────────────────
 
         /// <summary>
@@ -654,7 +681,7 @@ namespace Prompt
 
             // Remove null bytes and non-printable control characters
             // (except \t, \n, \r which are legitimate whitespace)
-            result = Regex.Replace(result, @"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", "");
+            result = ControlCharsPattern.Replace(result, "");
 
             // Remove Unicode bidirectional override characters and
             // zero-width characters used to bypass injection detection.
@@ -663,23 +690,17 @@ namespace Prompt
             result = StripUnicodeBypassChars(result);
 
             // Remove common delimiter injection markers
-            result = Regex.Replace(result, @"\[\s*SYSTEM\s*\]", "[BLOCKED_SYSTEM]",
-                RegexOptions.IgnoreCase);
-            result = Regex.Replace(result, @"\[\s*INST\s*\]", "[BLOCKED_INST]",
-                RegexOptions.IgnoreCase);
-            result = Regex.Replace(result, @"<<\s*SYS\s*>>", "<<BLOCKED_SYS>>",
-                RegexOptions.IgnoreCase);
-            result = Regex.Replace(result, @"<\|system\|>", "<|blocked_system|>",
-                RegexOptions.IgnoreCase);
-            result = Regex.Replace(result, @"<\|im_start\|>", "<|blocked_im_start|>",
-                RegexOptions.IgnoreCase);
-            result = Regex.Replace(result, @"<\|im_end\|>", "<|blocked_im_end|>",
-                RegexOptions.IgnoreCase);
+            result = SystemDelimiterPattern.Replace(result, "[BLOCKED_SYSTEM]");
+            result = InstDelimiterPattern.Replace(result, "[BLOCKED_INST]");
+            result = SysDelimiterPattern.Replace(result, "<<BLOCKED_SYS>>");
+            result = SystemTagPattern.Replace(result, "<|blocked_system|>");
+            result = ImStartTagPattern.Replace(result, "<|blocked_im_start|>");
+            result = ImEndTagPattern.Replace(result, "<|blocked_im_end|>");
 
             // Normalize excessive whitespace (3+ consecutive spaces → 2 spaces,
             // 3+ consecutive newlines → 2 newlines)
-            result = Regex.Replace(result, @" {3,}", "  ");
-            result = Regex.Replace(result, @"\n{3,}", "\n\n");
+            result = ExcessiveSpacesPattern.Replace(result, "  ");
+            result = ExcessiveNewlinesPattern.Replace(result, "\n\n");
 
             // Trim
             result = result.Trim();

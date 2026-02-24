@@ -561,7 +561,7 @@ namespace Prompt
                 throw new ArgumentException(
                     "Template name cannot be null or empty.", nameof(name));
 
-            if (!Regex.IsMatch(name.Trim(), @"^[\w\-\.]+$"))
+            if (!PromptGuard.NameValidationPattern.IsMatch(name.Trim()))
                 throw new ArgumentException(
                     $"Template name '{name}' contains invalid characters. " +
                     "Use only letters, digits, hyphens, underscores, and dots.",

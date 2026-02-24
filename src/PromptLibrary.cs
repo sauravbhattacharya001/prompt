@@ -114,7 +114,7 @@ namespace Prompt
                 throw new ArgumentException(
                     "Entry name cannot be null or empty.", nameof(name));
 
-            if (!Regex.IsMatch(name.Trim(), @"^[\w\-\.]+$"))
+            if (!PromptGuard.NameValidationPattern.IsMatch(name.Trim()))
                 throw new ArgumentException(
                     $"Entry name '{name}' contains invalid characters. " +
                     "Use only letters, digits, hyphens, underscores, and dots.",
