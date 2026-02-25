@@ -4,6 +4,7 @@ namespace Prompt
     using System.Text;
     using System.Text.Json;
     using System.Text.Json.Serialization;
+    using System.Threading;
     using Azure.AI.OpenAI;
     using OpenAI.Chat;
 
@@ -51,6 +52,7 @@ namespace Prompt
 
         private readonly List<ChatMessage> _messages = new();
         private readonly object _lock = new();
+        private readonly SemaphoreSlim _sendLock = new(1, 1);
         private int _maxMessages = DefaultMaxMessages;
 
         // Per-conversation model parameters (defaults match Main.cs)
@@ -249,40 +251,48 @@ namespace Prompt
                 throw new ArgumentException(
                     "Message cannot be null or empty.", nameof(message));
 
-            List<ChatMessage> snapshot;
-            lock (_lock)
+            await _sendLock.WaitAsync(cancellationToken);
+            try
             {
-                _messages.Add(new UserChatMessage(message));
-                TrimMessagesUnsafe();
-                snapshot = new List<ChatMessage>(_messages);
-            }
-
-            var completionOptions = new PromptOptions
-            {
-                Temperature = _temperature,
-                MaxTokens = _maxTokens,
-                TopP = _topP,
-                FrequencyPenalty = _frequencyPenalty,
-                PresencePenalty = _presencePenalty,
-            }.ToChatCompletionOptions();
-
-            ChatClient chatClient = Main.GetOrCreateChatClient(_maxRetries);
-
-            ChatCompletion completion = await chatClient.CompleteChatAsync(
-                snapshot, completionOptions, cancellationToken);
-
-            string? responseText = completion?.Content?.FirstOrDefault()?.Text;
-
-            if (responseText != null)
-            {
+                List<ChatMessage> snapshot;
                 lock (_lock)
                 {
-                    _messages.Add(new AssistantChatMessage(responseText));
+                    _messages.Add(new UserChatMessage(message));
                     TrimMessagesUnsafe();
+                    snapshot = new List<ChatMessage>(_messages);
                 }
-            }
 
-            return responseText;
+                var completionOptions = new PromptOptions
+                {
+                    Temperature = _temperature,
+                    MaxTokens = _maxTokens,
+                    TopP = _topP,
+                    FrequencyPenalty = _frequencyPenalty,
+                    PresencePenalty = _presencePenalty,
+                }.ToChatCompletionOptions();
+
+                ChatClient chatClient = Main.GetOrCreateChatClient(_maxRetries);
+
+                ChatCompletion completion = await chatClient.CompleteChatAsync(
+                    snapshot, completionOptions, cancellationToken);
+
+                string? responseText = completion?.Content?.FirstOrDefault()?.Text;
+
+                if (responseText != null)
+                {
+                    lock (_lock)
+                    {
+                        _messages.Add(new AssistantChatMessage(responseText));
+                        TrimMessagesUnsafe();
+                    }
+                }
+
+                return responseText;
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
         }
 
         /// <summary>
