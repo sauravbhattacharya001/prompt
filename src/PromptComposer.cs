@@ -338,7 +338,7 @@ namespace Prompt
             var filtered = data.Where(kv => kv.Value != null)
                 .ToDictionary(kv => kv.Key, kv => kv.Value);
 
-            return JsonSerializer.Serialize(filtered, new JsonSerializerOptions { WriteIndented = true });
+            return JsonSerializer.Serialize(filtered, SerializationGuards.WriteCamelCase);
         }
 
         /// <summary>Deserializes a composer from JSON.</summary>

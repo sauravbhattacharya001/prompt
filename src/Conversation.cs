@@ -489,11 +489,7 @@ namespace Prompt
                     data.Messages.Add(new MessageData { Role = GetRole(msg), Content = ExtractContent(msg) });
                 }
 
-                var options = new JsonSerializerOptions
-                {
-                    WriteIndented = indented,
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                };
+                var options = SerializationGuards.WriteOptions(indented);
 
                 return JsonSerializer.Serialize(data, options);
             }
@@ -521,12 +517,7 @@ namespace Prompt
             // Guard against oversized payloads that could cause memory exhaustion
             SerializationGuards.ThrowIfPayloadTooLarge(json);
 
-            var options = new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            };
-
-            var data = JsonSerializer.Deserialize<ConversationData>(json, options);
+            var data = JsonSerializer.Deserialize<ConversationData>(json, SerializationGuards.ReadCamelCase);
 
             if (data?.Messages == null)
                 throw new InvalidOperationException(

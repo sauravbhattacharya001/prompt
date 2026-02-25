@@ -410,13 +410,7 @@ namespace Prompt
                     TrimmedTokens = TrimmedTokens
                 };
 
-                var options = new JsonSerializerOptions
-                {
-                    WriteIndented = indented,
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                };
-
-                return JsonSerializer.Serialize(data, options);
+                return JsonSerializer.Serialize(data, SerializationGuards.WriteOptions(indented));
             }
         }
 
@@ -431,12 +425,7 @@ namespace Prompt
 
             SerializationGuards.ThrowIfPayloadTooLarge(json);
 
-            var options = new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            };
-
-            var data = JsonSerializer.Deserialize<TokenBudgetData>(json, options)
+            var data = JsonSerializer.Deserialize<TokenBudgetData>(json, SerializationGuards.ReadCamelCase)
                 ?? throw new InvalidOperationException(
                     "Invalid token budget JSON: deserialization returned null.");
 

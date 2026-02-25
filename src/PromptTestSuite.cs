@@ -274,7 +274,7 @@ namespace Prompt
                     })
                 })
             };
-            return JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
+            return JsonSerializer.Serialize(data, SerializationGuards.WriteCamelCase);
         }
     }
 
@@ -388,21 +388,13 @@ namespace Prompt
                     TimeoutMs = tc.Timeout?.TotalMilliseconds
                 }).ToList()
             };
-            return JsonSerializer.Serialize(data, new JsonSerializerOptions
-            {
-                WriteIndented = indented,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            });
+            return JsonSerializer.Serialize(data, SerializationGuards.WriteOptions(indented));
         }
 
         public static PromptTestSuite FromJson(string json)
         {
             SerializationGuards.ThrowIfPayloadTooLarge(json);
-            var data = JsonSerializer.Deserialize<SuiteData>(json, new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            }) ?? throw new JsonException("Failed to deserialize PromptTestSuite.");
+            var data = JsonSerializer.Deserialize<SuiteData>(json, SerializationGuards.ReadCamelCase) ?? throw new JsonException("Failed to deserialize PromptTestSuite.");
 
             var suite = new PromptTestSuite(data.Name ?? "Unnamed");
             if (data.TestCases != null)

@@ -204,20 +204,13 @@ namespace Prompt
                 MinScore = _minScore,
             };
 
-            return JsonSerializer.Serialize(data, new JsonSerializerOptions
-            {
-                WriteIndented = indented,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            });
+            return JsonSerializer.Serialize(data, SerializationGuards.WriteOptions(indented));
         }
 
         /// <summary>Deserialize router configuration from JSON.</summary>
         public static PromptRouter FromJson(string json, PromptLibrary? library = null)
         {
-            var data = JsonSerializer.Deserialize<RouterData>(json, new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            });
+            var data = JsonSerializer.Deserialize<RouterData>(json, SerializationGuards.ReadCamelCase);
 
             var router = library != null ? new PromptRouter(library) : new PromptRouter();
 

@@ -1,8 +1,13 @@
 namespace Prompt
 {
+    using System.Text.Json;
+    using System.Text.Json.Serialization;
+
     /// <summary>
-    /// Shared security guards for JSON serialization/deserialization.
-    /// Prevents denial-of-service via oversized or crafted payloads.
+    /// Shared security guards and JSON configuration for serialization.
+    /// Prevents denial-of-service via oversized payloads and provides
+    /// reusable <see cref="JsonSerializerOptions"/> instances to avoid
+    /// repeated allocations and enable internal metadata caching.
     /// </summary>
     internal static class SerializationGuards
     {
@@ -12,6 +17,61 @@ namespace Prompt
         /// Default: 10 MB.
         /// </summary>
         internal const int MaxJsonPayloadBytes = 10 * 1024 * 1024;
+
+        // ── Shared JsonSerializerOptions ─────────────────────────────
+
+        /// <summary>
+        /// Read/deserialize options: camelCase property names.
+        /// </summary>
+        internal static readonly JsonSerializerOptions ReadCamelCase = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
+        /// <summary>
+        /// Write/serialize options: indented, camelCase, skip null properties.
+        /// </summary>
+        internal static readonly JsonSerializerOptions WriteCamelCase = new()
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
+        /// <summary>
+        /// Write/serialize options: compact (not indented), camelCase, skip null properties.
+        /// </summary>
+        internal static readonly JsonSerializerOptions WriteCompactCamelCase = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
+        /// <summary>
+        /// Returns the appropriate write options based on the <paramref name="indented"/> flag.
+        /// </summary>
+        internal static JsonSerializerOptions WriteOptions(bool indented) =>
+            indented ? WriteCamelCase : WriteCompactCamelCase;
+
+        /// <summary>
+        /// Read options with camelCase and string enum conversion.
+        /// </summary>
+        internal static readonly JsonSerializerOptions ReadWithEnums = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            Converters = { new JsonStringEnumConverter() }
+        };
+
+        /// <summary>
+        /// Write options: indented with string enum conversion.
+        /// </summary>
+        internal static readonly JsonSerializerOptions WriteWithEnums = new()
+        {
+            WriteIndented = true,
+            Converters = { new JsonStringEnumConverter() }
+        };
+
+        // ── Payload guards ───────────────────────────────────────────
 
         /// <summary>
         /// Throws <see cref="InvalidOperationException"/> if the JSON string

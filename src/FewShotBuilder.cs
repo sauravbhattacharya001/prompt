@@ -586,11 +586,7 @@ namespace Prompt
                 Format = _format,
                 Examples = _examples.ToList()
             };
-            return JsonSerializer.Serialize(dto, new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                Converters = { new JsonStringEnumConverter() }
-            });
+            return JsonSerializer.Serialize(dto, SerializationGuards.WriteWithEnums);
         }
 
         /// <summary>Deserialize a builder from a JSON string.</summary>
@@ -601,10 +597,7 @@ namespace Prompt
 
             SerializationGuards.ThrowIfPayloadTooLarge(json);
 
-            var dto = JsonSerializer.Deserialize<FewShotDto>(json, new JsonSerializerOptions
-            {
-                Converters = { new JsonStringEnumConverter() }
-            });
+            var dto = JsonSerializer.Deserialize<FewShotDto>(json, SerializationGuards.ReadWithEnums);
 
             if (dto == null)
                 throw new JsonException("Failed to deserialize FewShotBuilder.");

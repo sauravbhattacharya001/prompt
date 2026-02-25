@@ -118,12 +118,7 @@ namespace Prompt
                 Suggestions = Suggestions.Count > 0 ? Suggestions.ToList() : null
             };
 
-            return JsonSerializer.Serialize(data, new JsonSerializerOptions
-            {
-                WriteIndented = indented,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            });
+            return JsonSerializer.Serialize(data, SerializationGuards.WriteOptions(indented));
         }
 
         internal class AnalysisData

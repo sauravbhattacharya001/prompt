@@ -477,12 +477,7 @@ namespace Prompt
                 Templates = data
             };
 
-            return JsonSerializer.Serialize(wrapper, new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            });
+            return JsonSerializer.Serialize(wrapper, SerializationGuards.WriteCamelCase);
         }
 
         /// <summary>
@@ -505,10 +500,7 @@ namespace Prompt
             SerializationGuards.ThrowIfPayloadTooLarge(json);
 
             var wrapper = JsonSerializer.Deserialize<VersionManagerData>(json,
-                new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                });
+                SerializationGuards.ReadCamelCase);
 
             if (wrapper?.Templates == null)
                 throw new InvalidOperationException(

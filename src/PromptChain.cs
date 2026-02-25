@@ -161,12 +161,7 @@ namespace Prompt
                     (IDictionary<string, string>)Variables)
             };
 
-            return JsonSerializer.Serialize(data, new JsonSerializerOptions
-            {
-                WriteIndented = indented,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            });
+            return JsonSerializer.Serialize(data, SerializationGuards.WriteOptions(indented));
         }
 
         internal class ChainResultData
@@ -492,12 +487,7 @@ namespace Prompt
                 }).ToList()
             };
 
-            return JsonSerializer.Serialize(data, new JsonSerializerOptions
-            {
-                WriteIndented = indented,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            });
+            return JsonSerializer.Serialize(data, SerializationGuards.WriteOptions(indented));
         }
 
         /// <summary>
@@ -521,10 +511,7 @@ namespace Prompt
             SerializationGuards.ThrowIfPayloadTooLarge(json);
 
             var data = JsonSerializer.Deserialize<ChainData>(json,
-                new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                });
+                SerializationGuards.ReadCamelCase);
 
             if (data?.Steps == null || data.Steps.Count == 0)
                 throw new InvalidOperationException(
