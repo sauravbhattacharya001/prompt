@@ -2,7 +2,7 @@
 
 # 🤖 Prompt
 
-**A lightweight .NET library for Azure OpenAI chat completions**
+**A comprehensive .NET library for Azure OpenAI prompt engineering**
 
 [![NuGet](https://img.shields.io/nuget/v/prompt-llm-aoi?style=flat-square&logo=nuget&color=004880)](https://www.nuget.org/packages/prompt-llm-aoi)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/prompt-llm-aoi?style=flat-square&logo=nuget&color=004880)](https://www.nuget.org/packages/prompt-llm-aoi)
@@ -12,10 +12,11 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/ci.yml?style=flat-square&label=CI&logo=github)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/ci.yml)
 [![Publish](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/nuget-publish.yml?style=flat-square&label=Publish&logo=github)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/nuget-publish.yml)
 [![codecov](https://img.shields.io/codecov/c/github/sauravbhattacharya001/prompt?style=flat-square&logo=codecov)](https://codecov.io/gh/sauravbhattacharya001/prompt)
+![Tests](https://img.shields.io/badge/tests-1011%20passed-brightgreen?style=flat-square)
 
-Send prompts to Azure OpenAI and get responses — with built-in retry logic, cancellation support, and singleton client management. Zero boilerplate.
+Send prompts to Azure OpenAI and get responses — with templates, chains, safety guards, token management, version control, and a full prompt engineering toolkit. Zero boilerplate.
 
-[Installation](#installation) · [Quick Start](#quick-start) · [API Reference](#api-reference) · [Changelog](CHANGELOG.md)
+[Installation](#installation) · [Quick Start](#quick-start) · [Full Class Library](#full-class-library) · [API Reference](#api-reference) · [Changelog](CHANGELOG.md)
 
 </div>
 
@@ -23,18 +24,55 @@ Send prompts to Azure OpenAI and get responses — with built-in retry logic, ca
 
 ## ✨ Features
 
+### Core
 - **Single method call** — `GetResponseAsync()` handles everything
 - **Multi-turn conversations** — `Conversation` class maintains message history across turns
-- **Save & load conversations** — Serialize to JSON (string or file), restore later with full state
-- **Configurable parameters** — `PromptOptions` class with presets (`ForCodeGeneration()`, `ForCreativeWriting()`, etc.) for temperature, max tokens, top-p, and penalties
+- **Configurable parameters** — `PromptOptions` class with presets (`ForCodeGeneration()`, `ForCreativeWriting()`, etc.)
 - **Automatic retries** — Exponential backoff for 429 rate-limit and 503 errors
-- **System prompts** — Set assistant behavior with an optional parameter
 - **Cancellation support** — Pass `CancellationToken` to cancel long-running requests
 - **Connection pooling** — Thread-safe singleton client with double-check locking
-- **Cross-platform** — Environment variable resolution works on Windows, Linux, and macOS
-- **Prompt templates** — Reusable `PromptTemplate` with `{{variable}}` placeholders, defaults, validation, and composition
-- **Prompt chains** — `PromptChain` pipelines multiple prompts sequentially, where each step's output feeds into the next as a variable
+
+### Prompt Engineering
+- **Templates** — `PromptTemplate` with `{{variable}}` placeholders, defaults, validation, and composition
+- **Chains** — `PromptChain` pipelines multiple prompts sequentially, each step's output feeding into the next
+- **Composer** — `PromptComposer` fluent builder for structured prompts (persona, context, task, constraints, examples, output format)
+- **Few-shot builder** — `FewShotBuilder` for structured few-shot prompt construction with 5 formats and token-budget awareness
+- **Library** — `PromptLibrary` central template registry with search, categories, tags, and 8 built-in templates
+- **Router** — `PromptRouter` intent-based routing with keyword/regex scoring and fallback support
+
+### Safety & Quality
+- **Guard** — `PromptGuard` injection detection (10 attack vectors), quality scoring (0–100, A–F grade), sanitization, and format wrapping
+- **Token budget** — `TokenBudget` auto-trims conversations to fit model context windows with 3 trim strategies
+- **Test suite** — `PromptTestSuite` automated prompt evaluation framework with 10 assertion types and pluggable response providers
+
+### Management
+- **Version manager** — `PromptVersionManager` version history, line-level diffs, and rollback for prompt templates
+- **Response parser** — `ResponseParser` extracts structured data (JSON, lists, tables, key-value pairs, code blocks) from LLM responses
+- **Serialization** — All classes support JSON round-trip (ToJson/FromJson/SaveToFileAsync/LoadFromFileAsync)
+
+### Infrastructure
+- **1,000+ tests** — Comprehensive xUnit test suite
+- **Cross-platform** — Environment variable resolution on Windows, Linux, and macOS
 - **NuGet ready** — Published as [`prompt-llm-aoi`](https://www.nuget.org/packages/prompt-llm-aoi)
+
+### Full Class Library
+
+| Class | Description |
+|-------|-------------|
+| [`Main`](#maingettresponseasync) | Single-call Azure OpenAI completions with retries and cancellation |
+| [`Conversation`](#conversation-class) | Multi-turn message history with configurable model parameters |
+| [`PromptTemplate`](#prompttemplate-class) | Reusable `{{variable}}` templates with defaults, validation, and composition |
+| [`PromptChain`](#promptchain-class) | Multi-step LLM pipeline with variable forwarding between steps |
+| `PromptOptions` | Model parameter presets (code generation, creative writing, data extraction, summarization) |
+| `PromptLibrary` | Central template registry with CRUD, search by category/tag, merge, and 8 built-in templates |
+| `PromptGuard` | Injection detection, quality scoring, sanitization, and output format wrapping |
+| `TokenBudget` | Context window management with 3 trim strategies and 15+ model presets |
+| `FewShotBuilder` | Structured few-shot prompt construction with 5 formats and token-budget integration |
+| `PromptVersionManager` | Version history, line-level diffs, and rollback for templates |
+| `PromptComposer` | Fluent structured prompt builder with semantic sections and 4 presets |
+| `PromptRouter` | Intent-based prompt routing with keyword/regex scoring and fallback |
+| `ResponseParser` | Extract JSON, lists, tables, key-value pairs, and code blocks from LLM responses |
+| `PromptTestSuite` | Automated prompt evaluation with 10 assertion types and pluggable response providers |
 
 ## Prerequisites
 
@@ -672,30 +710,36 @@ Multi-step prompt pipeline where each step's output feeds into subsequent steps 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│              Your Application           │
-│                                         │
-│  await Main.GetResponseAsync(prompt)    │
-└──────────────────┬──────────────────────┘
-                   │
-┌──────────────────▼──────────────────────┐
-│          Prompt Library (this)          │
-│  ┌─────────────┐  ┌──────────────────┐ │
-│  │ Env Config   │  │ Singleton Client │ │
-│  │ Resolution   │  │ (Thread-Safe)    │ │
-│  └──────┬──────┘  └────────┬─────────┘ │
-│         └─────────┬────────┘           │
-│                   │                     │
-│  ┌────────────────▼──────────────────┐ │
-│  │ Azure.Core Retry Pipeline         │ │
-│  │ (Exponential Backoff + Jitter)    │ │
-│  └────────────────┬──────────────────┘ │
-└───────────────────┼─────────────────────┘
-                    │
-┌───────────────────▼─────────────────────┐
-│         Azure OpenAI Service            │
-│     Chat Completions API (GPT-4)        │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│                 Your Application                    │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────┐
+│              Prompt Library (this)                   │
+│                                                     │
+│  ┌─── Prompt Engineering ─────────────────────────┐ │
+│  │ PromptTemplate  PromptChain   PromptComposer   │ │
+│  │ FewShotBuilder  PromptLibrary PromptRouter     │ │
+│  └────────────────────────────────────────────────┘ │
+│                                                     │
+│  ┌─── Safety & Quality ───────────────────────────┐ │
+│  │ PromptGuard  TokenBudget  PromptTestSuite      │ │
+│  └────────────────────────────────────────────────┘ │
+│                                                     │
+│  ┌─── Management ─────────────────────────────────┐ │
+│  │ PromptVersionManager  ResponseParser           │ │
+│  └────────────────────────────────────────────────┘ │
+│                                                     │
+│  ┌─── Runtime ────────────────────────────────────┐ │
+│  │ Main (Singleton)  Conversation  PromptOptions  │ │
+│  │ Env Config        Retry Pipeline               │ │
+│  └────────────────────────────────────────────────┘ │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────┐
+│            Azure OpenAI Service                     │
+│        Chat Completions API (GPT-4)                 │
+└─────────────────────────────────────────────────────┘
 ```
 
 ## Contributing
