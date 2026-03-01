@@ -45,32 +45,21 @@ namespace Prompt
             NumberHandling = JsonNumberHandling.AllowReadingFromString,
         };
 
-        // Pre-compiled regex patterns for ExtractBoolean (avoids per-call allocation)
-        private static readonly Regex[] YesPatterns =
-        {
-            new Regex(@"^\s*yes\b", RegexOptions.Compiled),
-            new Regex(@"^\s*true\b", RegexOptions.Compiled),
-            new Regex(@"^\s*correct\b", RegexOptions.Compiled),
-            new Regex(@"^\s*affirmative\b", RegexOptions.Compiled),
-            new Regex(@"^\s*absolutely\b", RegexOptions.Compiled),
-            new Regex(@"^\s*certainly\b", RegexOptions.Compiled),
-            new Regex(@"^\s*indeed\b", RegexOptions.Compiled),
-            new Regex(@"^\s*definitely\b", RegexOptions.Compiled),
-            new Regex(@"\bthat(?:'s| is) (?:correct|right|true)\b", RegexOptions.Compiled),
-            new Regex(@"\byes,?\s+(?:it|that|this)\b", RegexOptions.Compiled),
-        };
+        // Pre-compiled regex patterns for ExtractBoolean (avoids per-call allocation).
+        // Combined into single alternation patterns (was 18 separate Regex objects).
+        private static readonly Regex YesPattern = new(
+            @"^\s*(?:yes|true|correct|affirmative|absolutely|certainly|indeed|definitely)\b" +
+            @"|\bthat(?:'s| is) (?:correct|right|true)\b" +
+            @"|\byes,?\s+(?:it|that|this)\b",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-        private static readonly Regex[] NoPatterns =
-        {
-            new Regex(@"^\s*no\b", RegexOptions.Compiled),
-            new Regex(@"^\s*false\b", RegexOptions.Compiled),
-            new Regex(@"^\s*incorrect\b", RegexOptions.Compiled),
-            new Regex(@"^\s*negative\b", RegexOptions.Compiled),
-            new Regex(@"^\s*not?\s+(?:really|exactly)\b", RegexOptions.Compiled),
-            new Regex(@"\bdon'?t think so\b", RegexOptions.Compiled),
-            new Regex(@"\bthat(?:'s| is) (?:incorrect|wrong|false)\b", RegexOptions.Compiled),
-            new Regex(@"\bno,?\s+(?:it|that|this)\b", RegexOptions.Compiled),
-        };
+        private static readonly Regex NoPattern = new(
+            @"^\s*(?:no|false|incorrect|negative)\b" +
+            @"|^\s*not?\s+(?:really|exactly)\b" +
+            @"|\bdon'?t think so\b" +
+            @"|\bthat(?:'s| is) (?:incorrect|wrong|false)\b" +
+            @"|\bno,?\s+(?:it|that|this)\b",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         // Pre-compiled regex for ExtractNumbers
         private static readonly Regex NumberPattern =
@@ -451,15 +440,13 @@ namespace Prompt
                 .FirstOrDefault(l => !string.IsNullOrEmpty(l)) ?? "";
             firstLine = firstLine.ToLowerInvariant();
 
-            // Strong affirmative signals (pre-compiled static patterns)
-            foreach (var rx in YesPatterns)
-                if (rx.IsMatch(firstLine))
-                    return true;
+            // Strong affirmative signal (single combined pattern)
+            if (YesPattern.IsMatch(firstLine))
+                return true;
 
-            // Strong negative signals (pre-compiled static patterns)
-            foreach (var rx in NoPatterns)
-                if (rx.IsMatch(firstLine))
-                    return false;
+            // Strong negative signal (single combined pattern)
+            if (NoPattern.IsMatch(firstLine))
+                return false;
 
             return null;
         }
