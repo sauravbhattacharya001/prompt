@@ -504,7 +504,10 @@ namespace Prompt
 
             if (dto.Entries != null)
             {
-                // Add in reverse order so the first entry in JSON becomes MRU
+                // Add in reverse order so the first entry in JSON becomes MRU.
+                // Only load up to capacity entries to honour the size limit;
+                // entries beyond capacity are silently dropped (LRU-style: the
+                // oldest entries in the JSON are the ones we skip).
                 for (int i = dto.Entries.Count - 1; i >= 0; i--)
                 {
                     var e = dto.Entries[i];
@@ -526,6 +529,10 @@ namespace Prompt
                     string key = ComputeKey(entry.Prompt, entry.Model);
                     lock (cache._lock)
                     {
+                        // Enforce capacity: stop loading once we've reached the limit
+                        if (cache._map.Count >= cache._capacity)
+                            break;
+
                         if (!cache._map.ContainsKey(key))
                         {
                             var keyed = new KeyedCacheEntry(key, entry);
