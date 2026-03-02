@@ -463,12 +463,7 @@ namespace Prompt
                 Entries = entries
             };
 
-            return JsonSerializer.Serialize(dto, new JsonSerializerOptions
-            {
-                WriteIndented = indented,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
+            return JsonSerializer.Serialize(dto, SerializationGuards.WriteOptions(indented));
         }
 
         /// <summary>
@@ -488,10 +483,7 @@ namespace Prompt
             if (json == null)
                 throw new ArgumentNullException(nameof(json));
 
-            var dto = JsonSerializer.Deserialize<CacheDto>(json, new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
+            var dto = JsonSerializer.Deserialize<CacheDto>(json, SerializationGuards.ReadCamelCase);
 
             if (dto == null)
                 throw new JsonException("Failed to deserialize cache JSON.");

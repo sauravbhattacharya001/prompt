@@ -29,6 +29,24 @@ namespace Prompt
         };
 
         /// <summary>
+        /// Write/serialize options: indented, skip null properties (no camelCase).
+        /// Used by components that serialize with PascalCase property names.
+        /// </summary>
+        internal static readonly JsonSerializerOptions WriteIndentedSkipNull = new()
+        {
+            WriteIndented = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
+        /// <summary>
+        /// Write/serialize options: indented only (no camelCase, no null skipping).
+        /// </summary>
+        internal static readonly JsonSerializerOptions WriteIndented = new()
+        {
+            WriteIndented = true
+        };
+
+        /// <summary>
         /// Write/serialize options: indented, camelCase, skip null properties.
         /// </summary>
         internal static readonly JsonSerializerOptions WriteCamelCase = new()

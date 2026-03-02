@@ -470,28 +470,69 @@ namespace Prompt
         /// </summary>
         private static void CompareLines(string[] oldLines, string[] newLines, List<DiffChange> changes)
         {
-            int maxLen = Math.Max(oldLines.Length, newLines.Length);
+            // LCS-based diff: correctly identifies insertions, deletions,
+            // and true modifications even when lines are shifted.
+            // Previously used naive positional comparison which reported
+            // every shifted line as "Modified" (see issue #31).
 
-            for (int i = 0; i < maxLen; i++)
+            var oldTrimmed = oldLines.Select(l => l.TrimEnd()).ToArray();
+            var newTrimmed = newLines.Select(l => l.TrimEnd()).ToArray();
+
+            int m = oldTrimmed.Length;
+            int n = newTrimmed.Length;
+
+            // Build LCS length table — O(m*n) time and space.
+            // For typical prompt templates (< 1000 lines) this is fine.
+            var dp = new int[m + 1, n + 1];
+            for (int i = 1; i <= m; i++)
             {
-                string? oldLine = i < oldLines.Length ? oldLines[i].TrimEnd() : null;
-                string? newLine = i < newLines.Length ? newLines[i].TrimEnd() : null;
+                for (int j = 1; j <= n; j++)
+                {
+                    if (oldTrimmed[i - 1] == newTrimmed[j - 1])
+                        dp[i, j] = dp[i - 1, j - 1] + 1;
+                    else
+                        dp[i, j] = Math.Max(dp[i - 1, j], dp[i, j - 1]);
+                }
+            }
 
-                if (oldLine == null && newLine != null)
+            // Backtrack to produce the diff
+            var diffOps = new List<(char op, int oldIdx, int newIdx)>();
+            int oi = m, ni = n;
+            while (oi > 0 || ni > 0)
+            {
+                if (oi > 0 && ni > 0 && oldTrimmed[oi - 1] == newTrimmed[ni - 1])
                 {
-                    changes.Add(new DiffChange(
-                        DiffChangeType.Added, $"line[{i + 1}]", null, Truncate(newLine, 120)));
+                    // Equal — skip
+                    oi--;
+                    ni--;
                 }
-                else if (oldLine != null && newLine == null)
+                else if (ni > 0 && (oi == 0 || dp[oi, ni - 1] >= dp[oi - 1, ni]))
                 {
-                    changes.Add(new DiffChange(
-                        DiffChangeType.Removed, $"line[{i + 1}]", Truncate(oldLine, 120), null));
+                    diffOps.Add(('+', -1, ni - 1));
+                    ni--;
                 }
-                else if (oldLine != null && newLine != null && oldLine != newLine)
+                else
+                {
+                    diffOps.Add(('-', oi - 1, -1));
+                    oi--;
+                }
+            }
+
+            diffOps.Reverse();
+
+            foreach (var (op, oldIdx, newIdx) in diffOps)
+            {
+                if (op == '-')
                 {
                     changes.Add(new DiffChange(
-                        DiffChangeType.Modified, $"line[{i + 1}]",
-                        Truncate(oldLine, 120), Truncate(newLine, 120)));
+                        DiffChangeType.Removed, $"line[{oldIdx + 1}]",
+                        Truncate(oldTrimmed[oldIdx], 120), null));
+                }
+                else // '+'
+                {
+                    changes.Add(new DiffChange(
+                        DiffChangeType.Added, $"line[{newIdx + 1}]",
+                        null, Truncate(newTrimmed[newIdx], 120)));
                 }
             }
         }

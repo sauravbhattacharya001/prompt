@@ -166,11 +166,7 @@ namespace Prompt
         /// </summary>
         public string ToJson()
         {
-            return JsonSerializer.Serialize(this, new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            });
+            return JsonSerializer.Serialize(this, SerializationGuards.WriteIndentedSkipNull);
         }
     }
 
@@ -680,11 +676,7 @@ namespace Prompt
                     Trials = _trials.Values.SelectMany(t => t).ToList()
                 };
 
-                return JsonSerializer.Serialize(data, new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-                });
+                return JsonSerializer.Serialize(data, SerializationGuards.WriteIndentedSkipNull);
             }
         }
 

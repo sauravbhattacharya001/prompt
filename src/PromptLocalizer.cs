@@ -233,7 +233,7 @@ namespace Prompt
                 foreach (var (locale, template) in locales)
                     export[key][locale] = template.Template;
             }
-            return JsonSerializer.Serialize(export, new JsonSerializerOptions { WriteIndented = true });
+            return JsonSerializer.Serialize(export, SerializationGuards.WriteIndented);
         }
 
         /// <summary>
