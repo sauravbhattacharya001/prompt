@@ -504,13 +504,16 @@ namespace Prompt
 
             if (dto.Entries != null)
             {
-                // Add in reverse order so the first entry in JSON becomes MRU.
-                // Only load up to capacity entries to honour the size limit;
-                // entries beyond capacity are silently dropped (LRU-style: the
-                // oldest entries in the JSON are the ones we skip).
-                for (int i = dto.Entries.Count - 1; i >= 0; i--)
+                // JSON entries are in MRU-first order (index 0 = most recently used).
+                // We load the first `capacity` non-expired entries, adding in
+                // reverse so that index 0 ends up at the front of the linked list
+                // (most recently used position).
+
+                // First pass: collect up to `capacity` non-expired entries
+                // from the front of the list (MRU end) to preserve recency.
+                var toLoad = new List<(string key, CacheEntry entry)>();
+                foreach (var e in dto.Entries)
                 {
-                    var e = dto.Entries[i];
                     if (e.ExpiresAt.HasValue && DateTimeOffset.UtcNow >= e.ExpiresAt.Value)
                         continue; // Skip expired
 
@@ -527,12 +530,19 @@ namespace Prompt
                     };
 
                     string key = ComputeKey(entry.Prompt, entry.Model);
-                    lock (cache._lock)
-                    {
-                        // Enforce capacity: stop loading once we've reached the limit
-                        if (cache._map.Count >= cache._capacity)
-                            break;
+                    toLoad.Add((key, entry));
 
+                    if (toLoad.Count >= cache._capacity)
+                        break; // Capacity reached — drop remaining (LRU) entries
+                }
+
+                // Second pass: insert in reverse order so that index 0 (MRU)
+                // is AddFirst'd last, placing it at the front of the list.
+                lock (cache._lock)
+                {
+                    for (int i = toLoad.Count - 1; i >= 0; i--)
+                    {
+                        var (key, entry) = toLoad[i];
                         if (!cache._map.ContainsKey(key))
                         {
                             var keyed = new KeyedCacheEntry(key, entry);
