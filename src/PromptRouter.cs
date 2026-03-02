@@ -120,17 +120,19 @@ namespace Prompt
                 double score = 0;
 
                 // Keyword matching: proportion of keywords found
+                int keywordHits = 0;
                 if (config.Keywords is { Length: > 0 })
                 {
-                    int hits = config.Keywords.Count(kw =>
+                    keywordHits = config.Keywords.Count(kw =>
                         words.Contains(kw.ToLowerInvariant()));
-                    score += (double)hits / config.Keywords.Length * 0.6;
+                    score += (double)keywordHits / config.Keywords.Length * 0.6;
                 }
 
                 // Regex pattern matching: any match adds bonus
+                int patternHits = 0;
                 if (config.Patterns is { Length: > 0 })
                 {
-                    int patternHits = config.Patterns.Count(p =>
+                    patternHits = config.Patterns.Count(p =>
                         Regex.IsMatch(input, p, RegexOptions.IgnoreCase));
                     score += (double)patternHits / config.Patterns.Length * 0.4;
                 }
@@ -144,10 +146,8 @@ namespace Prompt
                     Score = Math.Round(score, 4),
                     TemplateName = config.TemplateName,
                     IsFallback = false,
-                    KeywordHits = config.Keywords?.Count(kw =>
-                        words.Contains(kw.ToLowerInvariant())) ?? 0,
-                    PatternHits = config.Patterns?.Count(p =>
-                        Regex.IsMatch(input, p, RegexOptions.IgnoreCase)) ?? 0,
+                    KeywordHits = keywordHits,
+                    PatternHits = patternHits,
                 });
             }
 
