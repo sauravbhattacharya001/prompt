@@ -132,10 +132,10 @@ namespace Prompt
 
             if (Jitter)
             {
-                // Add ±25% jitter
-                var random = new Random();
+                // Add ±25% jitter using the thread-safe shared instance
+                // to avoid identical seeds when called in quick succession.
                 int jitterRange = Math.Max(1, delay / 4);
-                delay += random.Next(-jitterRange, jitterRange + 1);
+                delay += Random.Shared.Next(-jitterRange, jitterRange + 1);
                 delay = Math.Max(1, delay);
             }
 
