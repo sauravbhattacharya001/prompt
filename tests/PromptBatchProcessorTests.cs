@@ -902,5 +902,53 @@ namespace Prompt.Tests
             Assert.Equal(100, result.SucceededCount);
             Assert.True(result.AllSucceeded);
         }
+
+        [Fact]
+        public void ProcessAll_CalledTwice_DoesNotReprocessSucceeded()
+        {
+            int callCount = 0;
+            var processor = new PromptBatchProcessor();
+            processor.WithProcessor(prompt =>
+            {
+                callCount++;
+                return "ok";
+            });
+
+            var template = new PromptTemplate("Hello {{name}}");
+            var vars = new Dictionary<string, string> { ["name"] = "World" };
+            processor.AddItem("item1", template, vars);
+
+            processor.ProcessAll();
+            Assert.Equal(1, callCount);
+
+            // Second call should skip already-succeeded item
+            var result = processor.ProcessAll();
+            Assert.Equal(1, callCount); // NOT 2
+            Assert.Equal(1, result.SucceededCount);
+        }
+
+        [Fact]
+        public void ProcessAll_ReprocessesFailedItems()
+        {
+            int callCount = 0;
+            var processor = new PromptBatchProcessor();
+            processor.WithProcessor(prompt =>
+            {
+                callCount++;
+                if (callCount == 1) throw new System.Exception("fail first time");
+                return "ok";
+            });
+
+            var template = new PromptTemplate("Test");
+            processor.AddItem("item1", template, new Dictionary<string, string>());
+
+            processor.ProcessAll(); // fails
+            Assert.Equal(1, callCount);
+
+            // Failed items SHOULD be retried
+            var result = processor.ProcessAll();
+            Assert.Equal(2, callCount);
+            Assert.Equal(1, result.SucceededCount);
+        }
     }
 }

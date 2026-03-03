@@ -552,6 +552,16 @@ namespace Prompt
                     continue;
                 }
 
+                // Skip items that already completed — makes ProcessAll() idempotent
+                if (item.Status == BatchItemStatus.Succeeded ||
+                    item.Status == BatchItemStatus.Skipped)
+                {
+                    completed++;
+                    if (item.Status == BatchItemStatus.Succeeded) succeeded++;
+                    ReportProgress(snapshot.Count, completed, succeeded, failed, item.Id);
+                    continue;
+                }
+
                 if (_filterFunc != null && !_filterFunc(item))
                 {
                     item.Status = BatchItemStatus.Skipped;
