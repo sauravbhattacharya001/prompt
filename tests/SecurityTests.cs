@@ -300,3 +300,147 @@ public class SecurityTests : IDisposable
         Assert.Equal(100, conv.MessageCount);
     }
 }
+
+
+// ──────────────── Template Injection Prevention ────────────────
+
+public class TemplateInjectionTests
+{
+    [Fact]
+    public void SanitizeVariableValue_EscapesDoubleBraces()
+    {
+        var result = PromptTemplate.SanitizeVariableValue("Hello {{name}} world");
+        Assert.DoesNotContain("{{", result);
+        Assert.Contains("{ {", result);
+    }
+
+    [Fact]
+    public void SanitizeVariableValue_PreservesNormalText()
+    {
+        var result = PromptTemplate.SanitizeVariableValue("Hello world, this is fine");
+        Assert.Equal("Hello world, this is fine", result);
+    }
+
+    [Fact]
+    public void SanitizeVariableValue_HandlesEmptyString()
+    {
+        Assert.Equal("", PromptTemplate.SanitizeVariableValue(""));
+    }
+
+    [Fact]
+    public void SanitizeVariableValue_HandlesNull()
+    {
+        Assert.Null(PromptTemplate.SanitizeVariableValue(null!));
+    }
+
+    [Fact]
+    public void SanitizeVariableValue_EscapesMultiplePlaceholders()
+    {
+        var result = PromptTemplate.SanitizeVariableValue("{{a}} and {{b}}");
+        Assert.DoesNotContain("{{", result);
+        Assert.Contains("{ {a}}", result);
+    }
+
+    [Fact]
+    public void Render_WithSanitize_PreventsDoubleRenderInjection()
+    {
+        // Scenario: An attacker provides a variable value containing
+        // {{secret}} placeholders. If the rendered output is later used
+        // as a NEW template (e.g., stored and re-rendered), the injected
+        // placeholder would expand, leaking the secret.
+        //
+        // While PromptTemplate.Render() is single-pass (so a single call
+        // is safe), defense-in-depth sanitization protects against:
+        // 1. Future multi-pass rendering
+        // 2. Code that uses rendered output as a new template
+        // 3. Downstream consumers that do their own placeholder expansion
+
+        var template = new PromptTemplate("Input: {{user_input}}.");
+        var variables = new Dictionary<string, string>
+        {
+            ["user_input"] = "injected {{secret}}"
+        };
+
+        // Without sanitize: rendered output still contains {{secret}}
+        var unsanitized = template.Render(variables, strict: false, sanitize: false);
+        Assert.Contains("{{secret}}", unsanitized);
+
+        // If someone uses the output as a new template — the secret leaks!
+        var secondPass = new PromptTemplate(unsanitized);
+        var leaked = secondPass.Render(
+            new Dictionary<string, string> { ["secret"] = "TOP_SECRET" },
+            strict: false);
+        Assert.Contains("TOP_SECRET", leaked); // vulnerability!
+
+        // With sanitize: {{secret}} is escaped to { {secret}}
+        var sanitized = template.Render(variables, strict: false, sanitize: true);
+        Assert.DoesNotContain("{{secret}}", sanitized);
+
+        // Now using the sanitized output as a template doesn't leak
+        var safeSecondPass = new PromptTemplate(sanitized);
+        var safe = safeSecondPass.Render(
+            new Dictionary<string, string> { ["secret"] = "TOP_SECRET" },
+            strict: false);
+        Assert.DoesNotContain("TOP_SECRET", safe); // safe!
+    }
+
+    [Fact]
+    public void Render_WithSanitize_PreservesNormalVariables()
+    {
+        var template = new PromptTemplate("Hello {{name}}, welcome to {{place}}.");
+        var variables = new Dictionary<string, string>
+        {
+            ["name"] = "Alice",
+            ["place"] = "Wonderland"
+        };
+
+        var result = template.Render(variables, strict: true, sanitize: true);
+        Assert.Equal("Hello Alice, welcome to Wonderland.", result);
+    }
+
+    [Fact]
+    public void Render_Sanitize_DefaultIsFalse()
+    {
+        // Verify backward compatibility: sanitize defaults to false
+        var template = new PromptTemplate("{{a}}");
+        var vars = new Dictionary<string, string> { ["a"] = "{{b}}" };
+
+        // This should work without error (non-strict, no sanitize)
+        var result = template.Render(vars, strict: false);
+        Assert.Equal("{{b}}", result); // not sanitized by default
+    }
+
+    [Fact]
+    public void Render_ChainScenario_SanitizePreventsLeakage()
+    {
+        // Simulate a prompt chain where step 1's output is fed to step 2.
+        // If the model's response from step 1 contains {{api_key}}, and
+        // someone passes the rendered output through another template
+        // expansion, the api_key leaks.
+
+        // Step 2 template uses {{summary}} from step 1's output
+        var step2Template = new PromptTemplate("Translate: {{summary}}. Context: {{api_key}}.");
+
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            // Model from step 1 returns text containing a template placeholder
+            ["summary"] = "Summary of document. Also: {{api_key}}",
+            ["api_key"] = "sk-secret-key-12345"
+        };
+
+        // Render step 2 without sanitize — {{api_key}} in summary stays literal
+        // (single-pass is safe, but the rendered output contains {{api_key}})
+        var rendered = step2Template.Render(variables, strict: false, sanitize: false);
+        // The summary value is inserted literally with the {{api_key}} still in it
+        // This is safe in isolation, BUT if the rendered output is re-processed...
+        Assert.Contains("sk-secret-key-12345", rendered); // from the real {{api_key}}
+
+        // With sanitize — the {{api_key}} in summary is escaped
+        var sanitized = step2Template.Render(variables, strict: false, sanitize: true);
+        Assert.Contains("sk-secret-key-12345", sanitized); // real api_key still resolves
+
+        // The key difference: sanitized output doesn't contain valid {{...}} from
+        // injected values, so any downstream re-processing is safe
+        Assert.DoesNotContain("{{api_key}}", sanitized.Replace("sk-secret-key-12345", "[REDACTED]"));
+    }
+}

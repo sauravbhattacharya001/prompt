@@ -380,8 +380,12 @@ namespace Prompt
                 var stepWatch = System.Diagnostics.Stopwatch.StartNew();
 
                 // Render the template with all accumulated variables (non-strict
-                // so missing variables from future steps don't throw)
-                string rendered = step.Template.Render(variables, strict: false);
+                // so missing variables from future steps don't throw).
+                // Sanitize is enabled to prevent template injection: a model's
+                // response from step N could contain {{var}} patterns that
+                // would expand in step N+1, leaking earlier variables or
+                // injecting content the template author didn't intend.
+                string rendered = step.Template.Render(variables, strict: false, sanitize: true);
 
                 // Send to Azure OpenAI
                 string? response = await Main.GetResponseAsync(

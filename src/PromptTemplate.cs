@@ -154,6 +154,15 @@ namespace Prompt
         /// and no default. When <c>false</c>, unresolved variables are
         /// left as-is in the output.
         /// </param>
+        /// <param name="sanitize">
+        /// When <c>true</c>, escapes <c>{{</c> sequences in variable values
+        /// before substitution to prevent template injection. This stops
+        /// user-supplied or model-generated text from being interpreted as
+        /// template placeholders in subsequent render passes (e.g., in
+        /// <see cref="PromptChain"/> where one step's output feeds into
+        /// the next step's variables). Default is <c>false</c> for backward
+        /// compatibility; <see cref="PromptChain"/> enables it by default.
+        /// </param>
         /// <returns>The rendered prompt string.</returns>
         /// <exception cref="InvalidOperationException">
         /// Thrown when <paramref name="strict"/> is <c>true</c> and one
@@ -161,7 +170,8 @@ namespace Prompt
         /// </exception>
         public string Render(
             Dictionary<string, string>? variables = null,
-            bool strict = true)
+            bool strict = true,
+            bool sanitize = false)
         {
             // Optimize: avoid creating a merged dictionary when possible.
             // If there are no defaults, use the caller's dictionary directly.
@@ -195,7 +205,7 @@ namespace Prompt
             {
                 string name = match.Groups[1].Value;
                 if (merged != null && merged.TryGetValue(name, out var value))
-                    return value;
+                    return sanitize ? SanitizeVariableValue(value) : value;
 
                 if (strict)
                     missing.Add(name);
@@ -211,6 +221,35 @@ namespace Prompt
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Escapes <c>{{</c> sequences in a variable value to prevent
+        /// template injection.
+        /// </summary>
+        /// <remarks>
+        /// When a variable value contains <c>{{name}}</c> patterns (e.g.,
+        /// from model output or user input), a subsequent <see cref="Render"/>
+        /// call could interpret them as template placeholders — expanding
+        /// variables the original template author did not intend to expose.
+        /// This is especially dangerous in <see cref="PromptChain"/>
+        /// pipelines where step N's output becomes step N+1's input.
+        ///
+        /// Escaping replaces <c>{{</c> with <c>{ {</c> (space-separated
+        /// braces) which preserves the visual appearance while breaking the
+        /// <c>\{\{(\w+)\}\}</c> regex match.
+        /// </remarks>
+        /// <param name="value">The variable value to sanitize.</param>
+        /// <returns>The sanitized value.</returns>
+        public static string SanitizeVariableValue(string value)
+        {
+            if (string.IsNullOrEmpty(value) || !value.Contains("{{"))
+                return value;
+
+            // Replace {{ with { { to break the template placeholder pattern.
+            // We only need to break the opening delimiter — the regex
+            // requires both {{ and }} to match, so breaking either suffices.
+            return value.Replace("{{", "{ {");
         }
 
         /// <summary>
