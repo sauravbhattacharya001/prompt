@@ -405,6 +405,9 @@ namespace Prompt
             @"\bkeep in mind that\b",
         };
 
+        private static readonly Regex[] CompiledFillerPatterns =
+            FillerPatterns.Select(p => new Regex(p, RegexOptions.IgnoreCase | RegexOptions.Compiled)).ToArray();
+
         // ── Elaboration suffixes for detailed mode ───────────
 
         private static readonly string[] ElaborationSuffixes = new[]
@@ -415,6 +418,22 @@ namespace Prompt
         };
 
         private readonly Random _random;
+
+        // ── Pre-compiled regex patterns ─────────────────────
+
+        private static readonly Regex QuestionPattern = new(
+            @"^(Can|Could|Would|Will)\s+you\s+(.+?)(\?)?$",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+
+        private static readonly Regex DescriptiveTaskPattern = new(
+            @"^(Your\s+task\s+is\s+to|The\s+(?:task|goal)\s+is\s+to)\s+(.+)$",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+
+        private static readonly Regex MultiSpacePattern = new(
+            @"  +", RegexOptions.Compiled);
+
+        private static readonly Regex ExcessiveNewlinePattern = new(
+            @"\n{3,}", RegexOptions.Compiled);
 
         /// <summary>
         /// Creates a new variant generator.
@@ -705,12 +724,12 @@ namespace Prompt
         private string MakeConcise(string prompt)
         {
             string result = prompt;
-            foreach (string pattern in FillerPatterns)
+            foreach (var pattern in CompiledFillerPatterns)
             {
-                result = Regex.Replace(result, pattern, "", RegexOptions.IgnoreCase);
+                result = pattern.Replace(result, "");
             }
-            result = Regex.Replace(result, @"  +", " ");
-            result = Regex.Replace(result, @"\n{3,}", "\n\n");
+            result = MultiSpacePattern.Replace(result, " ");
+            result = ExcessiveNewlinePattern.Replace(result, "\n\n");
             return result.Trim();
         }
 
@@ -732,18 +751,14 @@ namespace Prompt
                     return prompt;
             }
 
-            var questionMatch = Regex.Match(trimmed,
-                @"^(Can|Could|Would|Will)\s+you\s+(.+?)(\?)?$",
-                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            var questionMatch = QuestionPattern.Match(trimmed);
             if (questionMatch.Success)
             {
                 string task = questionMatch.Groups[2].Value.TrimEnd('?', '.', ' ');
                 return char.ToUpper(task[0], CultureInfo.InvariantCulture) + task.Substring(1) + ".";
             }
 
-            var descriptiveMatch = Regex.Match(trimmed,
-                @"^(Your\s+task\s+is\s+to|The\s+(?:task|goal)\s+is\s+to)\s+(.+)$",
-                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            var descriptiveMatch = DescriptiveTaskPattern.Match(trimmed);
             if (descriptiveMatch.Success)
             {
                 string task = descriptiveMatch.Groups[2].Value.TrimEnd('.', ' ');
@@ -774,9 +789,7 @@ namespace Prompt
                 }
             }
 
-            var descriptiveMatch = Regex.Match(trimmed,
-                @"^(Your\s+task\s+is\s+to|The\s+(?:task|goal)\s+is\s+to)\s+(.+)$",
-                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            var descriptiveMatch = DescriptiveTaskPattern.Match(trimmed);
             if (descriptiveMatch.Success)
             {
                 string task = descriptiveMatch.Groups[2].Value.TrimEnd('.', ' ');
@@ -801,9 +814,7 @@ namespace Prompt
                 trimmed.StartsWith("The goal", StringComparison.OrdinalIgnoreCase))
                 return prompt;
 
-            var questionMatch = Regex.Match(trimmed,
-                @"^(Can|Could|Would|Will)\s+you\s+(.+?)(\?)?$",
-                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            var questionMatch = QuestionPattern.Match(trimmed);
             if (questionMatch.Success)
             {
                 string task = questionMatch.Groups[2].Value.TrimEnd('?', '.', ' ');

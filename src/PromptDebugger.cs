@@ -142,6 +142,20 @@ namespace Prompt
         /// <summary>Maximum allowed regex evaluation time.</summary>
         private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(2);
 
+        // ── Pre-compiled regex patterns for hot-path methods ────
+
+        private static readonly Regex ImperativePattern = new(
+            @"^\s*(list|explain|describe|summarize|write|create|generate|analyze|compare|translate|convert|extract|find|show|tell|give|provide)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
+
+        private static readonly Regex InstructionWordsPattern = new(
+            @"\b(must|should|always|never|ensure|make\s+sure|required|important|critical|do\s+not|don'?t)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static readonly Regex CapsPattern = new(
+            @"\b[A-Z]{4,}\b",
+            RegexOptions.Compiled);
+
         /// <summary>
         /// Safe regex match with timeout protection to prevent ReDoS.
         /// </summary>
@@ -436,9 +450,7 @@ namespace Prompt
 
             // Check for missing question mark or imperative
             var hasQuestion = prompt.Contains('?');
-            var hasImperative = Regex.IsMatch(prompt,
-                @"^\s*(list|explain|describe|summarize|write|create|generate|analyze|compare|translate|convert|extract|find|show|tell|give|provide)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Multiline);
+            var hasImperative = SafeMatches(ImperativePattern, prompt).Count > 0;
             if (!hasQuestion && !hasImperative && words.Length > 3)
             {
                 report.Issues.Add(new DebugIssue
@@ -464,11 +476,7 @@ namespace Prompt
                 });
             }
 
-            // Instruction density — ratio of imperative/constraint words to total
-            var instructionWords = new Regex(
-                @"\b(must|should|always|never|ensure|make\s+sure|required|important|critical|do\s+not|don'?t)\b",
-                RegexOptions.IgnoreCase);
-            var instructionCount = SafeMatches(instructionWords, prompt).Count;
+            var instructionCount = SafeMatches(InstructionWordsPattern, prompt).Count;
             if (words.Length > 20)
             {
                 report.InstructionDensity = Math.Round((double)instructionCount / words.Length * 100, 1);
@@ -484,9 +492,7 @@ namespace Prompt
                 }
             }
 
-            // Check for ALL CAPS sections
-            var capsPattern = new Regex(@"\b[A-Z]{4,}\b");
-            var capsMatches = SafeMatches(capsPattern, prompt);
+            var capsMatches = SafeMatches(CapsPattern, prompt);
             if (capsMatches.Count > 3)
             {
                 report.Issues.Add(new DebugIssue

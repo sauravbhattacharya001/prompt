@@ -80,6 +80,14 @@ namespace Prompt
     /// </remarks>
     public static class PromptMinifier
     {
+        // ── Pre-compiled cleanup patterns ──────────────────
+
+        private static readonly Regex MultiSpaceCleanup = new(
+            @" {2,}", RegexOptions.Compiled);
+
+        private static readonly Regex LeadingSpaceCleanup = new(
+            @"(?m)^ +", RegexOptions.Compiled);
+
         // ──────────────── Filler Patterns (Light) ────────────────
 
         private static readonly (Regex Pattern, string Replacement, string Description)[] LightRules =
@@ -279,9 +287,9 @@ namespace Prompt
             // Final cleanup
             result = result.Trim();
             // Fix double spaces left by removals
-            result = Regex.Replace(result, @" {2,}", " ");
+            result = MultiSpaceCleanup.Replace(result, " ");
             // Fix leading spaces on lines
-            result = Regex.Replace(result, @"(?m)^ +", "");
+            result = LeadingSpaceCleanup.Replace(result, "");
             // Capitalize first letter if it got lowercased
             if (result.Length > 0 && char.IsLower(result[0]))
                 result = char.ToUpper(result[0]) + result.Substring(1);
