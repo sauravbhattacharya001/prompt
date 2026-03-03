@@ -349,7 +349,10 @@ public class PromptRateLimiterTests
 
         var usage = limiter.GetUsage("m");
         Assert.Equal(1, usage!.CompletedRequests);
-        Assert.True(usage.TotalTokens >= 80);
+        // TotalTokens must reflect the actual value (80), NOT estimated + actual (180)
+        Assert.Equal(80, usage.TotalTokens);
+        // Sliding window should also show only the actual tokens
+        Assert.Equal(80, usage.WindowTokens);
     }
 
     [Fact]
@@ -362,6 +365,52 @@ public class PromptRateLimiterTests
         limiter.RecordCompletion("m");
         var usage = limiter.GetUsage("m");
         Assert.Equal(0, usage!.ConcurrentRequests);
+    }
+
+    [Fact]
+    public void RecordCompletion_ActualTokensReplacesEstimate_NoPrematureDenial()
+    {
+        // Regression: RecordCompletion used to ADD actual tokens on top of
+        // the estimate, causing TotalTokens and WindowTokens to be inflated.
+        // This led to premature TPM denials.
+        var limiter = new PromptRateLimiter();
+        limiter.AddProfile(new RateLimitProfile
+        {
+            Name = "m",
+            TokensPerMinute = 200,
+            RequestsPerMinute = 100,
+            MaxConcurrent = 10
+        });
+
+        // Request 1: estimate 100, actual 80
+        var r1 = limiter.TryAcquire("m", estimatedTokens: 100);
+        Assert.True(r1.Permitted);
+        limiter.RecordCompletion("m", actualTokens: 80);
+
+        // Request 2: estimate 100 — should succeed because window has 80, not 180
+        var r2 = limiter.TryAcquire("m", estimatedTokens: 100);
+        Assert.True(r2.Permitted, $"Should be permitted: window={r2.CurrentTokens}, limit=200");
+        limiter.RecordCompletion("m", actualTokens: 90);
+
+        var usage = limiter.GetUsage("m");
+        // Total should be 80 + 90 = 170, not 100 + 80 + 100 + 90 = 370
+        Assert.Equal(170, usage!.TotalTokens);
+    }
+
+    [Fact]
+    public void RecordCompletion_NoEstimate_ThenActual_AddsCorrectly()
+    {
+        // When TryAcquire was called with 0 estimated tokens,
+        // RecordCompletion with actualTokens should add a new entry
+        var limiter = new PromptRateLimiter();
+        limiter.AddProfile(new RateLimitProfile { Name = "m" });
+
+        limiter.TryAcquire("m", estimatedTokens: 0);
+        limiter.RecordCompletion("m", actualTokens: 50);
+
+        var usage = limiter.GetUsage("m");
+        Assert.Equal(50, usage!.TotalTokens);
+        Assert.Equal(50, usage.WindowTokens);
     }
 
     // ── WaitAndAcquireAsync ──

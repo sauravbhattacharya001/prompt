@@ -430,7 +430,9 @@ namespace Prompt
         /// Should be called in a finally block after TryAcquire returns Permitted=true.
         /// </summary>
         /// <param name="profileName">The model/profile name.</param>
-        /// <param name="actualTokens">Actual tokens used (updates the estimate if provided).</param>
+        /// <param name="actualTokens">Actual tokens used. When provided, replaces
+        /// the original estimate so the sliding window and lifetime totals stay
+        /// accurate.  Pass 0 (default) to keep the original estimate.</param>
         public void RecordCompletion(string profileName, int actualTokens = 0)
         {
             if (string.IsNullOrWhiteSpace(profileName)) return;
@@ -442,9 +444,21 @@ namespace Prompt
                     state.ConcurrentCount--;
                 state.CompletedRequests++;
 
-                // If actual tokens differ from estimate, adjust
-                if (actualTokens > 0)
+                // Replace the most recent estimated token entry with the
+                // actual value so the sliding window TPM check stays correct
+                // and TotalTokens reflects reality rather than doubling up.
+                if (actualTokens > 0 && state.TokenRecords.Count > 0)
                 {
+                    // Find the last entry (the one from TryAcquire) and swap it
+                    var lastIdx = state.TokenRecords.Count - 1;
+                    var (ts, estimated) = state.TokenRecords[lastIdx];
+                    state.TokenRecords[lastIdx] = (ts, actualTokens);
+                    // Adjust lifetime total: remove estimate, add actual
+                    state.TotalTokens = state.TotalTokens - estimated + actualTokens;
+                }
+                else if (actualTokens > 0)
+                {
+                    // No prior estimate (TryAcquire was called with 0 tokens)
                     var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     state.TokenRecords.Add((now, actualTokens));
                     state.TotalTokens += actualTokens;
