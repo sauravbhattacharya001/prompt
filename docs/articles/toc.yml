@@ -6,6 +6,8 @@
   href: templates.md
 - name: Prompt Chains
   href: chains.md
+- name: Prompt Safety & Analysis
+  href: safety.md
 - name: Model Options
   href: options.md
 - name: Error Handling

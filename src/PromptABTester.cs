@@ -730,12 +730,8 @@ namespace Prompt
                     $"Maximum of {MaxTrialsPerVariant} trials per variant reached.");
         }
 
-        private static int EstimateTokens(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return 0;
-            // Standard heuristic: ~4 chars per token for English text
-            return Math.Max(1, (text.Length + 3) / 4);
-        }
+        private static int EstimateTokens(string text) =>
+            PromptGuard.EstimateTokens(text);
 
         private static VariantStats ComputeStats(string name, List<TrialResult> trials)
         {

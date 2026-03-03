@@ -402,7 +402,7 @@ namespace Prompt
             report.WordCount = words.Length;
             report.SentenceCount = sentences.Length;
             report.LineCount = lines.Length;
-            report.TokenEstimate = (int)(words.Length * 1.3); // rough estimate
+            report.TokenEstimate = PromptGuard.EstimateTokens(prompt);
 
             // Average sentence length
             if (sentences.Length > 0)
