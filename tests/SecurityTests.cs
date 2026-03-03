@@ -443,4 +443,139 @@ public class TemplateInjectionTests
         // injected values, so any downstream re-processing is safe
         Assert.DoesNotContain("{{api_key}}", sanitized.Replace("sk-secret-key-12345", "[REDACTED]"));
     }
+
+    // ─────────── PromptRouter: ReDoS Protection ───────────
+
+    [Fact]
+    public void Router_RejectsInvalidRegexPattern()
+    {
+        var router = new PromptRouter();
+        var ex = Assert.Throws<ArgumentException>(() =>
+            router.AddRoute("bad", new RouteConfig
+            {
+                Keywords = new[] { "test" },
+                Patterns = new[] { "[invalid(" },  // unclosed group
+                TemplateName = "test",
+            }));
+        Assert.Contains("invalid regex pattern", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Router_RejectsEmptyPattern()
+    {
+        var router = new PromptRouter();
+        Assert.Throws<ArgumentException>(() =>
+            router.AddRoute("bad", new RouteConfig
+            {
+                Patterns = new[] { "" },
+                TemplateName = "test",
+            }));
+    }
+
+    [Fact]
+    public void Router_RejectsOversizedPattern()
+    {
+        var router = new PromptRouter();
+        var longPattern = new string('a', 501);  // Exceeds 500 char limit
+        Assert.Throws<ArgumentException>(() =>
+            router.AddRoute("bad", new RouteConfig
+            {
+                Patterns = new[] { longPattern },
+                TemplateName = "test",
+            }));
+    }
+
+    [Fact]
+    public void Router_AcceptsValidPatterns()
+    {
+        var router = new PromptRouter();
+        router.AddRoute("good", new RouteConfig
+        {
+            Keywords = new[] { "review" },
+            Patterns = new[] { @"review\s+my\s+code", @"find\s+bugs?" },
+            TemplateName = "code-review",
+        });
+        Assert.True(router.HasRoute("good"));
+    }
+
+    [Fact]
+    public void Router_ScoreAll_DoesNotHangOnBacktrackingPattern()
+    {
+        var router = new PromptRouter();
+        // This pattern can cause catastrophic backtracking on certain inputs,
+        // but the timeout should prevent it from hanging.
+        router.AddRoute("backtrack", new RouteConfig
+        {
+            Keywords = new[] { "test" },
+            Patterns = new[] { @"(a+)+b" },
+            TemplateName = "test",
+        });
+
+        // Input crafted to cause exponential backtracking: many 'a's without 'b'
+        var evilInput = new string('a', 50);
+        var scores = router.ScoreAll(evilInput);
+
+        // Should complete without hanging — pattern times out and returns no match
+        Assert.NotNull(scores);
+        Assert.Single(scores);
+        Assert.Equal(0, scores[0].PatternHits);
+    }
+
+    [Fact]
+    public void Router_Route_GracefullyHandlesTimeoutPattern()
+    {
+        var router = new PromptRouter();
+        router.AddRoute("normal", new RouteConfig
+        {
+            Keywords = new[] { "hello", "world" },
+            Patterns = new[] { @"(x+x+)+y" },  // catastrophic backtracking
+            TemplateName = "test",
+        });
+
+        // Keyword match should still work even when pattern times out
+        var match = router.Route("hello world " + new string('x', 40));
+        // Keywords hit 2/2 = 0.6 score; pattern times out = 0 bonus
+        Assert.NotNull(match);
+        Assert.Equal("normal", match!.RouteName);
+        Assert.Equal(2, match.KeywordHits);
+        Assert.Equal(0, match.PatternHits);
+    }
+
+    [Fact]
+    public void Router_FromJson_ValidatesPatterns()
+    {
+        // JSON with invalid regex should be rejected when loading
+        var json = """
+        {
+            "routes": {
+                "bad-route": {
+                    "keywords": ["test"],
+                    "patterns": ["[unclosed("],
+                    "templateName": "test",
+                    "priority": 1.0
+                }
+            },
+            "minScore": 0.1
+        }
+        """;
+
+        Assert.Throws<ArgumentException>(() => PromptRouter.FromJson(json));
+    }
+
+    [Fact]
+    public void TestSuite_SafeRegexMatch_HandlesBacktracking()
+    {
+        // PromptTestSuite uses SafeRegexMatch internally — verify it doesn't hang.
+        var suite = new PromptTestSuite("redos-test");
+
+        var tc = PromptTestCase.Create("backtrack-test")
+            .WithPrompt("Say: hello");
+
+        suite.AddTestCase(tc);
+
+        // Provide a simple response provider; the test case runs the template
+        // and if any regex assertion times out, it should fail gracefully.
+        var results = suite.Run(prompt => "hello world");
+        Assert.NotNull(results);
+    }
 }

@@ -94,7 +94,7 @@ namespace Prompt
 
         private static bool SafeRegexMatch(string input, string pattern)
         {
-            try { return Regex.IsMatch(input, pattern); }
+            try { return Regex.IsMatch(input, pattern, RegexOptions.None, TimeSpan.FromSeconds(2)); }
             catch { return false; }
         }
 

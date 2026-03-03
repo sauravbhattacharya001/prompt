@@ -6,6 +6,9 @@ namespace Prompt
     using System.Text.Json;
     using System.Text.RegularExpressions;
 
+    // ReDoS protection: all user-supplied regex patterns are executed with a
+    // timeout to prevent catastrophic backtracking from stalling the process.
+
     /// <summary>
     /// Routes user prompts to appropriate <see cref="PromptTemplate"/> instances
     /// based on intent classification. Uses keyword and regex matching with
@@ -41,6 +44,16 @@ namespace Prompt
         private string? _fallbackRoute;
         private double _minScore = 0.1;
 
+        /// <summary>
+        /// Maximum time a single regex match is allowed to run before being
+        /// aborted.  Prevents ReDoS (Regular Expression Denial of Service)
+        /// from patterns with catastrophic backtracking.
+        /// </summary>
+        private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(2);
+
+        /// <summary>Maximum allowed length for a regex pattern string.</summary>
+        private const int MaxPatternLength = 500;
+
         /// <summary>Create a standalone router (no library integration).</summary>
         public PromptRouter() { }
 
@@ -61,11 +74,40 @@ namespace Prompt
         }
 
         /// <summary>Add a route configuration.</summary>
+        /// <exception cref="ArgumentException">If any regex pattern is invalid or too long.</exception>
         public PromptRouter AddRoute(string name, RouteConfig config)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Route name cannot be null or empty.", nameof(name));
             ArgumentNullException.ThrowIfNull(config);
+
+            // Validate regex patterns eagerly — fail-fast on bad patterns
+            // rather than silently failing at route-time.
+            if (config.Patterns is { Length: > 0 })
+            {
+                foreach (var pattern in config.Patterns)
+                {
+                    if (string.IsNullOrWhiteSpace(pattern))
+                        throw new ArgumentException(
+                            $"Route '{name}' contains a null or empty regex pattern.", nameof(config));
+                    if (pattern.Length > MaxPatternLength)
+                        throw new ArgumentException(
+                            $"Route '{name}' contains a regex pattern exceeding {MaxPatternLength} chars.", nameof(config));
+                    try
+                    {
+                        // Compile once to validate syntax; the timeout ensures
+                        // even the validation probe cannot hang.
+                        _ = new Regex(pattern, RegexOptions.IgnoreCase, RegexTimeout);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        throw new ArgumentException(
+                            $"Route '{name}' contains an invalid regex pattern '{pattern}': {ex.Message}",
+                            nameof(config), ex);
+                    }
+                }
+            }
+
             _routes[name] = config;
             return this;
         }
@@ -133,7 +175,7 @@ namespace Prompt
                 if (config.Patterns is { Length: > 0 })
                 {
                     patternHits = config.Patterns.Count(p =>
-                        Regex.IsMatch(input, p, RegexOptions.IgnoreCase));
+                        SafeIsMatch(input, p));
                     score += (double)patternHits / config.Patterns.Length * 0.4;
                 }
 
@@ -325,6 +367,27 @@ namespace Prompt
                 KeywordHits = 0,
                 PatternHits = 0,
             };
+        }
+
+        /// <summary>
+        /// Regex match with timeout and exception safety.  Returns false if the
+        /// pattern times out (ReDoS) or is invalid, rather than propagating the
+        /// exception — route scoring should never crash, just miss.
+        /// </summary>
+        private static bool SafeIsMatch(string input, string pattern)
+        {
+            try
+            {
+                return Regex.IsMatch(input, pattern, RegexOptions.IgnoreCase, RegexTimeout);
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                return false;  // treat timed-out pattern as non-match
+            }
+            catch (ArgumentException)
+            {
+                return false;  // malformed pattern — should not happen after AddRoute validation
+            }
         }
 
         // ── Internal DTOs ───────────────────────────────────────
