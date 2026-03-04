@@ -157,6 +157,83 @@
         }
 
         /// <summary>
+        /// Sends a prompt to Azure OpenAI and streams the response as
+        /// <see cref="StreamChunk"/> items via <see cref="IAsyncEnumerable{T}"/>.
+        /// </summary>
+        /// <param name="prompt">The user prompt to send.</param>
+        /// <param name="systemPrompt">Optional system prompt.</param>
+        /// <param name="maxRetries">Maximum retry count for transient failures.</param>
+        /// <param name="options">Optional <see cref="PromptOptions"/>.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>An async stream of <see cref="StreamChunk"/> instances.</returns>
+        public static async IAsyncEnumerable<StreamChunk> GetResponseStreamAsync(
+            string prompt,
+            string? systemPrompt = null,
+            int maxRetries = 3,
+            PromptOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation]
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(prompt))
+                throw new ArgumentException("Prompt cannot be null or empty.", nameof(prompt));
+            if (maxRetries < 0)
+                throw new ArgumentOutOfRangeException(nameof(maxRetries),
+                    maxRetries, "maxRetries must be non-negative.");
+
+            ChatClient chatClient = GetOrCreateChatClient(maxRetries);
+
+            var messages = new List<ChatMessage>();
+            if (!string.IsNullOrWhiteSpace(systemPrompt))
+                messages.Add(new SystemChatMessage(systemPrompt));
+            messages.Add(new UserChatMessage(prompt));
+
+            var opts = options ?? new PromptOptions();
+            var completionOptions = opts.ToChatCompletionOptions();
+
+            var accumulated = new System.Text.StringBuilder();
+            string? finishReason = null;
+
+            AsyncCollectionResult<StreamingChatCompletionUpdate> stream =
+                chatClient.CompleteChatStreamingAsync(
+                    messages, completionOptions, cancellationToken);
+
+            await foreach (StreamingChatCompletionUpdate update in stream)
+            {
+                foreach (ChatMessageContentPart part in update.ContentUpdate)
+                {
+                    string delta = part.Text ?? string.Empty;
+                    accumulated.Append(delta);
+
+                    finishReason = update.FinishReason?.ToString();
+                    bool isComplete = update.FinishReason != null;
+
+                    yield return new StreamChunk
+                    {
+                        Delta = delta,
+                        FullText = accumulated.ToString(),
+                        IsComplete = isComplete,
+                        FinishReason = finishReason,
+                        TokensUsed = (int)Math.Ceiling(accumulated.Length / 4.0)
+                    };
+                }
+            }
+
+            // If the stream ended without a FinishReason chunk containing content,
+            // yield a final completion marker.
+            if (finishReason == null)
+            {
+                yield return new StreamChunk
+                {
+                    Delta = string.Empty,
+                    FullText = accumulated.ToString(),
+                    IsComplete = true,
+                    FinishReason = "stop",
+                    TokensUsed = (int)Math.Ceiling(accumulated.Length / 4.0)
+                };
+            }
+        }
+
+        /// <summary>
         /// Reads an environment variable with a cross-platform fallback chain:
         /// Process → User (Windows only) → Machine (Windows only).
         /// </summary>

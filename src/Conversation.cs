@@ -296,6 +296,87 @@ namespace Prompt
         }
 
         /// <summary>
+        /// Sends a message and streams the response as <see cref="StreamChunk"/> items.
+        /// The full response is automatically appended to conversation history on completion.
+        /// </summary>
+        /// <param name="message">The user message to send.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>An async stream of <see cref="StreamChunk"/> instances.</returns>
+        public async IAsyncEnumerable<StreamChunk> SendStreamAsync(
+            string message,
+            [System.Runtime.CompilerServices.EnumeratorCancellation]
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+                throw new ArgumentException(
+                    "Message cannot be null or empty.", nameof(message));
+
+            await _sendLock.WaitAsync(cancellationToken);
+            try
+            {
+                List<ChatMessage> snapshot;
+                lock (_lock)
+                {
+                    _messages.Add(new UserChatMessage(message));
+                    TrimMessagesUnsafe();
+                    snapshot = new List<ChatMessage>(_messages);
+                }
+
+                var completionOptions = new PromptOptions
+                {
+                    Temperature = _temperature,
+                    MaxTokens = _maxTokens,
+                    TopP = _topP,
+                    FrequencyPenalty = _frequencyPenalty,
+                    PresencePenalty = _presencePenalty,
+                }.ToChatCompletionOptions();
+
+                ChatClient chatClient = Main.GetOrCreateChatClient(_maxRetries);
+
+                var accumulated = new System.Text.StringBuilder();
+
+                AsyncCollectionResult<StreamingChatCompletionUpdate> stream =
+                    chatClient.CompleteChatStreamingAsync(
+                        snapshot, completionOptions, cancellationToken);
+
+                await foreach (StreamingChatCompletionUpdate update in stream)
+                {
+                    foreach (ChatMessageContentPart part in update.ContentUpdate)
+                    {
+                        string delta = part.Text ?? string.Empty;
+                        accumulated.Append(delta);
+
+                        bool isComplete = update.FinishReason != null;
+
+                        yield return new StreamChunk
+                        {
+                            Delta = delta,
+                            FullText = accumulated.ToString(),
+                            IsComplete = isComplete,
+                            FinishReason = update.FinishReason?.ToString(),
+                            TokensUsed = (int)Math.Ceiling(accumulated.Length / 4.0)
+                        };
+                    }
+                }
+
+                // Append full assistant response to conversation history
+                string fullResponse = accumulated.ToString();
+                if (!string.IsNullOrEmpty(fullResponse))
+                {
+                    lock (_lock)
+                    {
+                        _messages.Add(new AssistantChatMessage(fullResponse));
+                        TrimMessagesUnsafe();
+                    }
+                }
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
+        }
+
+        /// <summary>
         /// Adds a user message to the history without sending to the API.
         /// Useful for injecting context or replaying prior conversations.
         /// </summary>
