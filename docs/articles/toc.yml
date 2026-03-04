@@ -6,6 +6,8 @@
   href: templates.md
 - name: Prompt Chains
   href: chains.md
+- name: Advanced Features
+  href: advanced-features.md
 - name: Prompt Safety & Analysis
   href: safety.md
 - name: Model Options
