@@ -4,6 +4,7 @@ namespace Prompt
     using System.Diagnostics;
     using System.Text.Json;
     using System.Text.Json.Serialization;
+    using System.Text.RegularExpressions;
 
     /// <summary>
     /// Context passed through the middleware pipeline for each prompt execution.
@@ -141,6 +142,9 @@ namespace Prompt
     {
         private readonly ConcurrentDictionary<string, CacheEntry> _cache = new();
         private readonly TimeSpan _ttl;
+        private readonly int _maxEntries;
+        private readonly LinkedList<string> _accessOrder = new();
+        private readonly object _evictLock = new();
 
         public string Name => "Caching";
         public int Order { get; }
@@ -151,10 +155,20 @@ namespace Prompt
         /// <summary>Number of cache misses.</summary>
         public int MissCount { get; private set; }
 
-        public CachingMiddleware(TimeSpan? ttl = null, int order = 10)
+        /// <summary>Number of entries evicted due to capacity limits.</summary>
+        public int EvictionCount { get; private set; }
+
+        /// <summary>
+        /// Creates a caching middleware with TTL and optional max capacity.
+        /// </summary>
+        /// <param name="ttl">Cache entry time-to-live (default: 30 minutes).</param>
+        /// <param name="order">Middleware execution order.</param>
+        /// <param name="maxEntries">Maximum cached entries before LRU eviction (default: 1000, 0 = unlimited).</param>
+        public CachingMiddleware(TimeSpan? ttl = null, int order = 10, int maxEntries = 1000)
         {
             _ttl = ttl ?? TimeSpan.FromMinutes(30);
             Order = order;
+            _maxEntries = maxEntries;
         }
 
         public async Task InvokeAsync(PromptPipelineContext context, PromptPipelineDelegate next)
@@ -169,6 +183,7 @@ namespace Prompt
                 context.ShortCircuited = true;
                 context.Metadata["cache"] = "hit";
                 HitCount++;
+                PromoteKey(key);
                 return;
             }
 
@@ -179,11 +194,54 @@ namespace Prompt
             if (context.Response != null)
             {
                 _cache[key] = new CacheEntry(context.Response, DateTimeOffset.UtcNow);
+                TrackKey(key);
+                EvictIfNeeded();
             }
         }
 
         /// <summary>Clears all cached entries.</summary>
-        public void Clear() => _cache.Clear();
+        public void Clear()
+        {
+            _cache.Clear();
+            lock (_evictLock) { _accessOrder.Clear(); }
+        }
+
+        /// <summary>Current number of cached entries.</summary>
+        public int Count => _cache.Count;
+
+        private void PromoteKey(string key)
+        {
+            lock (_evictLock)
+            {
+                _accessOrder.Remove(key);
+                _accessOrder.AddLast(key);
+            }
+        }
+
+        private void TrackKey(string key)
+        {
+            lock (_evictLock)
+            {
+                _accessOrder.Remove(key);
+                _accessOrder.AddLast(key);
+            }
+        }
+
+        private void EvictIfNeeded()
+        {
+            if (_maxEntries <= 0) return;
+
+            lock (_evictLock)
+            {
+                while (_cache.Count > _maxEntries && _accessOrder.Count > 0)
+                {
+                    var oldest = _accessOrder.First!.Value;
+                    _accessOrder.RemoveFirst();
+                    _cache.TryRemove(oldest, out _);
+                    EvictionCount++;
+                }
+            }
+        }
 
         private record CacheEntry(string Response, DateTimeOffset CreatedAt);
     }
@@ -514,18 +572,22 @@ namespace Prompt
             context.ExecutionTime = sw.Elapsed;
         }
 
-        /// <summary>Simple variable substitution: replaces {{varName}} with values.</summary>
+        /// <summary>
+        /// Single-pass variable substitution: replaces {{varName}} with values
+        /// using regex matching.  This avoids the O(n·k) cost of repeated
+        /// String.Replace calls and prevents double-substitution when a
+        /// variable's value itself contains {{...}} syntax.
+        /// </summary>
         internal static string RenderVariables(string template, Dictionary<string, string> variables)
         {
             if (string.IsNullOrEmpty(template) || variables.Count == 0)
                 return template;
 
-            var result = template;
-            foreach (var (key, value) in variables)
+            return Regex.Replace(template, @"\{\{(\w[\w.-]*)\}\}", match =>
             {
-                result = result.Replace($"{{{{{key}}}}}", value);
-            }
-            return result;
+                var key = match.Groups[1].Value;
+                return variables.TryGetValue(key, out var value) ? value : match.Value;
+            });
         }
 
         /// <summary>
