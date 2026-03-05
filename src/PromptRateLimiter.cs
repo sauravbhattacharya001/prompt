@@ -50,6 +50,11 @@ namespace Prompt
 
         /// <summary>Gets the profile name this result applies to.</summary>
         public string ProfileName { get; internal set; } = "";
+
+        /// <summary>Gets the acquisition timestamp (milliseconds since epoch).
+        /// Pass this to <see cref="PromptRateLimiter.RecordCompletion"/> to
+        /// correctly identify which token record to update under concurrency.</summary>
+        public long AcquireTimestamp { get; internal set; }
     }
 
     /// <summary>
@@ -373,7 +378,8 @@ namespace Prompt
                     CurrentRequests = state.RequestTimestamps.Count,
                     CurrentTokens = WindowTokens(state),
                     ConcurrentRequests = state.ConcurrentCount,
-                    ProfileName = profileName
+                    ProfileName = profileName,
+                    AcquireTimestamp = now
                 };
             }
         }
@@ -433,7 +439,10 @@ namespace Prompt
         /// <param name="actualTokens">Actual tokens used. When provided, replaces
         /// the original estimate so the sliding window and lifetime totals stay
         /// accurate.  Pass 0 (default) to keep the original estimate.</param>
-        public void RecordCompletion(string profileName, int actualTokens = 0)
+        /// <param name="acquireTimestamp">Timestamp from the acquire call to
+        /// identify which token record to update. When 0 (default), falls back
+        /// to replacing the most recent record (legacy behaviour).</param>
+        public void RecordCompletion(string profileName, int actualTokens = 0, long acquireTimestamp = 0)
         {
             if (string.IsNullOrWhiteSpace(profileName)) return;
             if (!_profiles.TryGetValue(profileName, out var state)) return;
@@ -444,15 +453,34 @@ namespace Prompt
                     state.ConcurrentCount--;
                 state.CompletedRequests++;
 
-                // Replace the most recent estimated token entry with the
-                // actual value so the sliding window TPM check stays correct
-                // and TotalTokens reflects reality rather than doubling up.
+                // Replace the estimated token entry with the actual value so
+                // the sliding window TPM check stays correct and TotalTokens
+                // reflects reality rather than doubling up.
                 if (actualTokens > 0 && state.TokenRecords.Count > 0)
                 {
-                    // Find the last entry (the one from TryAcquire) and swap it
-                    var lastIdx = state.TokenRecords.Count - 1;
-                    var (ts, estimated) = state.TokenRecords[lastIdx];
-                    state.TokenRecords[lastIdx] = (ts, actualTokens);
+                    // Find the matching entry by timestamp when available,
+                    // otherwise fall back to the last entry.  With concurrent
+                    // requests the last entry may belong to a *different*
+                    // request, so timestamp-based lookup is more correct.
+                    var targetIdx = -1;
+                    if (acquireTimestamp > 0)
+                    {
+                        for (int i = state.TokenRecords.Count - 1; i >= 0; i--)
+                        {
+                            if (state.TokenRecords[i].Timestamp == acquireTimestamp)
+                            {
+                                targetIdx = i;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Fall back to last entry if no timestamp match
+                    if (targetIdx < 0)
+                        targetIdx = state.TokenRecords.Count - 1;
+
+                    var (ts, estimated) = state.TokenRecords[targetIdx];
+                    state.TokenRecords[targetIdx] = (ts, actualTokens);
                     // Adjust lifetime total: remove estimate, add actual
                     state.TotalTokens = state.TotalTokens - estimated + actualTokens;
                 }
