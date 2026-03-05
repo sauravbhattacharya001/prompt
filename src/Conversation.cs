@@ -1,6 +1,7 @@
 namespace Prompt
 {
     using System.ClientModel;
+    using System.Runtime.CompilerServices;
     using System.Text;
     using System.Text.Json;
     using System.Text.Json.Serialization;
@@ -288,6 +289,103 @@ namespace Prompt
                 }
 
                 return responseText;
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
+        }
+
+        /// <summary>
+        /// Sends a user message and streams the assistant's response as an
+        /// <see cref="IAsyncEnumerable{StreamChunk}"/>. Both the user message
+        /// and the full assembled response are added to conversation history.
+        /// </summary>
+        /// <param name="message">The user message to send.</param>
+        /// <param name="cancellationToken">Optional cancellation token.</param>
+        /// <returns>An async stream of <see cref="StreamChunk"/> instances.</returns>
+        /// <exception cref="ArgumentException">Message is null or empty.</exception>
+        public async IAsyncEnumerable<StreamChunk> SendStreamAsync(
+            string message,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+                throw new ArgumentException(
+                    "Message cannot be null or empty.", nameof(message));
+
+            await _sendLock.WaitAsync(cancellationToken);
+            try
+            {
+                List<ChatMessage> snapshot;
+                lock (_lock)
+                {
+                    _messages.Add(new UserChatMessage(message));
+                    TrimMessagesUnsafe();
+                    snapshot = new List<ChatMessage>(_messages);
+                }
+
+                var completionOptions = new PromptOptions
+                {
+                    Temperature = _temperature,
+                    MaxTokens = _maxTokens,
+                    TopP = _topP,
+                    FrequencyPenalty = _frequencyPenalty,
+                    PresencePenalty = _presencePenalty,
+                }.ToChatCompletionOptions();
+
+                ChatClient chatClient = Main.GetOrCreateChatClient(_maxRetries);
+
+                var accumulated = new StringBuilder();
+                string? finishReason = null;
+
+                await foreach (StreamingChatCompletionUpdate update in
+                    chatClient.CompleteChatStreamingAsync(
+                        snapshot, completionOptions, cancellationToken))
+                {
+                    foreach (ChatMessageContentPart part in update.ContentUpdate)
+                    {
+                        string delta = part.Text ?? "";
+                        accumulated.Append(delta);
+
+                        if (update.FinishReason != null)
+                            finishReason = update.FinishReason.Value.ToString();
+
+                        bool isComplete = update.FinishReason != null;
+
+                        yield return new StreamChunk
+                        {
+                            Delta = delta,
+                            FullText = accumulated.ToString(),
+                            IsComplete = isComplete,
+                            FinishReason = isComplete ? finishReason : null,
+                            TokensUsed = Math.Max(1, accumulated.Length / 4)
+                        };
+                    }
+                }
+
+                // Emit final chunk if stream ended without explicit finish
+                if (finishReason == null)
+                {
+                    yield return new StreamChunk
+                    {
+                        Delta = "",
+                        FullText = accumulated.ToString(),
+                        IsComplete = true,
+                        FinishReason = "stop",
+                        TokensUsed = Math.Max(1, accumulated.Length / 4)
+                    };
+                }
+
+                // Add assembled response to conversation history
+                string fullResponse = accumulated.ToString();
+                if (!string.IsNullOrEmpty(fullResponse))
+                {
+                    lock (_lock)
+                    {
+                        _messages.Add(new AssistantChatMessage(fullResponse));
+                        TrimMessagesUnsafe();
+                    }
+                }
             }
             finally
             {

@@ -2,6 +2,8 @@
 {
     using System.ClientModel;
     using System.ClientModel.Primitives;
+    using System.Runtime.CompilerServices;
+    using System.Text;
     using Azure.AI.OpenAI;
     using OpenAI.Chat;
 
@@ -155,6 +157,88 @@
 
             return completion?.Content?.FirstOrDefault()?.Text;
         }
+
+        /// <summary>
+        /// Sends a prompt to Azure OpenAI and streams the response as an
+        /// <see cref="IAsyncEnumerable{StreamChunk}"/>. Each chunk contains
+        /// incremental text and accumulated state, enabling real-time display.
+        /// </summary>
+        /// <param name="prompt">The user prompt to send.</param>
+        /// <param name="systemPrompt">Optional system prompt.</param>
+        /// <param name="maxRetries">Maximum retries for transient failures.</param>
+        /// <param name="options">Optional model parameter overrides.</param>
+        /// <param name="cancellationToken">Optional cancellation token.</param>
+        /// <returns>An async stream of <see cref="StreamChunk"/> instances.</returns>
+        /// <exception cref="ArgumentException">Thrown when prompt is null or empty.</exception>
+        public static async IAsyncEnumerable<StreamChunk> GetResponseStreamAsync(
+            string prompt,
+            string? systemPrompt = null,
+            int maxRetries = 3,
+            PromptOptions? options = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(prompt))
+                throw new ArgumentException("Prompt cannot be null or empty.", nameof(prompt));
+
+            if (maxRetries < 0)
+                throw new ArgumentOutOfRangeException(nameof(maxRetries),
+                    maxRetries, "maxRetries must be non-negative.");
+
+            ChatClient chatClient = GetOrCreateChatClient(maxRetries);
+
+            var messages = new List<ChatMessage>();
+            if (!string.IsNullOrWhiteSpace(systemPrompt))
+                messages.Add(new SystemChatMessage(systemPrompt));
+            messages.Add(new UserChatMessage(prompt));
+
+            var opts = options ?? new PromptOptions();
+            var completionOptions = opts.ToChatCompletionOptions();
+
+            var accumulated = new StringBuilder();
+            string? finishReason = null;
+
+            await foreach (StreamingChatCompletionUpdate update in
+                chatClient.CompleteChatStreamingAsync(messages, completionOptions, cancellationToken))
+            {
+                foreach (ChatMessageContentPart part in update.ContentUpdate)
+                {
+                    string delta = part.Text ?? "";
+                    accumulated.Append(delta);
+
+                    if (update.FinishReason != null)
+                        finishReason = update.FinishReason.Value.ToString();
+
+                    bool isComplete = update.FinishReason != null;
+
+                    yield return new StreamChunk
+                    {
+                        Delta = delta,
+                        FullText = accumulated.ToString(),
+                        IsComplete = isComplete,
+                        FinishReason = isComplete ? finishReason : null,
+                        TokensUsed = EstimateTokens(accumulated.Length)
+                    };
+                }
+            }
+
+            // If stream ended without explicit finish, emit a final chunk
+            if (finishReason == null)
+            {
+                yield return new StreamChunk
+                {
+                    Delta = "",
+                    FullText = accumulated.ToString(),
+                    IsComplete = true,
+                    FinishReason = "stop",
+                    TokensUsed = EstimateTokens(accumulated.Length)
+                };
+            }
+        }
+
+        /// <summary>
+        /// Rough token estimate based on character count (~4 chars per token for English).
+        /// </summary>
+        private static int EstimateTokens(int charCount) => Math.Max(1, charCount / 4);
 
         /// <summary>
         /// Reads an environment variable with a cross-platform fallback chain:
