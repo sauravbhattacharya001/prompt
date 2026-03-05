@@ -598,7 +598,7 @@ namespace Prompt
             return suggestions;
         }
 
-        private List<RefactorSuggestion> CheckStructure(string prompt, List<PromptSection> sections)
+        private List<RefactorSuggestion> CheckStructure(string prompt, List<RefactorerSection> sections)
         {
             var suggestions = new List<RefactorSuggestion>();
             int tokenCount = EstimateTokens(prompt);
@@ -698,7 +698,7 @@ namespace Prompt
             return suggestions;
         }
 
-        private List<RefactorSuggestion> CheckLength(string prompt, List<PromptSection> sections, int tokenCount)
+        private List<RefactorSuggestion> CheckLength(string prompt, List<RefactorerSection> sections, int tokenCount)
         {
             var suggestions = new List<RefactorSuggestion>();
 
@@ -819,7 +819,7 @@ namespace Prompt
             return suggestions;
         }
 
-        private List<RefactorSuggestion> CheckDecomposition(string prompt, List<PromptSection> sections, int tokenCount)
+        private List<RefactorSuggestion> CheckDecomposition(string prompt, List<RefactorerSection> sections, int tokenCount)
         {
             var suggestions = new List<RefactorSuggestion>();
 
@@ -887,9 +887,9 @@ namespace Prompt
 
         // ───────────────────── Helpers ─────────────────────
 
-        private static List<PromptSection> DetectSections(string prompt)
+        private static List<RefactorerSection> DetectSections(string prompt)
         {
-            var sections = new List<PromptSection>();
+            var sections = new List<RefactorerSection>();
 
             // Detect markdown headers, numbered sections, or labeled sections
             var headerPattern = new Regex(
@@ -901,7 +901,7 @@ namespace Prompt
             {
                 var m = matches[i];
                 int end = i + 1 < matches.Count ? matches[i + 1].Index : prompt.Length;
-                sections.Add(new PromptSection
+                sections.Add(new RefactorerSection
                 {
                     Title = m.Value.Trim().TrimStart('#').Trim(),
                     Content = prompt[m.Index..end],
@@ -912,7 +912,7 @@ namespace Prompt
             // If no sections detected, treat entire prompt as one section
             if (sections.Count == 0)
             {
-                sections.Add(new PromptSection
+                sections.Add(new RefactorerSection
                 {
                     Title = "(entire prompt)",
                     Content = prompt,
@@ -985,7 +985,7 @@ namespace Prompt
     }
 
     /// <summary>Represents a detected section within a prompt.</summary>
-    internal class PromptSection
+    internal class RefactorerSection
     {
         public string Title { get; init; } = "";
         public string Content { get; init; } = "";
@@ -1073,3 +1073,4 @@ namespace Prompt
         }
     }
 }
+

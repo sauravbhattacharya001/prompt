@@ -458,10 +458,7 @@ namespace Prompt
                 // reflects reality rather than doubling up.
                 if (actualTokens > 0 && state.TokenRecords.Count > 0)
                 {
-                    // Find the matching entry by timestamp when available,
-                    // otherwise fall back to the last entry.  With concurrent
-                    // requests the last entry may belong to a *different*
-                    // request, so timestamp-based lookup is more correct.
+                    // Find the matching entry by timestamp when available.
                     var targetIdx = -1;
                     if (acquireTimestamp > 0)
                     {
@@ -474,15 +471,25 @@ namespace Prompt
                             }
                         }
                     }
-
-                    // Fall back to last entry if no timestamp match
-                    if (targetIdx < 0)
+                    else
+                    {
+                        // Legacy callers without acquireTimestamp: fall back
+                        // to the last entry (only safe without concurrency).
                         targetIdx = state.TokenRecords.Count - 1;
+                    }
 
-                    var (ts, estimated) = state.TokenRecords[targetIdx];
-                    state.TokenRecords[targetIdx] = (ts, actualTokens);
-                    // Adjust lifetime total: remove estimate, add actual
-                    state.TotalTokens = state.TotalTokens - estimated + actualTokens;
+                    if (targetIdx >= 0)
+                    {
+                        var (ts, estimated) = state.TokenRecords[targetIdx];
+                        state.TokenRecords[targetIdx] = (ts, actualTokens);
+                        // Adjust lifetime total: remove estimate, add actual
+                        state.TotalTokens = state.TotalTokens - estimated + actualTokens;
+                    }
+                    // else: record was pruned from the sliding window (request
+                    // took > 60s). The estimate is already gone from the window
+                    // and baked into TotalTokens.  Do NOT fall back to the last
+                    // entry — it belongs to a different request, and modifying
+                    // it would corrupt both the window count and TotalTokens.
                 }
                 else if (actualTokens > 0)
                 {

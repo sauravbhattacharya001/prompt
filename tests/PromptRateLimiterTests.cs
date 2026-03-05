@@ -893,4 +893,77 @@ public class PromptRateLimiterTests
         Assert.Equal(0, usage.TokensPerMinuteLimit);
         Assert.Equal(0, usage.MaxConcurrentLimit);
     }
+
+    // ── Bug regression: RecordCompletion with pruned timestamp ──────
+
+    [Fact]
+    public void RecordCompletion_PrunedTimestamp_DoesNotCorruptOtherRequests()
+    {
+        // Scenario: two concurrent requests (A then B).  A's token record
+        // gets pruned from the sliding window (request took > 60s).
+        // RecordCompletion(A) should NOT fall back to modifying B's record.
+
+        var limiter = new PromptRateLimiter();
+        limiter.AddProfile(new RateLimitProfile
+        {
+            Name = "test",
+            RequestsPerMinute = 100,
+            TokensPerMinute = 100_000,
+            MaxConcurrent = 10
+        });
+
+        // Acquire request A with 500 estimated tokens
+        var resultA = limiter.TryAcquire("test", estimatedTokens: 500);
+        Assert.True(resultA.Permitted);
+        var tsA = resultA.AcquireTimestamp;
+
+        // Acquire request B with 300 estimated tokens
+        var resultB = limiter.TryAcquire("test", estimatedTokens: 300);
+        Assert.True(resultB.Permitted);
+        var tsB = resultB.AcquireTimestamp;
+
+        // Complete B normally — should update B's record
+        limiter.RecordCompletion("test", actualTokens: 250, acquireTimestamp: tsB);
+
+        var usage = limiter.GetUsage("test");
+        Assert.NotNull(usage);
+        // Total: started at 500+300=800, B adjusted 300→250, so 750
+        Assert.Equal(750, usage!.TotalTokens);
+
+        // Now "complete" A with a bogus old timestamp that won't be found.
+        // This simulates the window having pruned A's record (> 60s).
+        // The key property: it should NOT modify B's record.
+        limiter.RecordCompletion("test", actualTokens: 100, acquireTimestamp: tsA + 999_999);
+
+        usage = limiter.GetUsage("test");
+        // TotalTokens should still be 750 — A's pruned record can't be
+        // adjusted, but B's record must remain untouched.
+        Assert.Equal(750, usage!.TotalTokens);
+    }
+
+    [Fact]
+    public void RecordCompletion_LegacyNoTimestamp_FallsBackToLast()
+    {
+        // Legacy callers that don't pass acquireTimestamp should still
+        // fall back to the last entry (backward-compatible behaviour).
+        var limiter = new PromptRateLimiter();
+        limiter.AddProfile(new RateLimitProfile
+        {
+            Name = "test",
+            RequestsPerMinute = 100,
+            TokensPerMinute = 100_000,
+            MaxConcurrent = 10
+        });
+
+        var result = limiter.TryAcquire("test", estimatedTokens: 500);
+        Assert.True(result.Permitted);
+
+        // Legacy call without acquireTimestamp
+        limiter.RecordCompletion("test", actualTokens: 400);
+
+        var usage = limiter.GetUsage("test");
+        Assert.NotNull(usage);
+        // Adjusted: 500→400
+        Assert.Equal(400, usage!.TotalTokens);
+    }
 }
