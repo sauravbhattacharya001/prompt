@@ -589,5 +589,137 @@ namespace Prompt.Tests
             Assert.NotEmpty(results);
             Assert.Equal("target-prompt", results[0].Name);
         }
+
+        // ── Fuzzy Matching ───────────────────────────────────────────
+
+        [Theory]
+        [InlineData("kitten", "sitting", 3)]
+        [InlineData("", "abc", 3)]
+        [InlineData("abc", "", 3)]
+        [InlineData("abc", "abc", 0)]
+        [InlineData("test", "tset", 2)]
+        [InlineData("hello", "hallo", 1)]
+        public void LevenshteinDistance_ReturnsCorrectDistance(string a, string b, int expected)
+        {
+            Assert.Equal(expected, PromptSemanticSearch.LevenshteinDistance(a, b));
+        }
+
+        [Fact]
+        public void FuzzySearch_FindsResultsWithTypos()
+        {
+            var search = new PromptSemanticSearch(enableQueryExpansion: false);
+            search.Index(MakeEntry("security-scanner", "Scan code for vulnerabilities",
+                tags: new[] { "security", "vulnerability" }));
+            search.Index(MakeEntry("text-formatter", "Format text output"));
+
+            // "securty" is a typo for "security" (edit distance 1)
+            var results = search.Search("securty scanner");
+            Assert.NotEmpty(results);
+            Assert.Equal("security-scanner", results[0].Name);
+        }
+
+        [Fact]
+        public void FuzzySearch_DisabledWithZeroDistance()
+        {
+            var search = new PromptSemanticSearch(maxEditDistance: 0, enableQueryExpansion: false);
+            search.Index(MakeEntry("security-scanner", "Scan for vulnerabilities",
+                tags: new[] { "security" }));
+
+            // With fuzzy disabled and no prefix/exact match, should not find via typo alone
+            var results = search.Search("xecurityx");
+            Assert.Empty(results);
+        }
+
+        [Fact]
+        public void FuzzySearch_ScoresLowerThanExactMatch()
+        {
+            var search = new PromptSemanticSearch(enableQueryExpansion: false);
+            search.Index(MakeEntry("testing-tool", "A tool for testing code",
+                tags: new[] { "testing" }));
+            search.Index(MakeEntry("tasting-tool", "A tool for tasting food",
+                tags: new[] { "tasting" }));
+
+            var exactResults = search.Search("testing");
+            var fuzzyResults = search.Search("testng"); // typo
+
+            Assert.NotEmpty(exactResults);
+            Assert.NotEmpty(fuzzyResults);
+            // Exact match should score higher
+            Assert.True(exactResults[0].Score > fuzzyResults[0].Score);
+        }
+
+        // ── Query Expansion ─────────────────────────────────────────
+
+        [Fact]
+        public void QueryExpansion_FindsResultsViaSynonyms()
+        {
+            var search = new PromptSemanticSearch(enableQueryExpansion: true);
+            search.Index(MakeEntry("bug-reporter", "Report and track defects",
+                tags: new[] { "defect", "issue" }));
+            search.Index(MakeEntry("text-formatter", "Format text output"));
+
+            // "error" should expand to include "bug", "defect" etc.
+            var results = search.Search("error tracking");
+            Assert.NotEmpty(results);
+            Assert.Equal("bug-reporter", results[0].Name);
+        }
+
+        [Fact]
+        public void QueryExpansion_SynonymScoresLowerThanDirect()
+        {
+            var search = new PromptSemanticSearch(enableQueryExpansion: true);
+            search.Index(MakeEntry("error-handler", "Handle errors gracefully",
+                tags: new[] { "error" }));
+            search.Index(MakeEntry("bug-tracker", "Track bugs in code",
+                tags: new[] { "bug" }));
+
+            // Direct "error" query should rank "error-handler" above "bug-tracker"
+            var results = search.Search("error");
+            Assert.True(results.Count >= 2);
+            Assert.Equal("error-handler", results[0].Name);
+        }
+
+        [Fact]
+        public void QueryExpansion_DisabledWhenFalse()
+        {
+            var searchExpanded = new PromptSemanticSearch(enableQueryExpansion: true);
+            var searchNoExpand = new PromptSemanticSearch(enableQueryExpansion: false);
+
+            var entry = MakeEntry("bug-fixer", "Fix bugs in code", tags: new[] { "bug" });
+            searchExpanded.Index(entry);
+            searchNoExpand.Index(entry);
+
+            // "error" should find bug-fixer only with expansion on
+            var withExpansion = searchExpanded.Search("error");
+            var withoutExpansion = searchNoExpand.Search("error");
+
+            Assert.NotEmpty(withExpansion);
+            Assert.Empty(withoutExpansion);
+        }
+
+        [Fact]
+        public void AddSynonyms_CustomSynonymsWork()
+        {
+            var search = new PromptSemanticSearch(enableQueryExpansion: true);
+            search.AddSynonyms("deploy", "ship", "release", "publish");
+
+            search.Index(MakeEntry("release-manager", "Manage software releases",
+                tags: new[] { "release", "versioning" }));
+
+            var results = search.Search("deploy");
+            Assert.NotEmpty(results);
+            Assert.Equal("release-manager", results[0].Name);
+        }
+
+        [Fact]
+        public void ExpandQueryWithSynonyms_OriginalTermsHaveFullWeight()
+        {
+            var search = new PromptSemanticSearch(enableQueryExpansion: true);
+            var expanded = search.ExpandQueryWithSynonyms(new System.Collections.Generic.List<string> { "error" });
+
+            Assert.Equal(1.0, expanded["error"]);
+            Assert.True(expanded.ContainsKey("bug"));
+            Assert.True(expanded["bug"] < 1.0); // synonyms weighted lower
+        }
     }
 }

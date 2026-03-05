@@ -45,6 +45,8 @@ namespace Prompt
     ///   <item><description>Stop-word filtering for English</description></item>
     ///   <item><description>Stemming via Porter-style suffix stripping</description></item>
     ///   <item><description>Incremental index updates (add/remove without full rebuild)</description></item>
+    ///   <item><description>Fuzzy matching via Levenshtein distance for typo tolerance</description></item>
+    ///   <item><description>Query expansion with synonyms and related terms</description></item>
     /// </list>
     /// </summary>
     public class PromptSemanticSearch
@@ -59,6 +61,40 @@ namespace Prompt
         private readonly double _categoryBoost;
         private readonly double _tagBoost;
         private readonly double _bodyBoost;
+
+        // Fuzzy matching
+        private readonly int _maxEditDistance;
+        private readonly double _fuzzyScoreMultiplier;
+        private readonly bool _enableQueryExpansion;
+
+        // Synonym map for query expansion (stemmed form → related stemmed forms)
+        private static readonly Dictionary<string, string[]> SynonymMap = new(StringComparer.OrdinalIgnoreCase)
+        {
+            { "error", new[] { "bug", "fault", "defect", "fail" } },
+            { "bug", new[] { "error", "fault", "defect", "issue" } },
+            { "fast", new[] { "quick", "speed", "perform", "optim" } },
+            { "quick", new[] { "fast", "speed", "rapid" } },
+            { "secure", new[] { "safe", "protect", "auth", "encrypt" } },
+            { "safe", new[] { "secure", "protect", "valid" } },
+            { "test", new[] { "check", "verif", "valid", "assert" } },
+            { "check", new[] { "test", "verif", "valid" } },
+            { "creat", new[] { "generat", "build", "make", "produc" } },
+            { "generat", new[] { "creat", "build", "produc" } },
+            { "delet", new[] { "remov", "clear", "purg" } },
+            { "remov", new[] { "delet", "clear", "strip" } },
+            { "updat", new[] { "modif", "chang", "edit", "alter" } },
+            { "modif", new[] { "updat", "chang", "edit" } },
+            { "search", new[] { "find", "look", "query", "seek" } },
+            { "find", new[] { "search", "look", "query", "locat" } },
+            { "format", new[] { "style", "template", "layout" } },
+            { "templat", new[] { "format", "pattern", "layout" } },
+            { "parse", new[] { "extract", "read", "analyz" } },
+            { "analyz", new[] { "parse", "inspect", "examin" } },
+            { "send", new[] { "emit", "dispatch", "transmit" } },
+            { "respons", new[] { "reply", "answer", "output" } },
+            { "config", new[] { "set", "option", "prefer" } },
+            { "optim", new[] { "fast", "improv", "enhanc", "speed" } },
+        };
 
         // Index structures
         private readonly Dictionary<string, PromptEntry> _entries = new();
@@ -100,6 +136,9 @@ namespace Prompt
         /// <param name="categoryBoost">Boost factor for category matches (default 2.0).</param>
         /// <param name="tagBoost">Boost factor for tag matches (default 2.5).</param>
         /// <param name="bodyBoost">Boost factor for template body matches (default 1.0).</param>
+        /// <param name="maxEditDistance">Maximum Levenshtein distance for fuzzy matching (default 2). 0 disables fuzzy.</param>
+        /// <param name="fuzzyScoreMultiplier">Score multiplier for fuzzy matches (default 0.4). Lower = less weight for fuzzy hits.</param>
+        /// <param name="enableQueryExpansion">Whether to expand queries with synonyms (default true).</param>
         public PromptSemanticSearch(
             double k1 = 1.5,
             double b = 0.75,
@@ -107,7 +146,10 @@ namespace Prompt
             double descriptionBoost = 1.5,
             double categoryBoost = 2.0,
             double tagBoost = 2.5,
-            double bodyBoost = 1.0)
+            double bodyBoost = 1.0,
+            int maxEditDistance = 2,
+            double fuzzyScoreMultiplier = 0.4,
+            bool enableQueryExpansion = true)
         {
             if (k1 < 0) throw new ArgumentOutOfRangeException(nameof(k1), "k1 must be non-negative");
             if (b < 0 || b > 1) throw new ArgumentOutOfRangeException(nameof(b), "b must be between 0 and 1");
@@ -119,6 +161,9 @@ namespace Prompt
             _categoryBoost = categoryBoost;
             _tagBoost = tagBoost;
             _bodyBoost = bodyBoost;
+            _maxEditDistance = maxEditDistance;
+            _fuzzyScoreMultiplier = fuzzyScoreMultiplier;
+            _enableQueryExpansion = enableQueryExpansion;
         }
 
         /// <summary>Number of indexed documents.</summary>
@@ -264,6 +309,11 @@ namespace Prompt
             if (queryTerms.Count == 0)
                 return Array.Empty<SearchResult>();
 
+            // Expand query with synonyms
+            var expandedTerms = _enableQueryExpansion
+                ? ExpandQueryWithSynonyms(queryTerms)
+                : queryTerms.ToDictionary(t => t, _ => 1.0);
+
             var results = new List<SearchResult>();
 
             foreach (var kvp in _entries)
@@ -276,11 +326,14 @@ namespace Prompt
                 var termScores = new Dictionary<string, double>();
                 double totalScore = 0;
 
-                foreach (var term in queryTerms)
+                foreach (var termKvp in expandedTerms)
                 {
-                    double score = ComputeTermBM25(term, tf, docLen);
+                    var term = termKvp.Key;
+                    var termWeight = termKvp.Value;
 
-                    // Also check prefix matching for partial queries
+                    double score = ComputeTermBM25(term, tf, docLen) * termWeight;
+
+                    // Prefix matching for partial queries
                     if (score == 0 && term.Length >= 3)
                     {
                         double prefixScore = 0;
@@ -288,12 +341,33 @@ namespace Prompt
                         {
                             if (indexedTerm.StartsWith(term, StringComparison.Ordinal) && indexedTerm != term)
                             {
-                                double s = ComputeTermBM25(indexedTerm, tf, docLen) * 0.6;
+                                double s = ComputeTermBM25(indexedTerm, tf, docLen) * 0.6 * termWeight;
                                 if (s > prefixScore)
                                     prefixScore = s;
                             }
                         }
                         score = prefixScore;
+                    }
+
+                    // Fuzzy matching via Levenshtein distance
+                    if (score == 0 && _maxEditDistance > 0 && term.Length >= 4)
+                    {
+                        double bestFuzzyScore = 0;
+                        foreach (var indexedTerm in tf.Keys)
+                        {
+                            if (Math.Abs(indexedTerm.Length - term.Length) > _maxEditDistance)
+                                continue;
+                            int dist = LevenshteinDistance(term, indexedTerm);
+                            if (dist > 0 && dist <= _maxEditDistance)
+                            {
+                                // Closer matches get higher multipliers
+                                double distPenalty = _fuzzyScoreMultiplier / dist;
+                                double s = ComputeTermBM25(indexedTerm, tf, docLen) * distPenalty * termWeight;
+                                if (s > bestFuzzyScore)
+                                    bestFuzzyScore = s;
+                            }
+                        }
+                        score = bestFuzzyScore;
                     }
 
                     if (score > 0)
@@ -475,6 +549,119 @@ namespace Prompt
             if (word.EndsWith("s") && word.Length > 3 && !word.EndsWith("ss")) return word[..^1];
 
             return word;
+        }
+
+        // ── Fuzzy Matching ────────────────────────────────────────────
+
+        /// <summary>
+        /// Compute Levenshtein edit distance between two strings.
+        /// Uses the standard dynamic programming algorithm with O(min(m,n)) space.
+        /// </summary>
+        internal static int LevenshteinDistance(string a, string b)
+        {
+            if (string.IsNullOrEmpty(a)) return b?.Length ?? 0;
+            if (string.IsNullOrEmpty(b)) return a.Length;
+
+            // Ensure a is the shorter string for space optimization
+            if (a.Length > b.Length)
+                (a, b) = (b, a);
+
+            int m = a.Length, n = b.Length;
+            var prev = new int[m + 1];
+            var curr = new int[m + 1];
+
+            for (int i = 0; i <= m; i++) prev[i] = i;
+
+            for (int j = 1; j <= n; j++)
+            {
+                curr[0] = j;
+                for (int i = 1; i <= m; i++)
+                {
+                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                    curr[i] = Math.Min(
+                        Math.Min(curr[i - 1] + 1, prev[i] + 1),
+                        prev[i - 1] + cost);
+                }
+                (prev, curr) = (curr, prev);
+            }
+
+            return prev[m];
+        }
+
+        // ── Query Expansion ──────────────────────────────────────────
+
+        /// <summary>
+        /// Expand query terms with synonyms. Returns a dictionary of term → weight,
+        /// where original terms have weight 1.0 and synonym expansions have weight 0.3.
+        /// </summary>
+        internal Dictionary<string, double> ExpandQueryWithSynonyms(List<string> queryTerms)
+        {
+            var expanded = new Dictionary<string, double>(StringComparer.Ordinal);
+
+            foreach (var term in queryTerms)
+            {
+                // Original term always gets full weight
+                expanded[term] = 1.0;
+
+                // Look up synonyms for the stemmed term
+                if (SynonymMap.TryGetValue(term, out var synonyms))
+                {
+                    foreach (var syn in synonyms)
+                    {
+                        if (!expanded.ContainsKey(syn))
+                            expanded[syn] = 0.3;
+                    }
+                }
+            }
+
+            return expanded;
+        }
+
+        /// <summary>
+        /// Register custom synonyms for query expansion. Both directions are added.
+        /// Terms are stemmed before storage.
+        /// </summary>
+        /// <param name="term">The term to add synonyms for.</param>
+        /// <param name="synonyms">Related terms.</param>
+        public void AddSynonyms(string term, params string[] synonyms)
+        {
+            if (string.IsNullOrWhiteSpace(term) || synonyms == null || synonyms.Length == 0)
+                return;
+
+            var stemmedTerm = Stem(term.ToLowerInvariant());
+            var stemmedSynonyms = synonyms
+                .Select(s => Stem(s.ToLowerInvariant()))
+                .Where(s => s != stemmedTerm && s.Length >= 2)
+                .ToArray();
+
+            if (stemmedSynonyms.Length == 0) return;
+
+            // Add forward direction
+            if (SynonymMap.TryGetValue(stemmedTerm, out var existing))
+            {
+                var combined = new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
+                foreach (var s in stemmedSynonyms) combined.Add(s);
+                SynonymMap[stemmedTerm] = combined.ToArray();
+            }
+            else
+            {
+                SynonymMap[stemmedTerm] = stemmedSynonyms;
+            }
+
+            // Add reverse direction
+            foreach (var syn in stemmedSynonyms)
+            {
+                if (SynonymMap.TryGetValue(syn, out var revExisting))
+                {
+                    var combined = new HashSet<string>(revExisting, StringComparer.OrdinalIgnoreCase);
+                    combined.Add(stemmedTerm);
+                    SynonymMap[syn] = combined.ToArray();
+                }
+                else
+                {
+                    SynonymMap[syn] = new[] { stemmedTerm };
+                }
+            }
         }
 
         // ── Helpers ──────────────────────────────────────────────────
