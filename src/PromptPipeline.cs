@@ -578,16 +578,55 @@ namespace Prompt
         /// String.Replace calls and prevents double-substitution when a
         /// variable's value itself contains {{...}} syntax.
         /// </summary>
-        internal static string RenderVariables(string template, Dictionary<string, string> variables)
+        /// <param name="template">The template string containing {{variable}} placeholders.</param>
+        /// <param name="variables">Dictionary of variable names to values.</param>
+        /// <param name="recursive">
+        /// When true, performs iterative substitution so that variable values
+        /// containing {{...}} references are also expanded. Default is false
+        /// for safety (prevents unintended double-substitution).
+        /// </param>
+        /// <param name="maxDepth">
+        /// Maximum recursion depth when <paramref name="recursive"/> is true.
+        /// Prevents infinite loops from circular variable references. Default: 5.
+        /// </param>
+        /// <returns>The template with variables substituted.</returns>
+        internal static string RenderVariables(
+            string template,
+            Dictionary<string, string> variables,
+            bool recursive = false,
+            int maxDepth = 5)
         {
             if (string.IsNullOrEmpty(template) || variables.Count == 0)
                 return template;
 
-            return Regex.Replace(template, @"\{\{(\w[\w.-]*)\}\}", match =>
+            var pattern = @"\{\{(\w[\w.-]*)\}\}";
+
+            if (!recursive)
             {
-                var key = match.Groups[1].Value;
-                return variables.TryGetValue(key, out var value) ? value : match.Value;
-            });
+                return Regex.Replace(template, pattern, match =>
+                {
+                    var key = match.Groups[1].Value;
+                    return variables.TryGetValue(key, out var value) ? value : match.Value;
+                });
+            }
+
+            // Recursive mode: iterate until no more substitutions or depth exhausted
+            var result = template;
+            for (int depth = 0; depth < maxDepth; depth++)
+            {
+                var previous = result;
+                result = Regex.Replace(result, pattern, match =>
+                {
+                    var key = match.Groups[1].Value;
+                    return variables.TryGetValue(key, out var value) ? value : match.Value;
+                });
+
+                // No changes in this pass → stable, stop early
+                if (string.Equals(result, previous, StringComparison.Ordinal))
+                    break;
+            }
+
+            return result;
         }
 
         /// <summary>
