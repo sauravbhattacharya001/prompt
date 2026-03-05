@@ -1,6 +1,7 @@
 namespace Prompt
 {
     using System.ClientModel;
+    using System.Runtime.CompilerServices;
     using System.Text;
     using System.Text.Json;
     using System.Text.Json.Serialization;
@@ -288,6 +289,70 @@ namespace Prompt
                 }
 
                 return responseText;
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
+        }
+
+        /// <summary>
+        /// Sends a user message and streams the assistant's response.
+        /// Both the user message and the complete assistant response are
+        /// added to the conversation history when streaming finishes.
+        /// </summary>
+        /// <param name="message">The user message to send.</param>
+        /// <param name="ct">Optional cancellation token.</param>
+        /// <returns>An async stream of <see cref="StreamChunk"/> instances.</returns>
+        /// <exception cref="ArgumentException">Message is null or empty.</exception>
+        public async IAsyncEnumerable<StreamChunk> SendStreamAsync(
+            string message,
+            [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+                throw new ArgumentException(
+                    "Message cannot be null or empty.", nameof(message));
+
+            await _sendLock.WaitAsync(ct);
+            try
+            {
+                List<ChatMessage> snapshot;
+                lock (_lock)
+                {
+                    _messages.Add(new UserChatMessage(message));
+                    TrimMessagesUnsafe();
+                    snapshot = new List<ChatMessage>(_messages);
+                }
+
+                var completionOptions = new PromptOptions
+                {
+                    Temperature = _temperature,
+                    MaxTokens = _maxTokens,
+                    TopP = _topP,
+                    FrequencyPenalty = _frequencyPenalty,
+                    PresencePenalty = _presencePenalty,
+                }.ToChatCompletionOptions();
+
+                string? fullResponse = null;
+
+                await foreach (var chunk in Main.StreamFromMessagesAsync(
+                    snapshot, completionOptions, _maxRetries, ct))
+                {
+                    if (chunk.IsComplete)
+                        fullResponse = chunk.FullText;
+
+                    yield return chunk;
+                }
+
+                // Add the complete response to conversation history
+                if (fullResponse != null)
+                {
+                    lock (_lock)
+                    {
+                        _messages.Add(new AssistantChatMessage(fullResponse));
+                        TrimMessagesUnsafe();
+                    }
+                }
             }
             finally
             {

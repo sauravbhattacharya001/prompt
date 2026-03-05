@@ -1,7 +1,9 @@
 namespace Prompt
 {
+    using System.Runtime.CompilerServices;
     using System.Text.Json;
     using System.Text.Json.Serialization;
+    using OpenAI.Chat;
 
     /// <summary>
     /// Represents a single step in a <see cref="PromptChain"/>. Each step
@@ -410,6 +412,70 @@ namespace Prompt
             totalWatch.Stop();
 
             return new ChainResult(stepResults, variables, totalWatch.Elapsed);
+        }
+
+        /// <summary>
+        /// Executes the chain sequentially with streaming. Each step's response
+        /// is streamed as <see cref="ChainStreamUpdate"/> instances. The step's
+        /// full response is captured and stored for subsequent steps.
+        /// </summary>
+        /// <param name="initialVariables">Initial variables to seed the chain.</param>
+        /// <param name="ct">Cancellation token.</param>
+        /// <returns>An async stream of <see cref="ChainStreamUpdate"/> instances.</returns>
+        /// <exception cref="InvalidOperationException">Chain has no steps.</exception>
+        public async IAsyncEnumerable<ChainStreamUpdate> ExecuteStreamAsync(
+            Dictionary<string, string>? initialVariables = null,
+            [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            if (_steps.Count == 0)
+                throw new InvalidOperationException(
+                    "Cannot run an empty chain. Add at least one step with AddStep().");
+
+            var variables = initialVariables != null
+                ? new Dictionary<string, string>(initialVariables, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < _steps.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var step = _steps[i];
+                bool isLastStep = (i == _steps.Count - 1);
+
+                string rendered = step.Template.Render(variables, strict: false, sanitize: true);
+
+                var opts = _options ?? new PromptOptions();
+                var completionOptions = opts.ToChatCompletionOptions();
+
+                var messages = new List<ChatMessage>();
+                if (!string.IsNullOrWhiteSpace(_systemPrompt))
+                    messages.Add(new SystemChatMessage(_systemPrompt));
+                messages.Add(new UserChatMessage(rendered));
+
+                string? fullResponse = null;
+
+                await foreach (var chunk in Main.StreamFromMessagesAsync(
+                    messages, completionOptions, _maxRetries, ct))
+                {
+                    bool stepComplete = chunk.IsComplete;
+
+                    if (stepComplete)
+                        fullResponse = chunk.FullText;
+
+                    yield return new ChainStreamUpdate
+                    {
+                        StepName = step.Name,
+                        OutputVariable = step.OutputVariable,
+                        Chunk = chunk,
+                        IsStepComplete = stepComplete,
+                        IsChainComplete = stepComplete && isLastStep
+                    };
+                }
+
+                // Store the response for subsequent steps
+                if (fullResponse != null)
+                    variables[step.OutputVariable] = fullResponse;
+            }
         }
 
         /// <summary>

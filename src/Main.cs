@@ -2,6 +2,8 @@
 {
     using System.ClientModel;
     using System.ClientModel.Primitives;
+    using System.Runtime.CompilerServices;
+    using System.Text;
     using Azure.AI.OpenAI;
     using OpenAI.Chat;
 
@@ -154,6 +156,158 @@
                 messages, completionOptions, cancellationToken);
 
             return completion?.Content?.FirstOrDefault()?.Text;
+        }
+
+        /// <summary>
+        /// Sends a prompt to Azure OpenAI and streams the response as an
+        /// <see cref="IAsyncEnumerable{StreamChunk}"/>. Each chunk contains
+        /// the incremental delta text and the accumulated full text so far.
+        /// </summary>
+        /// <param name="prompt">The user prompt to send.</param>
+        /// <param name="systemPrompt">Optional system prompt.</param>
+        /// <param name="maxRetries">Maximum retries for transient failures.</param>
+        /// <param name="options">Optional model parameters.</param>
+        /// <param name="ct">Cancellation token.</param>
+        /// <returns>An async stream of <see cref="StreamChunk"/> instances.</returns>
+        /// <exception cref="ArgumentException">Thrown when <paramref name="prompt"/> is null or empty.</exception>
+        public static async IAsyncEnumerable<StreamChunk> GetResponseStreamAsync(
+            string prompt,
+            string? systemPrompt = null,
+            int maxRetries = 3,
+            PromptOptions? options = null,
+            [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(prompt))
+                throw new ArgumentException("Prompt cannot be null or empty.", nameof(prompt));
+
+            if (maxRetries < 0)
+                throw new ArgumentOutOfRangeException(nameof(maxRetries),
+                    maxRetries, "maxRetries must be non-negative.");
+
+            ChatClient chatClient = GetOrCreateChatClient(maxRetries);
+
+            var messages = new List<ChatMessage>();
+            if (!string.IsNullOrWhiteSpace(systemPrompt))
+                messages.Add(new SystemChatMessage(systemPrompt));
+            messages.Add(new UserChatMessage(prompt));
+
+            var opts = options ?? new PromptOptions();
+            var completionOptions = opts.ToChatCompletionOptions();
+
+            var fullText = new StringBuilder();
+            string? finishReason = null;
+
+            AsyncCollectionResult<StreamingChatCompletionUpdate> stream =
+                chatClient.CompleteChatStreamingAsync(
+                    messages, completionOptions, ct);
+
+            await foreach (StreamingChatCompletionUpdate update in stream)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                // Capture finish reason when available
+                if (update.FinishReason.HasValue)
+                {
+                    finishReason = update.FinishReason.Value.ToString().ToLowerInvariant();
+                }
+
+                // Extract delta text from content update parts
+                string delta = "";
+                if (update.ContentUpdate != null)
+                {
+                    foreach (var part in update.ContentUpdate)
+                    {
+                        if (part.Text != null)
+                            delta += part.Text;
+                    }
+                }
+
+                if (delta.Length > 0)
+                {
+                    fullText.Append(delta);
+                }
+
+                // Yield a chunk for every update that has content or is final
+                bool isComplete = update.FinishReason.HasValue;
+                if (delta.Length > 0 || isComplete)
+                {
+                    string accumulated = fullText.ToString();
+                    yield return new StreamChunk
+                    {
+                        Delta = delta,
+                        FullText = accumulated,
+                        IsComplete = isComplete,
+                        FinishReason = isComplete ? finishReason : null,
+                        TokensUsed = EstimateTokens(accumulated)
+                    };
+                }
+            }
+        }
+
+        /// <summary>
+        /// Streams a response from Azure OpenAI for a pre-built message list.
+        /// Used internally by <see cref="Conversation"/> and <see cref="PromptChain"/>.
+        /// </summary>
+        internal static async IAsyncEnumerable<StreamChunk> StreamFromMessagesAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatCompletionOptions completionOptions,
+            int maxRetries = 3,
+            [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            ChatClient chatClient = GetOrCreateChatClient(maxRetries);
+
+            var fullText = new StringBuilder();
+            string? finishReason = null;
+
+            AsyncCollectionResult<StreamingChatCompletionUpdate> stream =
+                chatClient.CompleteChatStreamingAsync(
+                    messages.ToList(), completionOptions, ct);
+
+            await foreach (StreamingChatCompletionUpdate update in stream)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (update.FinishReason.HasValue)
+                    finishReason = update.FinishReason.Value.ToString().ToLowerInvariant();
+
+                string delta = "";
+                if (update.ContentUpdate != null)
+                {
+                    foreach (var part in update.ContentUpdate)
+                    {
+                        if (part.Text != null)
+                            delta += part.Text;
+                    }
+                }
+
+                if (delta.Length > 0)
+                    fullText.Append(delta);
+
+                bool isComplete = update.FinishReason.HasValue;
+                if (delta.Length > 0 || isComplete)
+                {
+                    string accumulated = fullText.ToString();
+                    yield return new StreamChunk
+                    {
+                        Delta = delta,
+                        FullText = accumulated,
+                        IsComplete = isComplete,
+                        FinishReason = isComplete ? finishReason : null,
+                        TokensUsed = EstimateTokens(accumulated)
+                    };
+                }
+            }
+        }
+
+        /// <summary>
+        /// Estimates token count using a simple heuristic (~4 chars per token for English).
+        /// This matches the approach used by <see cref="PromptGuard"/>.
+        /// </summary>
+        private static int EstimateTokens(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return 0;
+            // Approximate: 1 token ≈ 4 characters for English text
+            return (int)Math.Ceiling(text.Length / 4.0);
         }
 
         /// <summary>
