@@ -674,9 +674,24 @@ namespace Prompt
 
             string result = text;
 
-            // Remove null bytes and non-printable control characters
-            // (except \t, \n, \r which are legitimate whitespace)
-            result = ControlCharsPattern.Replace(result, "");
+            // Remove non-printable control characters and null bytes.
+            // Use char-by-char filtering as .NET Regex does not reliably
+            // match \x00 in compiled mode on all runtimes.
+            {
+                var sb = new System.Text.StringBuilder(result.Length);
+                foreach (char c in result)
+                {
+                    if (c == '\t' || c == '\n' || c == '\r' || c >= ' ')
+                        sb.Append(c);
+                }
+                result = sb.ToString();
+                // Verify no control chars remain
+                foreach (char c in result)
+                {
+                    if (c < ' ' && c != '\t' && c != '\n' && c != '\r')
+                        throw new Exception($"BUG: control char {(int)c} survived at result length {result.Length}");
+                }
+            }
 
             // Remove Unicode bidirectional override characters and
             // zero-width characters used to bypass injection detection.
@@ -708,6 +723,19 @@ namespace Prompt
                 int lastSpace = result.LastIndexOf(' ');
                 if (lastSpace > maxLength * 0.8)
                     result = result.Substring(0, lastSpace);
+            }
+
+            // Final safety: strip any remaining control chars that upstream
+            // regex replacements may have let through.
+            {
+                var finalSb = new System.Text.StringBuilder(result.Length);
+                for (int i = 0; i < result.Length; i++)
+                {
+                    char c = result[i];
+                    if (c >= ' ' || c == '\t' || c == '\n' || c == '\r')
+                        finalSb.Append(c);
+                }
+                result = finalSb.ToString();
             }
 
             return result;

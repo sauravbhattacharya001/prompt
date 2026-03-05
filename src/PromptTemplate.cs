@@ -180,9 +180,13 @@ namespace Prompt
 
             if (_defaults.Count == 0 && variables != null)
             {
-                // No defaults to merge — use variables directly (wrap in
-                // case-insensitive lookup if needed)
-                merged = variables;
+                // No defaults to merge — wrap in case-insensitive lookup
+                // to support templates like {{Name}} matching key "name".
+                if (variables.Comparer == StringComparer.OrdinalIgnoreCase)
+                    merged = variables;
+                else
+                    merged = new Dictionary<string, string>(
+                        variables, StringComparer.OrdinalIgnoreCase);
             }
             else if (variables == null || variables.Count == 0)
             {

@@ -100,7 +100,9 @@ namespace Prompt
             Dictionary<string, string> variables,
             TimeSpan totalElapsed)
         {
-            Steps = steps.AsReadOnly();
+            // Defensive copy: AsReadOnly wraps the original list, so
+            // callers could still mutate it through the original reference.
+            Steps = new List<StepResult>(steps).AsReadOnly();
             Variables = new Dictionary<string, string>(
                 variables, StringComparer.OrdinalIgnoreCase);
             TotalElapsed = totalElapsed;

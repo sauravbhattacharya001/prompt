@@ -432,8 +432,9 @@ namespace Prompt.Tests
         {
             string input = "Hello\x00World\x01Test";
             string result = PromptGuard.Sanitize(input);
-            Assert.DoesNotContain("\x00", result);
-            Assert.DoesNotContain("\x01", result);
+            // Use ordinal check — CurrentCulture treats \0 as weightless
+            Assert.False(result.Contains('\x00'), "Result should not contain null bytes");
+            Assert.False(result.Contains('\x01'), "Result should not contain SOH bytes");
             Assert.Contains("Hello", result);
             Assert.Contains("World", result);
         }
@@ -443,7 +444,9 @@ namespace Prompt.Tests
         {
             string input = "Hello\x02\x03\x04World";
             string result = PromptGuard.Sanitize(input);
-            Assert.DoesNotContain("\x02", result);
+            // Use char-level check — xUnit DoesNotContain uses CurrentCulture
+            // which treats control chars as weightless on some runtimes
+            Assert.False(result.Contains('\x02'), "Result should not contain STX");
             Assert.Contains("Hello", result);
             Assert.Contains("World", result);
         }
@@ -879,7 +882,7 @@ namespace Prompt.Tests
 
             // 2. Sanitize
             string safe = PromptGuard.Sanitize(userInput);
-            Assert.DoesNotContain("\x00", safe);
+            Assert.False(safe.Contains('\x00'), "Sanitized text should not contain null bytes");
             Assert.DoesNotContain("[SYSTEM]", safe, StringComparison.OrdinalIgnoreCase);
 
             // 3. Wrap with format

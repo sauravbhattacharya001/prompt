@@ -638,7 +638,7 @@ namespace Prompt
         internal class ConversationData
         {
             [JsonPropertyName("messages")]
-            public List<MessageData> Messages { get; set; } = new();
+            public List<MessageData>? Messages { get; set; }
 
             [JsonPropertyName("parameters")]
             public ParameterData? Parameters { get; set; }

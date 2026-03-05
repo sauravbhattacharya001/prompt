@@ -132,6 +132,7 @@ public class ExtendedEdgeCaseTests : IDisposable
     public void Conversation_LargeMessageCount_HandlesCorrectly()
     {
         var conv = new Conversation("System");
+        conv.MaxMessages = 2000; // Allow more than default 1000
         for (int i = 0; i < 500; i++)
         {
             conv.AddUserMessage($"User message {i}");
