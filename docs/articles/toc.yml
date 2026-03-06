@@ -8,6 +8,8 @@
   href: chains.md
 - name: Advanced Features
   href: advanced-features.md
+- name: Testing & Quality Assurance
+  href: testing.md
 - name: Prompt Safety & Analysis
   href: safety.md
 - name: Model Options

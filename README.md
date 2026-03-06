@@ -73,6 +73,10 @@ Send prompts to Azure OpenAI and get responses — with templates, chains, safet
 | `PromptRouter` | Intent-based prompt routing with keyword/regex scoring and fallback |
 | `ResponseParser` | Extract JSON, lists, tables, key-value pairs, and code blocks from LLM responses |
 | `PromptTestSuite` | Automated prompt evaluation with 10 assertion types and pluggable response providers |
+| `PromptDebugger` | Deep structural analysis — anti-pattern detection, clarity scoring, suggested fixes |
+| `PromptResponseEvaluator` | Heuristic quality scoring across 5 dimensions (relevance, completeness, etc.) |
+| `PromptGrammarValidator` | Response format validation with 11 rule types (regex, JSON, length, structure) |
+| `PromptFuzzer` | Robustness testing — generates prompt variants via 7 mutation strategies |
 
 ## Prerequisites
 
