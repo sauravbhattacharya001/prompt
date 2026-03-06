@@ -144,6 +144,7 @@ namespace Prompt
         private readonly TimeSpan _ttl;
         private readonly int _maxEntries;
         private readonly LinkedList<string> _accessOrder = new();
+        private readonly Dictionary<string, LinkedListNode<string>> _nodeMap = new();
         private readonly object _evictLock = new();
 
         public string Name => "Caching";
@@ -183,7 +184,7 @@ namespace Prompt
                 context.ShortCircuited = true;
                 context.Metadata["cache"] = "hit";
                 HitCount++;
-                PromoteKey(key);
+                TouchKey(key);
                 return;
             }
 
@@ -194,7 +195,7 @@ namespace Prompt
             if (context.Response != null)
             {
                 _cache[key] = new CacheEntry(context.Response, DateTimeOffset.UtcNow);
-                TrackKey(key);
+                TouchKey(key);
                 EvictIfNeeded();
             }
         }
@@ -203,27 +204,31 @@ namespace Prompt
         public void Clear()
         {
             _cache.Clear();
-            lock (_evictLock) { _accessOrder.Clear(); }
+            lock (_evictLock)
+            {
+                _accessOrder.Clear();
+                _nodeMap.Clear();
+            }
         }
 
         /// <summary>Current number of cached entries.</summary>
         public int Count => _cache.Count;
 
-        private void PromoteKey(string key)
+        /// <summary>
+        /// Moves <paramref name="key"/> to the most-recently-used end of
+        /// the access list.  Uses a node lookup dictionary for O(1) remove
+        /// instead of the O(n) <c>LinkedList.Remove(value)</c> overload.
+        /// </summary>
+        private void TouchKey(string key)
         {
             lock (_evictLock)
             {
-                _accessOrder.Remove(key);
-                _accessOrder.AddLast(key);
-            }
-        }
-
-        private void TrackKey(string key)
-        {
-            lock (_evictLock)
-            {
-                _accessOrder.Remove(key);
-                _accessOrder.AddLast(key);
+                if (_nodeMap.TryGetValue(key, out var existing))
+                {
+                    _accessOrder.Remove(existing); // O(1) node-based remove
+                }
+                var node = _accessOrder.AddLast(key);
+                _nodeMap[key] = node;
             }
         }
 
@@ -237,6 +242,7 @@ namespace Prompt
                 {
                     var oldest = _accessOrder.First!.Value;
                     _accessOrder.RemoveFirst();
+                    _nodeMap.Remove(oldest);
                     _cache.TryRemove(oldest, out _);
                     EvictionCount++;
                 }
