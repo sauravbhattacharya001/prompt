@@ -1,5 +1,6 @@
 namespace Prompt
 {
+    using System;
     using System.Text;
     using System.Text.Json;
     using System.Text.Json.Serialization;
@@ -102,27 +103,27 @@ namespace Prompt
         // Matches {{#if ...}}...{{else}}...{{/if}} blocks (outermost only)
         private static readonly Regex IfBlockPattern = new Regex(
             @"\{\{#if\s+(.+?)\}\}(.*?)\{\{/if\}\}",
-            RegexOptions.Compiled | RegexOptions.Singleline);
+            RegexOptions.Compiled | RegexOptions.Singleline, TimeSpan.FromMilliseconds(500));
 
         // Matches {{#switch variable}}...{{/switch}} blocks
         private static readonly Regex SwitchBlockPattern = new Regex(
             @"\{\{#switch\s+(\w+)\}\}(.*?)\{\{/switch\}\}",
-            RegexOptions.Compiled | RegexOptions.Singleline);
+            RegexOptions.Compiled | RegexOptions.Singleline, TimeSpan.FromMilliseconds(500));
 
         // Matches {{#case "value"}}...
         private static readonly Regex CasePattern = new Regex(
             @"\{\{#case\s+""([^""]*)""\}\}(.*?)(?=\{\{#case|\{\{#default\}\}|\z)",
-            RegexOptions.Compiled | RegexOptions.Singleline);
+            RegexOptions.Compiled | RegexOptions.Singleline, TimeSpan.FromMilliseconds(500));
 
         // Matches {{#default}}...
         private static readonly Regex DefaultPattern = new Regex(
             @"\{\{#default\}\}(.*?)(?=\{\{#case|\z)",
-            RegexOptions.Compiled | RegexOptions.Singleline);
+            RegexOptions.Compiled | RegexOptions.Singleline, TimeSpan.FromMilliseconds(500));
 
         // Condition expression parser: variable [op "value"]
         private static readonly Regex ConditionPattern = new Regex(
             @"^(!?)(\w+)(?:\s+(==|!=|contains|startsWith|endsWith|matches)\s+""([^""]*)"")?\s*$",
-            RegexOptions.Compiled);
+            RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         /// <summary>
         /// Renders a template string by evaluating all conditional blocks
@@ -224,7 +225,7 @@ namespace Prompt
                 ConditionalOperator.EndsWith => hasValue &&
                     varValue!.EndsWith(expression.Value ?? "", StringComparison.OrdinalIgnoreCase),
                 ConditionalOperator.Matches => hasValue &&
-                    Regex.IsMatch(varValue!, expression.Value ?? ""),
+                    SafeRegexMatch(varValue!, expression.Value ?? ""),
                 _ => false
             };
 
@@ -419,6 +420,26 @@ namespace Prompt
 
                 return ""; // no matching case
             });
+        }
+
+        /// <summary>
+        /// Matches a regex pattern against input with a timeout to prevent ReDoS.
+        /// Returns false on timeout or invalid pattern.
+        /// </summary>
+        private static bool SafeRegexMatch(string input, string pattern)
+        {
+            try
+            {
+                return Regex.IsMatch(input, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(500));
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                return false;
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
         }
 
         #endregion

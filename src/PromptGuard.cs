@@ -1,3 +1,4 @@
+using System;
 namespace Prompt
 {
     using System.Text.Json;
@@ -236,43 +237,43 @@ namespace Prompt
         private static readonly (Regex Pattern, string Description)[] InjectionPatterns =
         {
             (new Regex(@"\bignore\b.*\b(previous|above|all|prior)\b.*\b(instructions?|prompts?|rules?|guidelines?)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "Instruction override: attempts to ignore previous instructions"),
 
             (new Regex(@"\b(disregard|forget|override|bypass|skip)\b.*\b(instructions?|prompts?|rules?|constraints?|guidelines?|system)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "Instruction override: attempts to disregard/bypass rules"),
 
             (new Regex(@"\byou\s+are\s+now\b.*\b(new|different|DAN|evil|unrestricted|unfiltered)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "Role hijacking: attempts to reassign the model's identity"),
 
             (new Regex(@"\b(pretend|act\s+as\s+if|imagine|suppose)\b.*\b(no\s+(rules?|restrictions?|limits?|boundaries)|unrestricted|unfiltered|jailbr[eo]ak)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "Jailbreak: attempts to remove model restrictions via roleplay"),
 
             (new Regex(@"\bsystem\s*prompt\b.*\b(show|reveal|display|print|tell|output|repeat|what)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "System prompt extraction: attempts to reveal system instructions"),
 
             (new Regex(@"\b(reveal|show|display|output|print|leak|expose)\b.*\b(system\s*(prompt|message|instructions?)|hidden\s*(prompt|instructions?)|initial\s*(prompt|instructions?))\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "System prompt extraction: attempts to expose hidden instructions"),
 
             (new Regex(@"\b(do\s+not|don'?t|never)\s+(follow|obey|listen|adhere)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "Instruction override: attempts to make the model disobey"),
 
             (new Regex(@"\bDAN\b|\bDo\s+Anything\s+Now\b",
-                RegexOptions.Compiled),
+                RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "Known jailbreak: DAN (Do Anything Now) pattern"),
 
             (new Regex(@"\b(from\s+now\s+on|starting\s+now|henceforth)\b.*\b(you\s+(will|must|should|shall)|your\s+(role|purpose|function))\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "Role hijacking: attempts to redefine model behavior"),
 
             (new Regex(@"\[\s*SYSTEM\s*\]|\[\s*INST\s*\]|<<\s*SYS\s*>>|<\|system\|>|<\|im_start\|>",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "Delimiter injection: attempts to inject system-level markers"),
         };
 
@@ -285,7 +286,7 @@ namespace Prompt
         /// </summary>
         private static readonly Regex BidiOverridePattern = new(
             "[\u202A-\u202E\u2066-\u2069]",
-            RegexOptions.Compiled);
+            RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         /// <summary>
         /// Matches zero-width and invisible formatting characters that break
@@ -296,7 +297,7 @@ namespace Prompt
         /// </summary>
         private static readonly Regex ZeroWidthPattern = new(
             "[\u200B-\u200F\uFEFF]",
-            RegexOptions.Compiled);
+            RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         /// <summary>
         /// Strips all Unicode characters commonly used to bypass text-based
@@ -319,65 +320,65 @@ namespace Prompt
 
         private static readonly Regex VaguePattern = new(
             @"\b(something|stuff|things?|whatever|somehow|kind\s+of|sort\s+of|maybe|idk|etc\.?|and\s+so\s+on)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex QuestionPattern = new(
             @"[?？]|\b(what|how|why|when|where|which|who|explain|describe|list|tell\s+me|show\s+me|give\s+me|can\s+you)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex SpecificityPattern = new(
             @"\b\d+\b|""[^""]+""|\bexample\b|\be\.?g\.?\b|\bfor\s+instance\b|\bspecifically\b|\bexactly\b|\bprecisely\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex FormatRequestPattern = new(
             @"\b(json|xml|csv|yaml|table|list|bullet|markdown|format|structured)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex StructurePattern = new(
             @"[\n\r].*[\n\r]|^\s*[-*•]\s+|^\s*\d+[\.)]\s+|```|#{1,6}\s+",
-            RegexOptions.Multiline | RegexOptions.Compiled);
+            RegexOptions.Multiline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex WordSplitPattern = new(
-            @"\S+", RegexOptions.Compiled);
+            @"\S+", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex ContextRolePattern = new(
             @"\b(you\s+are|act\s+as|role|persona|context|background)\b",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex ExamplesProvidedPattern = new(
             @"\bexample[s]?\s*[:：]|\bfor\s+example\b|\be\.?g\.?\b|\binput\s*[:：].*output\s*[:：]",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex ConstraintsPattern = new(
             @"\b(must|should|do\s+not|don'?t|avoid|ensure|require|constraint|limit|maximum|minimum|at\s+(most|least))\b",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
 
         // ──────────────── Sanitize Patterns ────────────────
 
         private static readonly Regex ControlCharsPattern =
-            new(@"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", RegexOptions.Compiled);
+            new(@"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         private static readonly Regex SystemDelimiterPattern =
-            new(@"\[\s*SYSTEM\s*\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            new(@"\[\s*SYSTEM\s*\]", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
         private static readonly Regex InstDelimiterPattern =
-            new(@"\[\s*INST\s*\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            new(@"\[\s*INST\s*\]", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
         private static readonly Regex SysDelimiterPattern =
-            new(@"<<\s*SYS\s*>>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            new(@"<<\s*SYS\s*>>", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
         private static readonly Regex SystemTagPattern =
-            new(@"<\|system\|>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            new(@"<\|system\|>", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
         private static readonly Regex ImStartTagPattern =
-            new(@"<\|im_start\|>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            new(@"<\|im_start\|>", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
         private static readonly Regex ImEndTagPattern =
-            new(@"<\|im_end\|>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            new(@"<\|im_end\|>", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
         private static readonly Regex ExcessiveSpacesPattern =
-            new(@" {3,}", RegexOptions.Compiled);
+            new(@" {3,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         private static readonly Regex ExcessiveNewlinesPattern =
-            new(@"\n{3,}", RegexOptions.Compiled);
+            new(@"\n{3,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         /// <summary>
         /// Pattern for validating prompt/version names: word chars, hyphens, dots only.
         /// </summary>
         internal static readonly Regex NameValidationPattern =
-            new(@"^[\w\-\.]+$", RegexOptions.Compiled);
+            new(@"^[\w\-\.]+$", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         // ──────────────── Token Estimation ────────────────
 
