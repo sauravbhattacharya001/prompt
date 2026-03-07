@@ -173,7 +173,7 @@ namespace Prompt.Tests
         [Fact]
         public void CheckPersona_NoPersona_Flagged()
         {
-            var prompt = "Analyze the following data and provide insights about the trends. Consider seasonal patterns and anomalies in the results.";
+            var prompt = "Analyze the following data and provide insights about the trends. Consider seasonal patterns and anomalies in the results. Focus on year-over-year growth metrics and highlight any significant deviations from expected values.";
             var report = _refactorer.Analyze(prompt);
             Assert.Contains(report.Suggestions, s => s.Category == RefactorCategory.Persona);
         }

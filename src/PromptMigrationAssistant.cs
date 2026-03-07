@@ -603,7 +603,7 @@ namespace Prompt
                     MigratedPrompt = prompt,
                     CompatibilityScore = 100,
                     Grade = "A+",
-                    TokenEstimate = EstimateTokens(prompt),
+                    TokenEstimate = PromptGuard.EstimateTokens(prompt),
                     SourceProfile = GetProfile(source),
                     TargetProfile = GetProfile(target)
                 };
@@ -635,7 +635,7 @@ namespace Prompt
                 Issues = issues,
                 CompatibilityScore = score,
                 Grade = ScoreToGrade(score),
-                TokenEstimate = EstimateTokens(prompt),
+                TokenEstimate = PromptGuard.EstimateTokens(prompt),
                 SourceProfile = GetProfile(source),
                 TargetProfile = GetProfile(target)
             };
@@ -699,7 +699,7 @@ namespace Prompt
                 Issues = allIssues,
                 CompatibilityScore = newScore,
                 Grade = ScoreToGrade(newScore),
-                TokenEstimate = EstimateTokens(migrated),
+                TokenEstimate = PromptGuard.EstimateTokens(migrated),
                 SourceProfile = GetProfile(source),
                 TargetProfile = GetProfile(target)
             };
@@ -951,7 +951,7 @@ namespace Prompt
         private List<MigrationIssue> CheckTokenLimits(string prompt, LlmProvider target)
         {
             var issues = new List<MigrationIssue>();
-            var tokens = EstimateTokens(prompt);
+            var tokens = PromptGuard.EstimateTokens(prompt);
             var profile = GetProfile(target);
 
             if (tokens > profile.MaxContextTokens * 0.8)
@@ -1004,11 +1004,7 @@ namespace Prompt
             _ => "F"
         };
 
-        private static int EstimateTokens(string text) =>
-            (int)Math.Ceiling(text.Split(
-                new[] { ' ', '\n', '\t', '\r' },
-                StringSplitOptions.RemoveEmptyEntries).Length * 1.3);
-
+        
         private static int GetLineNumber(string text, int charIndex)
         {
             if (charIndex <= 0) return 1;

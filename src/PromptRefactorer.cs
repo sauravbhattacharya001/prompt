@@ -358,7 +358,7 @@ namespace Prompt
             var suggestions = new List<RefactorSuggestion>();
             var sections = DetectSections(prompt);
             var variables = DetectVariables(prompt);
-            int tokenCount = EstimateTokens(prompt);
+            int tokenCount = PromptGuard.EstimateTokens(prompt);
 
             if (!_config.SkipCategories.Contains(RefactorCategory.Redundancy))
                 suggestions.AddRange(CheckRedundancy(prompt));
@@ -601,7 +601,7 @@ namespace Prompt
         private List<RefactorSuggestion> CheckStructure(string prompt, List<RefactorerSection> sections)
         {
             var suggestions = new List<RefactorSuggestion>();
-            int tokenCount = EstimateTokens(prompt);
+            int tokenCount = PromptGuard.EstimateTokens(prompt);
 
             // Large prompt with no clear sections
             if (tokenCount > 200 && sections.Count <= 1)
@@ -718,7 +718,7 @@ namespace Prompt
             // Check individual sections
             foreach (var section in sections)
             {
-                int sectionTokens = EstimateTokens(section.Content);
+                int sectionTokens = PromptGuard.EstimateTokens(section.Content);
                 if (sectionTokens > _config.MaxSectionTokens)
                 {
                     suggestions.Add(new RefactorSuggestion
@@ -767,7 +767,7 @@ namespace Prompt
         {
             var suggestions = new List<RefactorSuggestion>();
             var lower = prompt.ToLowerInvariant();
-            int tokenCount = EstimateTokens(prompt);
+            int tokenCount = PromptGuard.EstimateTokens(prompt);
 
             // Only suggest persona for prompts of reasonable length
             if (tokenCount > 30)
@@ -796,7 +796,7 @@ namespace Prompt
         {
             var suggestions = new List<RefactorSuggestion>();
             var lower = prompt.ToLowerInvariant();
-            int tokenCount = EstimateTokens(prompt);
+            int tokenCount = PromptGuard.EstimateTokens(prompt);
 
             if (tokenCount > 50)
             {
@@ -930,13 +930,6 @@ namespace Prompt
                 .Select(m => m.Groups[1].Value)
                 .Distinct()
                 .ToList();
-        }
-
-        private static int EstimateTokens(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return 0;
-            // Rough estimate: ~4 chars per token for English
-            return (int)Math.Ceiling(text.Length / 4.0);
         }
 
         private static string SuggestVariableName(string value)

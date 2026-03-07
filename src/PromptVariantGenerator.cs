@@ -472,7 +472,7 @@ namespace Prompt
             if (config == null)
                 throw new ArgumentNullException(nameof(config));
 
-            int originalTokens = EstimateTokens(prompt);
+            int originalTokens = PromptGuard.EstimateTokens(prompt);
             var variants = new List<GeneratedVariant>();
 
             if (config.Combinatorial)
@@ -846,14 +846,11 @@ namespace Prompt
         {
             if (text == original) return;
 
-            int tokens = EstimateTokens(text);
+            int tokens = PromptGuard.EstimateTokens(text);
             int delta = text.Length - original.Length;
             variants.Add(new GeneratedVariant(label, text, tokens,
                 Array.AsReadOnly(transforms), delta));
         }
-
-        private static int EstimateTokens(string text) =>
-            Math.Max(1, (int)Math.Ceiling(text.Length / 4.0));
 
         private static string Truncate(string text, int maxLen)
         {

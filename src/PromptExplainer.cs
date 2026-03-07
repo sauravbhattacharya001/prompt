@@ -198,7 +198,7 @@ namespace Prompt
             var techniques = DetectTechniques(prompt);
             var sections = DetectSections(prompt);
             var suggestions = GenerateSuggestions(prompt, techniques, sections);
-            var tokens = EstimateTokens(prompt);
+            var tokens = PromptGuard.EstimateTokens(prompt);
             var complexity = CalculateComplexity(prompt, techniques, sections);
             var summary = GenerateSummary(prompt, sections, techniques);
 
@@ -328,7 +328,7 @@ namespace Prompt
             List<ExplainerSection> sections)
         {
             var suggestions = new List<ExplainerSuggestion>();
-            var tokens = EstimateTokens(prompt);
+            var tokens = PromptGuard.EstimateTokens(prompt);
 
             // Check for missing role assignment
             if (!techniques.Any(t => t.Name == "Role Assignment"))
@@ -428,7 +428,7 @@ namespace Prompt
         private int CalculateComplexity(string prompt, List<ExplainerTechnique> techniques, List<ExplainerSection> sections)
         {
             int score = 1;
-            var tokens = EstimateTokens(prompt);
+            var tokens = PromptGuard.EstimateTokens(prompt);
 
             // Length contribution
             if (tokens > 50) score++;
@@ -473,13 +473,6 @@ namespace Prompt
             }
 
             return string.Join(" | ", parts);
-        }
-
-        private static int EstimateTokens(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return 0;
-            // Rough estimate: ~4 characters per token for English
-            return (int)Math.Ceiling(text.Length / 4.0);
         }
     }
 }

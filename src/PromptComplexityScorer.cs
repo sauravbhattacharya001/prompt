@@ -166,7 +166,7 @@ namespace Prompt
                 };
             }
 
-            int estimatedTokens = EstimateTokens(prompt);
+            int estimatedTokens = PromptGuard.EstimateTokens(prompt);
             var dimensions = new List<ComplexityDimension>
             {
                 ScoreInstructionDensity(prompt, estimatedTokens),
@@ -206,12 +206,6 @@ namespace Prompt
                 EstimatedReasoningSteps = reasoningSteps,
                 RiskFactors = risks
             };
-        }
-
-        private static int EstimateTokens(string text)
-        {
-            // Rough approximation: ~4 chars per token for English
-            return Math.Max(1, (int)Math.Ceiling(text.Length / 4.0));
         }
 
         private static int CountMatches(Regex pattern, string text)

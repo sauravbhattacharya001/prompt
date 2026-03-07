@@ -390,7 +390,7 @@ namespace Prompt
                 PromptText = prompt,
                 Variables = variables,
                 Sections = sections,
-                EstimatedTokens = _options.IncludeTokenEstimates ? EstimateTokens(prompt) : 0,
+                EstimatedTokens = _options.IncludeTokenEstimates ? PromptGuard.EstimateTokens(prompt) : 0,
                 WordCount = CountWords(prompt),
                 CharCount = prompt.Length,
                 LineCount = prompt.Split('\n').Length,
@@ -662,13 +662,6 @@ namespace Prompt
         {
             if (string.IsNullOrWhiteSpace(text)) return 0;
             return text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
-        }
-
-        private static int EstimateTokens(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return 0;
-            // Rough approximation: ~4 chars per token for English
-            return (int)Math.Ceiling(text.Length / 4.0);
         }
 
         private static string EscapeForCode(string text)
