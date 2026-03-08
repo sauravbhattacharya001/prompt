@@ -73,10 +73,43 @@ namespace Prompt
         private string _openDelimiter = "{{";
         private string _closeDelimiter = "}}";
 
-        private Regex BuildPattern() =>
-            new Regex(
+        // Cached compiled regex — rebuilt only when delimiters change.
+        private Regex? _cachedPattern;
+        private string _cachedPatternKey = "";
+
+        /// <summary>
+        /// Built-in filter names, allocated once and reused across all
+        /// <see cref="IsKnownFilter"/> calls instead of allocating a new
+        /// <see cref="HashSet{T}"/> on every invocation.
+        /// </summary>
+        private static readonly HashSet<string> BuiltInFilters = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "upper", "lower", "trim", "capitalize", "title", "reverse",
+            "truncate", "pad_left", "pad_right", "default", "replace",
+            "repeat", "prefix", "suffix", "pluralize",
+            "format_number", "format_date", "base64_encode", "base64_decode",
+            "url_encode", "json", "wordcount", "charcount", "initials",
+            "slug", "ellipsis"
+        };
+
+        /// <summary>
+        /// Returns a compiled <see cref="Regex"/> for the current delimiters,
+        /// caching and reusing it as long as the delimiters haven't changed.
+        /// Compiled regexes JIT to IL, making construction ~100× slower than
+        /// interpreted mode; caching eliminates that overhead on repeat calls.
+        /// </summary>
+        private Regex BuildPattern()
+        {
+            var key = _openDelimiter + "|" + _closeDelimiter;
+            if (_cachedPattern != null && _cachedPatternKey == key)
+                return _cachedPattern;
+
+            _cachedPattern = new Regex(
                 Regex.Escape(_openDelimiter) + @"\s*(.+?)\s*" + Regex.Escape(_closeDelimiter),
                 RegexOptions.Compiled);
+            _cachedPatternKey = key;
+            return _cachedPattern;
+        }
 
         /// <summary>Sets the behavior for unresolved variables.</summary>
         public PromptInterpolator OnUnresolved(UnresolvedBehavior behavior)
@@ -85,13 +118,14 @@ namespace Prompt
             return this;
         }
 
-        /// <summary>Sets custom delimiters (e.g., &lt;% %&gt;).</summary>
+        /// <summary>Sets custom delimiters (e.g., &lt;% %&gt;) and invalidates the cached pattern.</summary>
         public PromptInterpolator WithDelimiters(string open, string close)
         {
             if (string.IsNullOrEmpty(open)) throw new ArgumentException("Open delimiter cannot be empty.", nameof(open));
             if (string.IsNullOrEmpty(close)) throw new ArgumentException("Close delimiter cannot be empty.", nameof(close));
             _openDelimiter = open;
             _closeDelimiter = close;
+            _cachedPattern = null; // force rebuild on next use
             return this;
         }
 
@@ -432,16 +466,7 @@ namespace Prompt
 
         private bool IsKnownFilter(string name)
         {
-            var builtIn = new HashSet<string>
-            {
-                "upper", "lower", "trim", "capitalize", "title", "reverse",
-                "truncate", "pad_left", "pad_right", "default", "replace",
-                "repeat", "prefix", "suffix", "pluralize",
-                "format_number", "format_date", "base64_encode", "base64_decode",
-                "url_encode", "json", "wordcount", "charcount", "initials",
-                "slug", "ellipsis"
-            };
-            return builtIn.Contains(name) || _customFilters.ContainsKey(name);
+            return BuiltInFilters.Contains(name) || _customFilters.ContainsKey(name);
         }
 
         private static int CountOccurrences(string text, string pattern)
