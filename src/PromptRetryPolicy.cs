@@ -323,7 +323,7 @@ namespace Prompt
                         result.Succeeded = true;
                         result.Result = resultOrError;
                         result.Attempts.Add(attemptRecord);
-                        if (attempt > 0) _totalRetries += attempt;
+                        _totalRetries += attempt;
                         _totalSuccesses++;
                         RecordSuccess();
                         break;
@@ -336,32 +336,8 @@ namespace Prompt
                         result.Attempts.Add(attemptRecord);
                         result.FinalError = resultOrError;
 
-                        IncrementError(category);
-                        RecordFailure();
-
-                        if (_config.CategoryPolicies.TryGetValue(category, out var policy) && !policy.ShouldRetry)
-                        {
-                            result.FinalError = $"Non-retryable error ({category}): {resultOrError}";
+                        if (HandleFailedAttempt(result, category, resultOrError))
                             break;
-                        }
-
-                        if (policy?.MaxRetries != null)
-                        {
-                            var categoryAttempts = result.Attempts.Count(a => a.Category == category && !a.Succeeded);
-                            if (categoryAttempts >= policy.MaxRetries.Value)
-                            {
-                                result.FinalError = $"Max retries for {category} exceeded: {resultOrError}";
-                                break;
-                            }
-                        }
-
-                        if (IsCircuitOpen())
-                        {
-                            result.CircuitBreakerTripped = true;
-                            result.FinalError = "Circuit breaker tripped during retries.";
-                            _totalCircuitBreaks++;
-                            break;
-                        }
                     }
                 }
                 catch (Exception ex)
@@ -371,25 +347,55 @@ namespace Prompt
                     attemptRecord.ErrorMessage = ex.Message;
                     result.Attempts.Add(attemptRecord);
                     result.FinalError = ex.Message;
-                    IncrementError(category);
-                    RecordFailure();
 
-                    if (_config.CategoryPolicies.TryGetValue(category, out var policy) && !policy.ShouldRetry)
+                    if (HandleFailedAttempt(result, category, ex.Message))
                         break;
-
-                    if (IsCircuitOpen())
-                    {
-                        result.CircuitBreakerTripped = true;
-                        result.FinalError = "Circuit breaker tripped during retries.";
-                        _totalCircuitBreaks++;
-                        break;
-                    }
                 }
             }
+
+            // Count retries for failed executions (successful ones counted above)
+            if (!result.Succeeded && result.RetryCount > 0)
+                _totalRetries += result.RetryCount;
 
             result.TotalElapsed = DateTime.UtcNow - startTime;
             _history.Add(result);
             return result;
+        }
+
+        /// <summary>
+        /// Handles a failed attempt: records the failure, checks category policies
+        /// and circuit breaker. Returns true if retries should stop.
+        /// </summary>
+        private bool HandleFailedAttempt(RetryResult result, ErrorCategory category, string errorMessage)
+        {
+            IncrementError(category);
+            RecordFailure();
+
+            if (_config.CategoryPolicies.TryGetValue(category, out var policy) && !policy.ShouldRetry)
+            {
+                result.FinalError = $"Non-retryable error ({category}): {errorMessage}";
+                return true;
+            }
+
+            if (policy?.MaxRetries != null)
+            {
+                var categoryAttempts = result.Attempts.Count(a => a.Category == category && !a.Succeeded);
+                if (categoryAttempts >= policy.MaxRetries.Value)
+                {
+                    result.FinalError = $"Max retries for {category} exceeded: {errorMessage}";
+                    return true;
+                }
+            }
+
+            if (IsCircuitOpen())
+            {
+                result.CircuitBreakerTripped = true;
+                result.FinalError = "Circuit breaker tripped during retries.";
+                _totalCircuitBreaks++;
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>Whether a given error category is retryable under current config.</summary>
