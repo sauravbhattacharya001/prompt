@@ -185,25 +185,7 @@ namespace Prompt
 
             options ??= new PromptFingerprintOptions();
             var normalized = Normalize(prompt, options);
-            var hash = ComputeHash(normalized);
-            var words = GetWords(normalized);
-
-            var shingles = new HashSet<int>();
-            if (options.EnableSimilarity && words.Length > 0)
-            {
-                shingles = ComputeShingles(words, options.ShingleSize);
-            }
-
-            return new PromptFingerprint
-            {
-                Hash = hash,
-                Normalization = options.Normalization,
-                OriginalLength = prompt.Length,
-                NormalizedLength = normalized.Length,
-                WordCount = words.Length,
-                Tag = options.Tag,
-                ShingleHashes = shingles
-            };
+            return BuildFingerprint(prompt, normalized, options);
         }
 
         /// <summary>
@@ -264,16 +246,17 @@ namespace Prompt
         public List<SimilarityMatch> FindSimilar(string query, IEnumerable<string> candidates,
             double threshold = 0.3, PromptFingerprintOptions? options = null)
         {
-            options ??= new PromptFingerprintOptions();
-            options.EnableSimilarity = true;
+            // Clone options to avoid mutating the caller's object (#44).
+            var localOptions = CloneOptions(options);
+            localOptions.EnableSimilarity = true;
 
-            var queryFp = Fingerprint(query, options);
+            var queryFp = Fingerprint(query, localOptions);
             var matches = new List<SimilarityMatch>();
             int index = 0;
 
             foreach (var candidate in candidates)
             {
-                var candidateFp = Fingerprint(candidate, options);
+                var candidateFp = Fingerprint(candidate, localOptions);
                 var similarity = queryFp.SimilarityTo(candidateFp);
 
                 if (similarity >= threshold)
@@ -299,48 +282,21 @@ namespace Prompt
         /// </summary>
         public FingerprintDiff Diff(string before, string after, PromptFingerprintOptions? options = null)
         {
-            options ??= new PromptFingerprintOptions { EnableSimilarity = true };
-            options.EnableSimilarity = true;
+            // Clone options to avoid mutating the caller's object (#44).
+            var localOptions = CloneOptions(options);
+            localOptions.EnableSimilarity = true;
 
             // Normalize once per input — Fingerprint() already normalizes internally,
             // so we reuse the same normalized text for the word-diff instead of
             // calling Normalize() + GetWords() a second time for each input.
-            var normBefore = Normalize(before, options);
-            var normAfter = Normalize(after, options);
-            var hashBefore = ComputeHash(normBefore);
-            var hashAfter = ComputeHash(normAfter);
-            var wordsBefore = GetWords(normBefore);
-            var wordsAfter = GetWords(normAfter);
+            var normBefore = Normalize(before, localOptions);
+            var normAfter = Normalize(after, localOptions);
 
-            var shinglesBefore = options.EnableSimilarity && wordsBefore.Length > 0
-                ? ComputeShingles(wordsBefore, options.ShingleSize) : new HashSet<int>();
-            var shinglesAfter = options.EnableSimilarity && wordsAfter.Length > 0
-                ? ComputeShingles(wordsAfter, options.ShingleSize) : new HashSet<int>();
+            var fpBefore = BuildFingerprint(before, normBefore, localOptions);
+            var fpAfter = BuildFingerprint(after, normAfter, localOptions);
 
-            var fpBefore = new PromptFingerprint
-            {
-                Hash = hashBefore,
-                Normalization = options.Normalization,
-                OriginalLength = before.Length,
-                NormalizedLength = normBefore.Length,
-                WordCount = wordsBefore.Length,
-                Tag = options.Tag,
-                ShingleHashes = shinglesBefore
-            };
-
-            var fpAfter = new PromptFingerprint
-            {
-                Hash = hashAfter,
-                Normalization = options.Normalization,
-                OriginalLength = after.Length,
-                NormalizedLength = normAfter.Length,
-                WordCount = wordsAfter.Length,
-                Tag = options.Tag,
-                ShingleHashes = shinglesAfter
-            };
-
-            var wordSetBefore = new HashSet<string>(wordsBefore);
-            var wordSetAfter = new HashSet<string>(wordsAfter);
+            var wordSetBefore = new HashSet<string>(GetWords(normBefore));
+            var wordSetAfter = new HashSet<string>(GetWords(normAfter));
 
             var added = wordSetAfter.Except(wordSetBefore).ToList();
             var removed = wordSetBefore.Except(wordSetAfter).ToList();
@@ -406,6 +362,50 @@ namespace Prompt
         private static string[] GetWords(string text)
         {
             return text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        }
+
+        /// <summary>
+        /// Creates a shallow clone of the given options (or a fresh default
+        /// instance when null). Prevents methods from mutating the caller's
+        /// object when they need to override fields like EnableSimilarity.
+        /// </summary>
+        private static PromptFingerprintOptions CloneOptions(PromptFingerprintOptions? options)
+        {
+            if (options == null) return new PromptFingerprintOptions();
+            return new PromptFingerprintOptions
+            {
+                Normalization = options.Normalization,
+                EnableSimilarity = options.EnableSimilarity,
+                ShingleSize = options.ShingleSize,
+                Tag = options.Tag,
+                StopWords = options.StopWords
+            };
+        }
+
+        /// <summary>
+        /// Builds a PromptFingerprint from the original text and its
+        /// pre-normalized form. Shared by Fingerprint() and Diff() to
+        /// eliminate duplicated object-construction code.
+        /// </summary>
+        private PromptFingerprint BuildFingerprint(string original, string normalized, PromptFingerprintOptions options)
+        {
+            var hash = ComputeHash(normalized);
+            var words = GetWords(normalized);
+
+            var shingles = options.EnableSimilarity && words.Length > 0
+                ? ComputeShingles(words, options.ShingleSize)
+                : new HashSet<int>();
+
+            return new PromptFingerprint
+            {
+                Hash = hash,
+                Normalization = options.Normalization,
+                OriginalLength = original.Length,
+                NormalizedLength = normalized.Length,
+                WordCount = words.Length,
+                Tag = options.Tag,
+                ShingleHashes = shingles
+            };
         }
 
         private static HashSet<int> ComputeShingles(string[] words, int shingleSize)
