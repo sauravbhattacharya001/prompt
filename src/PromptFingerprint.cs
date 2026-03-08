@@ -154,6 +154,10 @@ namespace Prompt
     /// </remarks>
     public class PromptFingerprintGenerator
     {
+        // Pre-compiled regexes — avoids re-parsing the pattern on every Normalize() call.
+        private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
+        private static readonly Regex PunctuationRegex = new(@"[^\w\s]", RegexOptions.Compiled);
+
         private static readonly HashSet<string> DefaultStopWords = new(StringComparer.OrdinalIgnoreCase)
         {
             "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
@@ -298,15 +302,49 @@ namespace Prompt
             options ??= new PromptFingerprintOptions { EnableSimilarity = true };
             options.EnableSimilarity = true;
 
-            var fpBefore = Fingerprint(before, options);
-            var fpAfter = Fingerprint(after, options);
+            // Normalize once per input — Fingerprint() already normalizes internally,
+            // so we reuse the same normalized text for the word-diff instead of
+            // calling Normalize() + GetWords() a second time for each input.
+            var normBefore = Normalize(before, options);
+            var normAfter = Normalize(after, options);
+            var hashBefore = ComputeHash(normBefore);
+            var hashAfter = ComputeHash(normAfter);
+            var wordsBefore = GetWords(normBefore);
+            var wordsAfter = GetWords(normAfter);
 
-            var wordsBefore = new HashSet<string>(GetWords(Normalize(before, options)));
-            var wordsAfter = new HashSet<string>(GetWords(Normalize(after, options)));
+            var shinglesBefore = options.EnableSimilarity && wordsBefore.Length > 0
+                ? ComputeShingles(wordsBefore, options.ShingleSize) : new HashSet<int>();
+            var shinglesAfter = options.EnableSimilarity && wordsAfter.Length > 0
+                ? ComputeShingles(wordsAfter, options.ShingleSize) : new HashSet<int>();
 
-            var added = wordsAfter.Except(wordsBefore).ToList();
-            var removed = wordsBefore.Except(wordsAfter).ToList();
-            var shared = wordsBefore.Intersect(wordsAfter).Count();
+            var fpBefore = new PromptFingerprint
+            {
+                Hash = hashBefore,
+                Normalization = options.Normalization,
+                OriginalLength = before.Length,
+                NormalizedLength = normBefore.Length,
+                WordCount = wordsBefore.Length,
+                Tag = options.Tag,
+                ShingleHashes = shinglesBefore
+            };
+
+            var fpAfter = new PromptFingerprint
+            {
+                Hash = hashAfter,
+                Normalization = options.Normalization,
+                OriginalLength = after.Length,
+                NormalizedLength = normAfter.Length,
+                WordCount = wordsAfter.Length,
+                Tag = options.Tag,
+                ShingleHashes = shinglesAfter
+            };
+
+            var wordSetBefore = new HashSet<string>(wordsBefore);
+            var wordSetAfter = new HashSet<string>(wordsAfter);
+
+            var added = wordSetAfter.Except(wordSetBefore).ToList();
+            var removed = wordSetBefore.Except(wordSetAfter).ToList();
+            var shared = wordSetBefore.Intersect(wordSetAfter).Count();
 
             return new FingerprintDiff
             {
@@ -328,7 +366,7 @@ namespace Prompt
 
             if (options.Normalization >= NormalizationLevel.Whitespace)
             {
-                result = Regex.Replace(result, @"\s+", " ").Trim();
+                result = WhitespaceRegex.Replace(result, " ").Trim();
             }
 
             if (options.Normalization >= NormalizationLevel.CaseInsensitive)
@@ -338,8 +376,8 @@ namespace Prompt
 
             if (options.Normalization >= NormalizationLevel.Structural)
             {
-                result = Regex.Replace(result, @"[^\w\s]", "");
-                result = Regex.Replace(result, @"\s+", " ").Trim();
+                result = PunctuationRegex.Replace(result, "");
+                result = WhitespaceRegex.Replace(result, " ").Trim();
 
                 var stopWords = options.StopWords ?? DefaultStopWords;
                 if (stopWords.Count > 0)
@@ -381,8 +419,14 @@ namespace Prompt
 
             for (int i = 0; i <= words.Length - shingleSize; i++)
             {
-                var shingle = string.Join(" ", words.Skip(i).Take(shingleSize));
-                shingles.Add(shingle.GetHashCode());
+                // Build shingle via direct indexing — O(shingleSize) per iteration
+                // instead of O(i + shingleSize) from Skip(i).Take(shingleSize).
+                var sb = new StringBuilder(words[i]);
+                for (int j = 1; j < shingleSize; j++)
+                {
+                    sb.Append(' ').Append(words[i + j]);
+                }
+                shingles.Add(sb.ToString().GetHashCode());
             }
 
             return shingles;
