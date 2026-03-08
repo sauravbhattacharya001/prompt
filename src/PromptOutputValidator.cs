@@ -43,14 +43,7 @@ namespace Prompt
         public ViolationSeverity Severity { get; internal set; } = ViolationSeverity.Error;
     }
 
-    /// <summary>Severity level for a validation violation.</summary>
-    public enum ViolationSeverity
-    {
-        /// <summary>A warning that does not fail validation.</summary>
-        Warning,
-        /// <summary>An error that fails validation.</summary>
-        Error
-    }
+    // ViolationSeverity enum is defined in PromptGrammarValidator.cs
 
     /// <summary>
     /// A single validation rule that can be applied to LLM output.
