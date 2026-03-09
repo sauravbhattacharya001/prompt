@@ -108,35 +108,35 @@ namespace Prompt
     {
         private static readonly Regex InstructionPattern = new(
             @"(?:^|\.\s+)(?:you\s+(?:must|should|will|need\s+to|are\s+to)|please\s+\w+|do\s+not|don't|never|always|ensure|make\s+sure|remember\s+to|be\s+sure\s+to|include|exclude|avoid|use\s+only|output|return|respond|answer|list|explain|analyze|compare|summarize|compute|calculate|generate|create|write|format|provide|give\s+me|show)",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex NestingPattern = new(
             @"\b(?:if\b|else\b|otherwise|unless|when\b|in\s+(?:that\s+)?case|except\s+(?:when|if)|provided\s+that|assuming|given\s+that|should\s+(?:the|this|it))\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex VariablePattern = new(
             @"(?:\{\{[\w.]+\}\}|\{[\w.]+\}|\[\[[\w.]+\]\]|<[\w.]+>|\$\{[\w.]+\}|<<[\w.]+>>)",
-            RegexOptions.Compiled);
+            RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex AmbiguityPattern = new(
             @"\b(?:maybe|perhaps|possibly|might|could\s+be|some(?:what|how)|sort\s+of|kind\s+of|roughly|approximately|etc\.?|and\s+so\s+on|or\s+something|as\s+(?:needed|appropriate|necessary)|if\s+(?:possible|applicable)|optionally|you\s+(?:may|can)\s+also)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex DomainPattern = new(
             @"\b(?:API|SDK|REST|GraphQL|SQL|HIPAA|GDPR|PCI|WCAG|OWASP|OAuth|JWT|SAML|CORS|CRUD|ETL|CI/CD|TCP|UDP|DNS|SSL|TLS|ACID|CAP|regex|AST|IR|FFT|PCA|SVD|LSTM|GAN|BERT|transformer|embeddings|eigenvalue|gradient|backprop|tokenizer|attention\s+mechanism|fine-?tun|K-?means|SVM|AMT|AGI|W-?2|1099|Schedule\s+K|10-?K|EBITDA|P/?E\s+ratio|yield\s+curve|alpha|beta|sharpe|drawdown|VaR)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex OutputFormatPattern = new(
             @"\b(?:JSON|XML|CSV|YAML|markdown|table|bullet\s*(?:point|list)|numbered\s+list|heading|format\s+(?:as|like|in)|schema|struct(?:ure)?d?\s+(?:output|response|format)|fields?:\s*\w+|columns?:\s*\w+)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex ReasoningPattern = new(
             @"\b(?:step\s+by\s+step|chain\s+of\s+thought|think\s+(?:through|about|carefully)|reason(?:ing)?|analy[sz]e|compare\s+and\s+contrast|evaluate|weigh\s+(?:the\s+)?(?:pros|options|trade-?offs)|consider\s+(?:all|each|multiple)|break\s+(?:it\s+)?down|first\s*[,\.]\s*(?:then|next|second)|multi-?step|cross-?reference|synthesize|infer|deduce|derive)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex ContextDependencyPattern = new(
             @"\b(?:the\s+(?:above|previous|following|given|provided|attached|uploaded)|based\s+on|referring\s+to|as\s+(?:mentioned|described|shown)|context|background|prior\s+(?:knowledge|conversation)|history|earlier|recall\s+that|remember\s+that|you\s+(?:already\s+)?know)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         /// <summary>
         /// Scores the complexity of the given prompt text.

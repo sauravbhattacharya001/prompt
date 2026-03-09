@@ -106,7 +106,7 @@ namespace Prompt
 
             _cachedPattern = new Regex(
                 Regex.Escape(_openDelimiter) + @"\s*(.+?)\s*" + Regex.Escape(_closeDelimiter),
-                RegexOptions.Compiled);
+                RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
             _cachedPatternKey = key;
             return _cachedPattern;
         }
@@ -446,8 +446,8 @@ namespace Prompt
         private static string Slugify(string input)
         {
             var slug = input.ToLowerInvariant().Trim();
-            slug = Regex.Replace(slug, @"[^a-z0-9\s-]", "");
-            slug = Regex.Replace(slug, @"[\s-]+", "-");
+            slug = Regex.Replace(slug, @"[^a-z0-9\s-]", "", RegexOptions.None, TimeSpan.FromMilliseconds(500));
+            slug = Regex.Replace(slug, @"[\s-]+", "-", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             return slug.Trim('-');
         }
 

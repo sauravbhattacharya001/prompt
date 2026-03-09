@@ -161,7 +161,7 @@ namespace Prompt
         /// <summary>Output must match the given regex pattern.</summary>
         public PromptOutputValidator MustMatchRegex(string pattern, string description = null)
         {
-            var regex = new Regex(pattern, RegexOptions.Compiled);
+            var regex = new Regex(pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
             _rules.Add(new OutputRule
             {
                 Name = "MustMatchRegex",
@@ -175,7 +175,7 @@ namespace Prompt
         /// <summary>Output must NOT match the given regex pattern.</summary>
         public PromptOutputValidator MustNotMatchRegex(string pattern, string description = null)
         {
-            var regex = new Regex(pattern, RegexOptions.Compiled);
+            var regex = new Regex(pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
             _rules.Add(new OutputRule
             {
                 Name = "MustNotMatchRegex",
@@ -329,7 +329,7 @@ namespace Prompt
         /// <summary>Output must contain a specific JSON key (simple top-level check).</summary>
         public PromptOutputValidator MustContainJsonKey(string key)
         {
-            var pattern = new Regex($"\"{ Regex.Escape(key) }\"\\s*:", RegexOptions.Compiled);
+            var pattern = new Regex($"\"{ Regex.Escape(key) }\"\\s*:", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
             _rules.Add(new OutputRule
             {
                 Name = $"MustContainJsonKey({key})",

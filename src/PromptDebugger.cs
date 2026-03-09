@@ -148,15 +148,15 @@ namespace Prompt
 
         private static readonly Regex ImperativePattern = new(
             @"^\s*(list|explain|describe|summarize|write|create|generate|analyze|compare|translate|convert|extract|find|show|tell|give|provide)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex InstructionWordsPattern = new(
             @"\b(must|should|always|never|ensure|make\s+sure|required|important|critical|do\s+not|don'?t)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex CapsPattern = new(
             @"\b[A-Z]{4,}\b",
-            RegexOptions.Compiled);
+            RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         /// <summary>
         /// Safe regex match with timeout protection to prevent ReDoS.
@@ -181,7 +181,7 @@ namespace Prompt
             }
             catch (RegexMatchTimeoutException)
             {
-                return Regex.Matches("", "x"); // empty matches
+                return Regex.Matches("", "x", RegexOptions.None, TimeSpan.FromMilliseconds(500)); // empty matches
             }
         }
 
@@ -412,7 +412,7 @@ namespace Prompt
         {
             var words = prompt.Split(new[] { ' ', '\t', '\n', '\r' },
                 StringSplitOptions.RemoveEmptyEntries);
-            var sentences = Regex.Split(prompt, @"(?<=[.!?])\s+");
+            var sentences = Regex.Split(prompt, @"(?<=[.!?])\s+", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             var lines = prompt.Split('\n');
 
             report.WordCount = words.Length;
@@ -465,7 +465,7 @@ namespace Prompt
             }
 
             // Check for template placeholders that weren't filled
-            var unfilled = Regex.Matches(prompt, @"\{\{[^}]+\}\}");
+            var unfilled = Regex.Matches(prompt, @"\{\{[^}]+\}\}", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             if (unfilled.Count > 0)
             {
                 var names = unfilled.Cast<Match>().Select(m => m.Value).Distinct().ToList();

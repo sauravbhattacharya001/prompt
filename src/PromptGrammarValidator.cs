@@ -593,7 +593,7 @@ namespace Prompt
             try
             {
                 var opts = rule.IgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
-                if (Regex.IsMatch(response, rule.Pattern, opts))
+                if (Regex.IsMatch(response, rule.Pattern, opts, TimeSpan.FromMilliseconds(500)))
                     return null;
                 return MakeViolation(rule, "Response does not match pattern.", rule.Pattern, Truncate(response, 100));
             }
@@ -728,7 +728,7 @@ namespace Prompt
             {
                 // Look for markdown headings or "SECTION:" patterns
                 var headingPattern = $@"(?m)^#+\s+{Regex.Escape(section)}|^{Regex.Escape(section)}\s*[:：]";
-                if (!Regex.IsMatch(response, headingPattern, RegexOptions.IgnoreCase))
+                if (!Regex.IsMatch(response, headingPattern, RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)))
                     return MakeViolation(rule, $"Missing required section: {section}",
                         section, "not found");
             }
@@ -768,7 +768,7 @@ namespace Prompt
             }
 
             // Try extracting from markdown code block
-            var match = Regex.Match(text, @"```(?:json)?\s*\n?([\s\S]*?)\n?\s*```");
+            var match = Regex.Match(text, @"```(?:json)?\s*\n?([\s\S]*?)\n?\s*```", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             if (match.Success)
             {
                 var inner = match.Groups[1].Value.Trim();

@@ -862,7 +862,7 @@ namespace Prompt
             // Check the template text itself for static injection patterns
             // (patterns not inside {{variables}})
             string templateWithoutVars = Regex.Replace(
-                template.Template, @"\{\{\w+\}\}", "PLACEHOLDER");
+                template.Template, @"\{\{\w+\}\}", "PLACEHOLDER", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             if (DetectInjection(templateWithoutVars))
             {
                 warnings.Add(

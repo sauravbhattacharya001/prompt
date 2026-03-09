@@ -501,7 +501,7 @@ namespace Prompt
         {
             var suggestions = new List<RefactorSuggestion>();
             var lower = prompt.ToLowerInvariant();
-            var words = Regex.Split(lower, @"\W+").Where(w => w.Length > 3).ToArray();
+            var words = Regex.Split(lower, @"\W+", RegexOptions.None, TimeSpan.FromMilliseconds(500)).Where(w => w.Length > 3).ToArray();
 
             // Word frequency — flag words repeated too many times
             var freq = new Dictionary<string, int>();
@@ -638,7 +638,7 @@ namespace Prompt
 
             // Detect repeated literal values that could be variables
             // Look for quoted strings or specific patterns repeated
-            var quotedPattern = new Regex(@"""([^""]{3,50})""", RegexOptions.Compiled);
+            var quotedPattern = new Regex(@"""([^""]{3,50})""", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
             var matches = quotedPattern.Matches(prompt);
             var quotedValues = new Dictionary<string, List<int>>();
 
@@ -669,7 +669,7 @@ namespace Prompt
             }
 
             // Detect hardcoded numbers that might be configurable
-            var numberPattern = new Regex(@"\b(\d{2,})\b");
+            var numberPattern = new Regex(@"\b(\d{2,})\b", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             var numbers = new Dictionary<string, List<int>>();
             foreach (Match m in numberPattern.Matches(prompt))
             {
@@ -894,7 +894,7 @@ namespace Prompt
             // Detect markdown headers, numbered sections, or labeled sections
             var headerPattern = new Regex(
                 @"^(#{1,3}\s+.+|[A-Z][A-Za-z\s]{2,30}:\s*$|\d+\.\s+[A-Z].+)",
-                RegexOptions.Multiline);
+                RegexOptions.Multiline, TimeSpan.FromMilliseconds(500));
 
             var matches = headerPattern.Matches(prompt);
             for (int i = 0; i < matches.Count; i++)
@@ -925,7 +925,7 @@ namespace Prompt
 
         private static List<string> DetectVariables(string prompt)
         {
-            var pattern = new Regex(@"\{\{(\w+)\}\}");
+            var pattern = new Regex(@"\{\{(\w+)\}\}", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             return pattern.Matches(prompt)
                 .Select(m => m.Groups[1].Value)
                 .Distinct()
@@ -935,7 +935,7 @@ namespace Prompt
         private static string SuggestVariableName(string value)
         {
             // Generate a sensible variable name from a literal value
-            var cleaned = Regex.Replace(value.ToLowerInvariant(), @"[^a-z0-9\s]", "");
+            var cleaned = Regex.Replace(value.ToLowerInvariant(), @"[^a-z0-9\s]", "", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             var words = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (words.Length == 0) return "value";
             if (words.Length == 1) return words[0];

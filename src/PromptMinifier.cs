@@ -83,67 +83,67 @@ namespace Prompt
         // ── Pre-compiled cleanup patterns ──────────────────
 
         private static readonly Regex MultiSpaceCleanup = new(
-            @" {2,}", RegexOptions.Compiled);
+            @" {2,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex LeadingSpaceCleanup = new(
-            @"(?m)^ +", RegexOptions.Compiled);
+            @"(?m)^ +", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         // ──────────────── Filler Patterns (Light) ────────────────
 
         private static readonly (Regex Pattern, string Replacement, string Description)[] LightRules =
         {
             // Filler phrases
-            (new Regex(@"\b(please\s+)?(help\s+me\s+to|help\s+me)\s+", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\b(please\s+)?(help\s+me\s+to|help\s+me)\s+", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "", "Remove 'help me to'"),
 
             (new Regex(@"\b(I\s+would\s+like\s+(you\s+to|to)|I\s+want\s+you\s+to|I\s+need\s+you\s+to)\s+",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "", "Remove 'I would like you to'"),
 
             (new Regex(@"\b(could\s+you\s+(please\s+)?|can\s+you\s+(please\s+)?|would\s+you\s+(please\s+)?)",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "", "Remove 'could you please'"),
 
-            (new Regex(@"\bplease\s+", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bplease\s+", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "", "Remove 'please'"),
 
             (new Regex(@"\b(basically|essentially|actually|obviously|clearly|simply|just|really|very|quite|rather)\s+",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "", "Remove hedge/filler words"),
 
             // Redundant phrases
-            (new Regex(@"\bin\s+order\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bin\s+order\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "to", "Simplify 'in order to' → 'to'"),
 
-            (new Regex(@"\bdue\s+to\s+the\s+fact\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bdue\s+to\s+the\s+fact\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "because", "Simplify 'due to the fact that' → 'because'"),
 
-            (new Regex(@"\bat\s+this\s+point\s+in\s+time\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bat\s+this\s+point\s+in\s+time\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "now", "Simplify 'at this point in time' → 'now'"),
 
-            (new Regex(@"\bin\s+the\s+event\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bin\s+the\s+event\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "if", "Simplify 'in the event that' → 'if'"),
 
-            (new Regex(@"\bfor\s+the\s+purpose\s+of\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bfor\s+the\s+purpose\s+of\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "for", "Simplify 'for the purpose of' → 'for'"),
 
-            (new Regex(@"\bwith\s+regard\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bwith\s+regard\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "about", "Simplify 'with regard to' → 'about'"),
 
-            (new Regex(@"\bin\s+terms\s+of\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bin\s+terms\s+of\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "regarding", "Simplify 'in terms of' → 'regarding'"),
 
-            (new Regex(@"\bhas\s+the\s+ability\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bhas\s+the\s+ability\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "can", "Simplify 'has the ability to' → 'can'"),
 
-            (new Regex(@"\bit\s+is\s+important\s+to\s+note\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bit\s+is\s+important\s+to\s+note\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "Note:", "Simplify 'it is important to note that' → 'Note:'"),
 
             // Whitespace normalization
-            (new Regex(@"[ \t]{2,}", RegexOptions.Compiled),
+            (new Regex(@"[ \t]{2,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 " ", "Normalize multiple spaces"),
 
-            (new Regex(@"\n{3,}", RegexOptions.Compiled),
+            (new Regex(@"\n{3,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "\n\n", "Normalize multiple blank lines"),
         };
 
@@ -153,37 +153,37 @@ namespace Prompt
         {
             // Politeness
             (new Regex(@"\b(thank\s+you|thanks)\s*(in\s+advance|for\s+your\s+help|so\s+much)?[.!]?\s*",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "", "Remove thank-you phrases"),
 
             (new Regex(@"\bI\s+appreciate\s+(your|any)\s+\w+[.!]?\s*",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "", "Remove appreciation phrases"),
 
             // Verbose instruction patterns
-            (new Regex(@"\bmake\s+sure\s+(to|that)\s+", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bmake\s+sure\s+(to|that)\s+", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "ensure ", "Condense 'make sure to' → 'ensure'"),
 
-            (new Regex(@"\btake\s+into\s+(account|consideration)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\btake\s+into\s+(account|consideration)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "consider", "Condense 'take into account' → 'consider'"),
 
-            (new Regex(@"\bprovide\s+(me\s+with|an?\s+)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bprovide\s+(me\s+with|an?\s+)", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "give ", "Condense 'provide me with' → 'give'"),
 
-            (new Regex(@"\bin\s+a\s+way\s+that\s+is\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bin\s+a\s+way\s+that\s+is\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "that is", "Condense 'in a way that is'"),
 
             (new Regex(@"\b(it\s+is|it's)\s+(important|necessary|essential|crucial|critical)\s+(to|that)\s+",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "Must ", "Condense 'it is important to' → 'Must'"),
 
-            (new Regex(@"\bas\s+much\s+as\s+possible\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bas\s+much\s+as\s+possible\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "maximally", "Condense 'as much as possible' → 'maximally'"),
 
-            (new Regex(@"\ba\s+large\s+number\s+of\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\ba\s+large\s+number\s+of\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "many", "Condense 'a large number of' → 'many'"),
 
-            (new Regex(@"\ba\s+small\s+number\s+of\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\ba\s+small\s+number\s+of\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "few", "Condense 'a small number of' → 'few'"),
         };
 
@@ -192,42 +192,42 @@ namespace Prompt
         private static readonly (Regex Pattern, string Replacement, string Description)[] AggressiveRules =
         {
             // Remove articles where meaning is preserved
-            (new Regex(@"\b(the|a|an)\s+(?=\w)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\b(the|a|an)\s+(?=\w)", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "", "Remove articles"),
 
             // Shorten common words
-            (new Regex(@"\binformation\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\binformation\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "info", "Shorten 'information' → 'info'"),
 
-            (new Regex(@"\bapplication\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bapplication\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "app", "Shorten 'application' → 'app'"),
 
-            (new Regex(@"\bconfiguration\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bconfiguration\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "config", "Shorten 'configuration' → 'config'"),
 
-            (new Regex(@"\bdocumentation\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bdocumentation\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "docs", "Shorten 'documentation' → 'docs'"),
 
-            (new Regex(@"\bimplementation\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bimplementation\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "impl", "Shorten 'implementation' → 'impl'"),
 
-            (new Regex(@"\benvironment\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\benvironment\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "env", "Shorten 'environment' → 'env'"),
 
-            (new Regex(@"\brepository\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\brepository\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "repo", "Shorten 'repository' → 'repo'"),
 
-            (new Regex(@"\bfunction(ality)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bfunction(ality)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "func", "Shorten 'functionality' → 'func'"),
 
-            (new Regex(@"\bfor\s+example\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bfor\s+example\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "e.g.", "Shorten 'for example' → 'e.g.'"),
 
-            (new Regex(@"\bthat\s+is\s+to\s+say\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\bthat\s+is\s+to\s+say\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "i.e.", "Shorten 'that is to say' → 'i.e.'"),
 
             // Remove filler prepositions in lists
-            (new Regex(@"\b(and|or)\s+also\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            (new Regex(@"\b(and|or)\s+also\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "and", "Remove redundant 'also' after conjunctions"),
         };
 

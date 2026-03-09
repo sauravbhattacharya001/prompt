@@ -51,7 +51,7 @@ namespace Prompt
             @"^\s*(?:yes|true|correct|affirmative|absolutely|certainly|indeed|definitely)\b" +
             @"|\bthat(?:'s| is) (?:correct|right|true)\b" +
             @"|\byes,?\s+(?:it|that|this)\b",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex NoPattern = new(
             @"^\s*(?:no|false|incorrect|negative)\b" +
@@ -59,35 +59,35 @@ namespace Prompt
             @"|\bdon'?t think so\b" +
             @"|\bthat(?:'s| is) (?:incorrect|wrong|false)\b" +
             @"|\bno,?\s+(?:it|that|this)\b",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
 
         // Pre-compiled regex for ExtractNumbers
         private static readonly Regex NumberPattern =
-            new Regex(@"(?<!\w)-?(?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d+)?(?!\w)", RegexOptions.Compiled);
+            new Regex(@"(?<!\w)-?(?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d+)?(?!\w)", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         // Pre-compiled regex for ExtractList
         private static readonly Regex ListItemPattern =
-            new Regex(@"^\s*(?:\d+[\.\)]\s+|[-\*•]\s+)(.+)$", RegexOptions.Compiled);
+            new Regex(@"^\s*(?:\d+[\.\)]\s+|[-\*•]\s+)(.+)$", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         // Pre-compiled regex for ExtractNumberedList
         private static readonly Regex NumberedListPattern =
-            new Regex(@"^\s*(\d+)[\.\)]\s+(.+)$", RegexOptions.Compiled | RegexOptions.Multiline);
+            new Regex(@"^\s*(\d+)[\.\)]\s+(.+)$", RegexOptions.Compiled | RegexOptions.Multiline, TimeSpan.FromMilliseconds(500));
 
         // Pre-compiled regex for ExtractKeyValuePairs
         private static readonly Regex KeyValuePattern =
-            new Regex(@"^\s*\*{0,2}([^:=\-\n]+?)\*{0,2}\s*(?::|=|-)\s*(.+)$", RegexOptions.Compiled);
+            new Regex(@"^\s*\*{0,2}([^:=\-\n]+?)\*{0,2}\s*(?::|=|-)\s*(.+)$", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         // Pre-compiled regex for ExtractCodeBlocks
         private static readonly Regex CodeBlockPattern =
-            new Regex(@"```(\w*)\s*\n([\s\S]*?)```", RegexOptions.Compiled | RegexOptions.Multiline);
+            new Regex(@"```(\w*)\s*\n([\s\S]*?)```", RegexOptions.Compiled | RegexOptions.Multiline, TimeSpan.FromMilliseconds(500));
 
         // Pre-compiled regex for ExtractSections (markdown header detection)
         private static readonly Regex SectionHeaderPattern =
-            new Regex(@"^(#{1,6})\s+(.+)$", RegexOptions.Compiled | RegexOptions.Multiline);
+            new Regex(@"^(#{1,6})\s+(.+)$", RegexOptions.Compiled | RegexOptions.Multiline, TimeSpan.FromMilliseconds(500));
 
         // Pre-compiled regex for markdown table separator detection
         private static readonly Regex TableSeparatorPattern =
-            new Regex(@"^\|[\s\-:]+(\|[\s\-:]+)*\|$", RegexOptions.Compiled);
+            new Regex(@"^\|[\s\-:]+(\|[\s\-:]+)*\|$", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         // ═══════════════════════════════════════════════════════
         // JSON Extraction
@@ -608,7 +608,7 @@ namespace Prompt
         internal static string? ExtractFencedBlock(string response, string? language)
         {
             string langPattern = string.IsNullOrEmpty(language) ? @"\w*" : Regex.Escape(language);
-            var pattern = new Regex($@"```{langPattern}\s*\n([\s\S]*?)```", RegexOptions.Multiline);
+            var pattern = new Regex($@"```{langPattern}\s*\n([\s\S]*?)```", RegexOptions.Multiline, TimeSpan.FromMilliseconds(500));
             var match = pattern.Match(response);
             return match.Success ? match.Groups[1].Value.Trim() : null;
         }

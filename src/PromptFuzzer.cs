@@ -119,7 +119,7 @@ namespace Prompt
     {
         private static readonly Random Rng = new();
 
-        private static readonly Regex WordBoundary = new(@"\b(\w+)\b", RegexOptions.Compiled);
+        private static readonly Regex WordBoundary = new(@"\b(\w+)\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         // Common synonym pairs for fuzzing
         private static readonly Dictionary<string, string[]> Synonyms = new(StringComparer.OrdinalIgnoreCase)

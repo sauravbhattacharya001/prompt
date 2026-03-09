@@ -155,8 +155,8 @@ namespace Prompt
     public class PromptFingerprintGenerator
     {
         // Pre-compiled regexes — avoids re-parsing the pattern on every Normalize() call.
-        private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
-        private static readonly Regex PunctuationRegex = new(@"[^\w\s]", RegexOptions.Compiled);
+        private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        private static readonly Regex PunctuationRegex = new(@"[^\w\s]", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly HashSet<string> DefaultStopWords = new(StringComparer.OrdinalIgnoreCase)
         {

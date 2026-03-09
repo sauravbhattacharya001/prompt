@@ -444,7 +444,7 @@ namespace Prompt
                 {
                     var missing = sections.Where(s =>
                         !Regex.IsMatch(prompt, @$"(?:^|\n)\s*#+\s*{Regex.Escape(s)}\b",
-                            RegexOptions.IgnoreCase)
+                            RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500))
                         && !prompt.Contains(s, StringComparison.OrdinalIgnoreCase))
                         .ToList();
                     return missing.Count > 0
@@ -496,7 +496,7 @@ namespace Prompt
                         Severity = ComplianceSeverity.Warning,
                         Description = "Prompts should define the AI's role (e.g., 'You are...').",
                         Check = p => Regex.IsMatch(p, @"\b(you are|act as|role:|persona:)\b",
-                            RegexOptions.IgnoreCase) ? null
+                            RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)) ? null
                             : "Prompt should include a role definition (e.g., 'You are a...').",
                     },
                     new()
@@ -510,7 +510,7 @@ namespace Prompt
                             var m = Regex.Match(p,
                                 @"(sk-[a-zA-Z0-9]{20,}|AKIA[0-9A-Z]{16}|ghp_[a-zA-Z0-9]{36}|"
                                 + @"AIza[0-9A-Za-z\-_]{35}|xox[bpors]-[a-zA-Z0-9\-]{10,})",
-                                RegexOptions.None);
+                                RegexOptions.None, TimeSpan.FromMilliseconds(500));
                             return m.Success
                                 ? $"Potential API key/secret detected: {m.Value[..Math.Min(8, m.Value.Length)]}..."
                                 : null;
@@ -524,7 +524,7 @@ namespace Prompt
                         Description = "Prompts should not embed real email addresses.",
                         Check = p =>
                         {
-                            var m = Regex.Match(p, @"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}");
+                            var m = Regex.Match(p, @"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", RegexOptions.None, TimeSpan.FromMilliseconds(500));
                             return m.Success
                                 ? $"Email address found in prompt: {m.Value}. Use a placeholder instead."
                                 : null;
@@ -538,7 +538,7 @@ namespace Prompt
                         Description = "Prompts should specify the expected output format.",
                         Check = p => Regex.IsMatch(p,
                             @"\b(respond|reply|output|return|format|answer)\b.{0,30}\b(json|xml|csv|markdown|list|table|bullet|numbered)\b",
-                            RegexOptions.IgnoreCase | RegexOptions.Singleline) ? null
+                            RegexOptions.IgnoreCase | RegexOptions.Singleline, TimeSpan.FromMilliseconds(500)) ? null
                             : "Consider specifying an output format for more predictable results.",
                     },
                 },
@@ -568,7 +568,7 @@ namespace Prompt
                                 + @"|DAN\s+mode|developer\s+mode|bypass\s+(?:safety|filter|content)"
                                 + @"|pretend\s+you\s+(?:have\s+no|don'?t\s+have)\s+(?:restrictions?|rules?|limits?)"
                                 + @"|act\s+as\s+if\s+you\s+have\s+no\s+(?:rules?|restrictions?|filters?))\b",
-                                RegexOptions.IgnoreCase);
+                                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
                             return m.Success
                                 ? $"Jailbreak pattern detected: \"{m.Value}\"."
                                 : null;
@@ -586,7 +586,7 @@ namespace Prompt
                                 @"\b(how\s+to\s+(make|build|create)\s+(a\s+)?(bomb|weapon|explosive|virus|malware)"
                                 + @"|instructions?\s+for\s+(hacking|stealing|breaking\s+into)"
                                 + @"|generate\s+(hate\s+speech|harassment|threats))\b",
-                                RegexOptions.IgnoreCase);
+                                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
                             return m.Success
                                 ? $"Potentially harmful content request detected: \"{m.Value}\"."
                                 : null;
@@ -602,11 +602,11 @@ namespace Prompt
                         {
                             bool hasSensitive = Regex.IsMatch(p,
                                 @"\b(race|gender|religion|ethnicity|disability|sexual\s+orientation|nationality|immigration)\b",
-                                RegexOptions.IgnoreCase);
+                                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
                             if (!hasSensitive) return null;
                             bool hasFairness = Regex.IsMatch(p,
                                 @"\b(fair|unbiased|neutral|balanced|inclusive|equitable|objective)\b",
-                                RegexOptions.IgnoreCase);
+                                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
                             return hasFairness ? null
                                 : "Prompt discusses sensitive topics — consider adding fairness/balance guidance.";
                         },
@@ -622,7 +622,7 @@ namespace Prompt
                             var m = Regex.Match(p,
                                 @"\b(pretend\s+to\s+be|impersonate|act\s+as|you\s+are)\s+"
                                 + @"(a\s+)?(doctor|lawyer|judge|police|officer|government|president|CEO|therapist|psychologist)\b",
-                                RegexOptions.IgnoreCase);
+                                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
                             return m.Success
                                 ? $"Professional impersonation detected: \"{m.Value}\". "
                                   + "Use 'assist with' or 'provide information about' instead."
@@ -643,7 +643,7 @@ namespace Prompt
                                 + @"|what\s+(are|is)\s+your\s+(system\s+)?(prompt|instructions?)"
                                 + @"|output\s+(your|the)\s+(entire|full|complete)\s+(prompt|instructions?)"
                                 + @"|show\s+me\s+(your|the)\s+(hidden|secret|system))\b",
-                                RegexOptions.IgnoreCase);
+                                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
                             return m.Success
                                 ? $"Data exfiltration pattern detected: \"{m.Value}\"."
                                 : null;
@@ -674,11 +674,11 @@ namespace Prompt
                             bool hasPII = Regex.IsMatch(p,
                                 @"\b(SSN|social\s+security|date\s+of\s+birth|credit\s+card|passport|driver'?s?\s+license"
                                 + @"|medical\s+record|patient\s+data|health\s+record)\b",
-                                RegexOptions.IgnoreCase);
+                                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
                             if (!hasPII) return null;
                             bool hasGuidance = Regex.IsMatch(p,
                                 @"\b(redact|anonymize|mask|de-?identify|sanitize|do\s+not\s+(store|retain|log))\b",
-                                RegexOptions.IgnoreCase);
+                                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
                             return hasGuidance ? null
                                 : "Prompt references personal data without data handling instructions. "
                                   + "Add guidance to redact, anonymize, or handle PII appropriately.";
@@ -692,9 +692,9 @@ namespace Prompt
                         Description = "Prompts must not contain real SSNs, credit card numbers, or similar.",
                         Check = p =>
                         {
-                            if (Regex.IsMatch(p, @"\b\d{3}-\d{2}-\d{4}\b"))
+                            if (Regex.IsMatch(p, @"\b\d{3}-\d{2}-\d{4}\b", RegexOptions.None, TimeSpan.FromMilliseconds(500)))
                                 return "Possible SSN detected in prompt. Use placeholder format (XXX-XX-XXXX).";
-                            if (Regex.IsMatch(p, @"\b(?:\d{4}[\s\-]?){4}\b"))
+                            if (Regex.IsMatch(p, @"\b(?:\d{4}[\s\-]?){4}\b", RegexOptions.None, TimeSpan.FromMilliseconds(500)))
                                 return "Possible credit card number detected. Use masked format.";
                             return null;
                         },
@@ -709,13 +709,13 @@ namespace Prompt
                         {
                             bool isMedical = Regex.IsMatch(p,
                                 @"\b(?:diagnos\w*|symptom\w*|treatment\w*|medication\w*|prescri\w*|medical\s+advice|health\s+condition)",
-                                RegexOptions.IgnoreCase);
+                                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
                             if (!isMedical) return null;
                             bool hasDisclaimer = Regex.IsMatch(p,
                                 @"\b(not\s+(a\s+)?(substitute|replacement)\s+for\s+(professional|medical)"
                                 + @"|consult\s+(a|your)\s+(doctor|physician|healthcare)"
                                 + @"|disclaimer|for\s+informational\s+purposes?\s+only)\b",
-                                RegexOptions.IgnoreCase);
+                                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
                             return hasDisclaimer ? null
                                 : "Medical topic detected without disclaimer. Add: 'This is not a substitute for professional medical advice.'";
                         },
@@ -731,12 +731,12 @@ namespace Prompt
                             bool isFinancial = Regex.IsMatch(p,
                                 @"\b(?:invest(?:ment|ing)?|stock\s+(?:pick|recommend)\w*|financial\s+advi[cs]e"
                                 + @"|portfolio|trading\s+strateg\w*|buy\s+or\s+sell)\b",
-                                RegexOptions.IgnoreCase);
+                                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
                             if (!isFinancial) return null;
                             bool hasDisclaimer = Regex.IsMatch(p,
                                 @"\b(not\s+financial\s+advice|consult\s+(a|your)\s+(financial|advisor)"
                                 + @"|for\s+informational\s+purposes?\s+only|do\s+your\s+own\s+research)\b",
-                                RegexOptions.IgnoreCase);
+                                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
                             return hasDisclaimer ? null
                                 : "Financial topic detected without disclaimer. Add: 'This is not financial advice.'";
                         },
@@ -751,11 +751,11 @@ namespace Prompt
                         {
                             bool isGDPR = Regex.IsMatch(p,
                                 @"\b(GDPR|EU\s+user|European\s+data|data\s+subject|right\s+to\s+(be\s+)?forgot)\b",
-                                RegexOptions.IgnoreCase);
+                                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
                             if (!isGDPR) return null;
                             bool hasConsent = Regex.IsMatch(p,
                                 @"\b(consent|lawful\s+basis|legitimate\s+interest|data\s+processing\s+agreement)\b",
-                                RegexOptions.IgnoreCase);
+                                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
                             return hasConsent ? null
                                 : "GDPR-related prompt should reference consent or lawful basis for processing.";
                         },

@@ -288,14 +288,14 @@ namespace Prompt
             var errors = new List<string>();
 
             // Check balanced if/endif
-            int ifCount = Regex.Matches(template, @"\{\{#if\s").Count;
-            int endifCount = Regex.Matches(template, @"\{\{/if\}\}").Count;
+            int ifCount = Regex.Matches(template, @"\{\{#if\s", RegexOptions.None, TimeSpan.FromMilliseconds(500)).Count;
+            int endifCount = Regex.Matches(template, @"\{\{/if\}\}", RegexOptions.None, TimeSpan.FromMilliseconds(500)).Count;
             if (ifCount != endifCount)
                 errors.Add($"Mismatched if/endif: {ifCount} opening vs {endifCount} closing tags.");
 
             // Check balanced switch/endswitch
-            int switchCount = Regex.Matches(template, @"\{\{#switch\s").Count;
-            int endSwitchCount = Regex.Matches(template, @"\{\{/switch\}\}").Count;
+            int switchCount = Regex.Matches(template, @"\{\{#switch\s", RegexOptions.None, TimeSpan.FromMilliseconds(500)).Count;
+            int endSwitchCount = Regex.Matches(template, @"\{\{/switch\}\}", RegexOptions.None, TimeSpan.FromMilliseconds(500)).Count;
             if (switchCount != endSwitchCount)
                 errors.Add($"Mismatched switch/endswitch: {switchCount} opening vs {endSwitchCount} closing tags.");
 

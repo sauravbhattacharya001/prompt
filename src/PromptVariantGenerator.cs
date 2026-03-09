@@ -406,7 +406,7 @@ namespace Prompt
         };
 
         private static readonly Regex[] CompiledFillerPatterns =
-            FillerPatterns.Select(p => new Regex(p, RegexOptions.IgnoreCase | RegexOptions.Compiled)).ToArray();
+            FillerPatterns.Select(p => new Regex(p, RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))).ToArray();
 
         // ── Elaboration suffixes for detailed mode ───────────
 
@@ -423,17 +423,17 @@ namespace Prompt
 
         private static readonly Regex QuestionPattern = new(
             @"^(Can|Could|Would|Will)\s+you\s+(.+?)(\?)?$",
-            RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex DescriptiveTaskPattern = new(
             @"^(Your\s+task\s+is\s+to|The\s+(?:task|goal)\s+is\s+to)\s+(.+)$",
-            RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex MultiSpacePattern = new(
-            @"  +", RegexOptions.Compiled);
+            @"  +", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex ExcessiveNewlinePattern = new(
-            @"\n{3,}", RegexOptions.Compiled);
+            @"\n{3,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         /// <summary>
         /// Creates a new variant generator.
@@ -716,7 +716,7 @@ namespace Prompt
             foreach (var kvp in replacements)
             {
                 string pattern = @"(?<=\b|^)" + Regex.Escape(kvp.Key) + @"(?=\b|$)";
-                text = Regex.Replace(text, pattern, kvp.Value, RegexOptions.IgnoreCase);
+                text = Regex.Replace(text, pattern, kvp.Value, RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
             }
             return text;
         }

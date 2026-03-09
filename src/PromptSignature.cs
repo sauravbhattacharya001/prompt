@@ -766,7 +766,7 @@ namespace Prompt
         private static string ExtractJsonBlock(string response)
         {
             // Try to extract JSON from markdown code block
-            var match = Regex.Match(response, @"```(?:json)?\s*\n?([\s\S]*?)\n?```", RegexOptions.Multiline);
+            var match = Regex.Match(response, @"```(?:json)?\s*\n?([\s\S]*?)\n?```", RegexOptions.Multiline, TimeSpan.FromMilliseconds(500));
             if (match.Success)
                 return match.Groups[1].Value.Trim();
 

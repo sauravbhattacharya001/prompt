@@ -613,7 +613,7 @@ namespace Prompt
                 {
                     var key = match.Groups[1].Value;
                     return variables.TryGetValue(key, out var value) ? value : match.Value;
-                });
+                }, RegexOptions.None, TimeSpan.FromMilliseconds(500));
             }
 
             // Recursive mode: iterate until no more substitutions or depth exhausted
@@ -625,7 +625,7 @@ namespace Prompt
                 {
                     var key = match.Groups[1].Value;
                     return variables.TryGetValue(key, out var value) ? value : match.Value;
-                });
+                }, RegexOptions.None, TimeSpan.FromMilliseconds(500));
 
                 // No changes in this pass → stable, stop early
                 if (string.Equals(result, previous, StringComparison.Ordinal))

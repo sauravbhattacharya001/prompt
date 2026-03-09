@@ -648,7 +648,7 @@ namespace Prompt
             if (!_nodes.ContainsKey(nodeId))
                 throw new ArgumentException($"Node '{nodeId}' not found.", nameof(nodeId));
 
-            var matches = Regex.Matches(templateText, @"\{\{(\w+)\}\}");
+            var matches = Regex.Matches(templateText, @"\{\{(\w+)\}\}", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             foreach (Match match in matches)
             {
                 string refId = match.Groups[1].Value;

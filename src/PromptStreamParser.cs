@@ -428,7 +428,7 @@ namespace Prompt
                     var lineEnd = text.IndexOf('\n', i);
                     if (lineEnd == -1) { _processedUpTo = i; return; }
                     var line = text.Substring(i, lineEnd - i).TrimEnd();
-                    var match = Regex.Match(line, @"^(#{1,6})\s+(.+)$");
+                    var match = Regex.Match(line, @"^(#{1,6})\s+(.+)$", RegexOptions.None, TimeSpan.FromMilliseconds(500));
                     if (match.Success)
                     {
                         EmitContent(new StreamContent
@@ -507,7 +507,7 @@ namespace Prompt
                     var lineEnd = text.IndexOf('\n', i);
                     if (lineEnd == -1) { _processedUpTo = i; return; }
                     var line = text.Substring(i, lineEnd - i);
-                    var kvMatch = Regex.Match(line, @"^\s{0,3}\*{0,2}([A-Za-z][\w\s]{0,40}?)\*{0,2}\s*:\s+(.+)$");
+                    var kvMatch = Regex.Match(line, @"^\s{0,3}\*{0,2}([A-Za-z][\w\s]{0,40}?)\*{0,2}\s*:\s+(.+)$", RegexOptions.None, TimeSpan.FromMilliseconds(500));
                     if (kvMatch.Success && !line.TrimStart().StartsWith("http", StringComparison.OrdinalIgnoreCase))
                     {
                         EmitContent(new StreamContent
@@ -534,7 +534,7 @@ namespace Prompt
             var trimmed = line.TrimStart();
             if (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ "))
                 return true;
-            return Regex.IsMatch(trimmed, @"^\d+\.\s");
+            return Regex.IsMatch(trimmed, @"^\d+\.\s", RegexOptions.None, TimeSpan.FromMilliseconds(500));
         }
 
         private static bool IsLikelyJsonArray(string text, int pos)

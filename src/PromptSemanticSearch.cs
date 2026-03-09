@@ -498,7 +498,7 @@ namespace Prompt
                 return new List<string>();
 
             // Split on non-alphanumeric, lowercase, filter stop words, stem
-            var tokens = Regex.Split(text.ToLowerInvariant(), @"[^a-z0-9]+")
+            var tokens = Regex.Split(text.ToLowerInvariant(), @"[^a-z0-9]+", RegexOptions.None, TimeSpan.FromMilliseconds(500))
                 .Where(t => t.Length >= 2 && !StopWords.Contains(t))
                 .Select(Stem)
                 .Where(t => t.Length >= 2)
