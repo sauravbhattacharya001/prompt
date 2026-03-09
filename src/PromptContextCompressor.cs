@@ -599,11 +599,8 @@ namespace Prompt
 
         // --- Helpers ---
 
-        private static int EstimateTokens(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return 0;
-            return (int)Math.Ceiling(text.Length / 4.0);
-        }
+        private static int EstimateTokens(string text) =>
+            PromptGuard.EstimateTokens(text);
 
         private bool FitsInBudgetInternal(List<(string Role, string Content)> messages)
         {

@@ -282,13 +282,8 @@ namespace Prompt
 
         // ── Internals ────────────────────────────────────────────────
 
-        private static int EstimateTokens(string text)
-        {
-            var words = text.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length;
-            var cjk = text.Count(c => (c >= 0x4E00 && c <= 0x9FFF) || (c >= 0x3040 && c <= 0x309F) ||
-                                      (c >= 0x30A0 && c <= 0x30FF) || (c >= 0xAC00 && c <= 0xD7AF));
-            return (int)(words / 0.75) + (int)(cjk / 1.5);
-        }
+        private static int EstimateTokens(string text) =>
+            PromptGuard.EstimateTokens(text);
 
         private static DetectedLanguage DetectLanguage(string text)
         {
