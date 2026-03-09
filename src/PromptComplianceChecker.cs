@@ -1,5 +1,6 @@
 namespace Prompt
 {
+    using System;
     using System.Text.RegularExpressions;
 
     // ═══════════════════════════════════════════════════════════════
@@ -345,13 +346,24 @@ namespace Prompt
             ComplianceSeverity severity = ComplianceSeverity.Error,
             string? suggestion = null)
         {
-            var regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            var regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled,
+                TimeSpan.FromMilliseconds(500));
             return new ComplianceRule
             {
                 Id = id, Name = name, Category = category, Severity = severity,
                 Description = $"Requires pattern: {pattern}",
-                Check = prompt => regex.IsMatch(prompt) ? null
-                    : $"Required pattern '{name}' not found in prompt.",
+                Check = prompt =>
+                {
+                    try
+                    {
+                        return regex.IsMatch(prompt) ? null
+                            : $"Required pattern '{name}' not found in prompt.";
+                    }
+                    catch (RegexMatchTimeoutException)
+                    {
+                        return $"Pattern '{name}' timed out during matching (possible ReDoS).";
+                    }
+                },
                 Tags = new() { "pattern", "required" },
             };
         }
@@ -362,17 +374,25 @@ namespace Prompt
             ComplianceSeverity severity = ComplianceSeverity.Error,
             string? suggestion = null)
         {
-            var regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            var regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled,
+                TimeSpan.FromMilliseconds(500));
             return new ComplianceRule
             {
                 Id = id, Name = name, Category = category, Severity = severity,
                 Description = $"Forbids pattern: {pattern}",
                 Check = prompt =>
                 {
-                    var match = regex.Match(prompt);
-                    return match.Success
-                        ? $"Forbidden pattern '{name}' detected: \"{match.Value}\"."
-                        : null;
+                    try
+                    {
+                        var match = regex.Match(prompt);
+                        return match.Success
+                            ? $"Forbidden pattern '{name}' detected: \"{match.Value}\"."
+                            : null;
+                    }
+                    catch (RegexMatchTimeoutException)
+                    {
+                        return $"Pattern '{name}' timed out during matching (possible ReDoS).";
+                    }
                 },
                 Tags = new() { "pattern", "forbidden" },
             };

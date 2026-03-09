@@ -37,64 +37,67 @@ namespace Prompt
     {
         // ── Anti-pattern detectors ───────────────────────────────
 
+        /// <summary>Regex timeout for all pattern matching (ReDoS protection).</summary>
+        private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(500);
+
         private static readonly (Regex Pattern, string Id, string Message, IssueSeverity Severity, string Fix)[] AntiPatterns =
         {
             (new Regex(@"\b(do\s+everything|handle\s+all|cover\s+every|be\s+comprehensive\s+about\s+everything)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout),
                 "AP001", "Overly broad scope — asking the model to do 'everything' produces shallow results",
                 IssueSeverity.Warning,
                 "Break the task into specific sub-tasks or focus on one aspect"),
 
             (new Regex(@"\b(make\s+it\s+(good|nice|better|great|perfect))\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout),
                 "AP002", "Vague quality instruction — 'make it good' gives the model no actionable criteria",
                 IssueSeverity.Warning,
                 "Specify what 'good' means: e.g., 'use active voice, keep sentences under 20 words'"),
 
             (new Regex(@"\b(don'?t|do\s+not|never|avoid)\b[^.]{0,50}\b(but\s+also|however|yet)\b[^.]{0,50}\b(do|include|make\s+sure|ensure)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout),
                 "AP003", "Contradictory instructions — negation followed by counter-instruction creates ambiguity",
                 IssueSeverity.Error,
                 "Separate conflicting constraints or rephrase as positive instructions"),
 
             (new Regex(@"(?:^|\.\s*)((?:also|and\s+also|additionally|furthermore|moreover|plus|on\s+top\s+of\s+that)\b[^.]*\.[\s]*){3,}",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline, RegexTimeout),
                 "AP004", "Instruction stacking — too many additive clauses can dilute focus",
                 IssueSeverity.Info,
                 "Prioritize constraints: list the 3 most important requirements first"),
 
             (new Regex(@"\b(obviously|clearly|simply|just|easily|basically)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout),
                 "AP005", "Filler/hedge words waste tokens without adding information",
                 IssueSeverity.Info,
                 "Remove filler words to save tokens and improve clarity"),
 
             (new Regex(@"\b(as\s+an?\s+(AI|assistant|language\s+model|LLM|chatbot|bot))\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout),
                 "AP006", "Unnecessary meta-reference — the model knows what it is",
                 IssueSeverity.Info,
                 "Remove 'as an AI' phrasing unless role-setting is intentional"),
 
             (new Regex(@"\b(think\s+step\s+by\s+step|let'?s\s+think|chain\s+of\s+thought)\b.*\b(be\s+(brief|concise|short)|one\s+(sentence|line|word))\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout),
                 "AP007", "Conflicting format: requesting step-by-step AND brevity",
                 IssueSeverity.Error,
                 "Choose either detailed reasoning (step-by-step) or concise output, not both"),
 
             (new Regex(@"(\b(please|kindly|if\s+you\s+(could|would|don'?t\s+mind))\b[^.]*){3,}",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout),
                 "AP008", "Excessive politeness — multiple please/kindly phrases waste tokens",
                 IssueSeverity.Info,
                 "One polite opener is fine; remove redundant courtesy phrases"),
 
             (new Regex(@"\b(I\s+want|I\s+need|I'?d\s+like|can\s+you|could\s+you|would\s+you)\b.*\b(I\s+want|I\s+need|I'?d\s+like|can\s+you|could\s+you|would\s+you)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout),
                 "AP009", "Repeated request framing — multiple 'I want/can you' suggests unclear task",
                 IssueSeverity.Warning,
                 "State the task once directly: 'Summarize X' instead of 'Can you summarize X? I want you to...'"),
 
             (new Regex(@"(.{15,})\1",
-                RegexOptions.Compiled),
+                RegexOptions.Compiled, RegexTimeout),
                 "AP010", "Duplicated text detected — repeated content wastes tokens",
                 IssueSeverity.Warning,
                 "Remove the duplicated section"),
@@ -105,35 +108,35 @@ namespace Prompt
         private static readonly (Regex Pattern, string Component)[] ComponentDetectors =
         {
             (new Regex(@"^\s*(you\s+are|act\s+as|role\s*:|persona\s*:|your\s+role)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline, RegexTimeout),
                 "Persona/Role"),
 
             (new Regex(@"\b(context|background|given\s+that|assuming|here\s+is\s+(the\s+)?context)\s*:",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout),
                 "Context"),
 
             (new Regex(@"^\s*(task|instruction|objective|goal|your\s+task)\s*:",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline, RegexTimeout),
                 "Task"),
 
             (new Regex(@"\b(constraint|rule|requirement|guideline|you\s+must|you\s+should|always|never)\s*:?\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout),
                 "Constraints"),
 
             (new Regex(@"\b(example|for\s+instance|e\.g\.|such\s+as|input\s*:|output\s*:|sample\s*:)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout),
                 "Examples"),
 
             (new Regex(@"\b(format|output\s+format|respond\s+(in|as|with)|return\s+(as|in)|use\s+(JSON|XML|markdown|YAML|CSV|table|bullet|numbered))\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout),
                 "Output Format"),
 
             (new Regex(@"\b(step\s+by\s+step|chain\s+of\s+thought|think\s+(carefully|through)|reason\s+about|let'?s\s+think)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout),
                 "Reasoning Strategy"),
 
             (new Regex(@"\b(tone|style|voice|formal|informal|casual|professional|friendly|academic)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled),
+                RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout),
                 "Tone/Style"),
         };
 
