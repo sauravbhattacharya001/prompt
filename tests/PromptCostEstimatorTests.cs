@@ -12,7 +12,7 @@ public class PromptCostEstimatorTests
     [Fact]
     public void Constructor_LoadsBuiltInModels()
     {
-        Assert.True(_estimator.ModelCount >= 10, "Should have at least 10 built-in models");
+        Assert.True(_estimator.ModelCount >= 15, $"Should have at least 15 built-in models, got {_estimator.ModelCount}");
     }
 
     [Fact]
@@ -22,10 +22,20 @@ public class PromptCostEstimatorTests
         Assert.NotEmpty(models);
     }
 
+    [Fact]
+    public void CatalogVersion_IsSet()
+    {
+        Assert.False(string.IsNullOrEmpty(PromptCostEstimator.CatalogVersion));
+    }
+
     [Theory]
     [InlineData("gpt-4o")]
     [InlineData("gpt-4o-mini")]
+    [InlineData("gpt-4.5-preview")]
+    [InlineData("claude-4-sonnet")]
+    [InlineData("claude-3.7-sonnet")]
     [InlineData("claude-3-5-sonnet")]
+    [InlineData("gemini-2.5-pro")]
     [InlineData("gemini-2.0-flash")]
     [InlineData("deepseek-v3")]
     public void GetModel_ReturnsKnownModels(string modelId)

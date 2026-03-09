@@ -68,7 +68,7 @@ public class SerializationGuardsTests : IDisposable
         // Each emoji is 4 UTF-8 bytes — so MaxJsonPayloadBytes/4 emojis = at limit
         int emojiCount = SerializationGuards.MaxJsonPayloadBytes / 4;
         // One more emoji pushes over
-        var json = new string('🔥', emojiCount + 1);
+        var json = new string('\u2605', emojiCount + 1);
         Assert.Throws<InvalidOperationException>(
             () => SerializationGuards.ThrowIfPayloadTooLarge(json));
     }
