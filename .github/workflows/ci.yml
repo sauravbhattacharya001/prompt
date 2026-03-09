@@ -37,10 +37,32 @@ jobs:
             -c Release \
             --logger "trx;LogFileName=results.trx" \
             /p:CollectCoverage=true \
-            /p:CoverletOutputFormat=cobertura \
+            /p:CoverletOutputFormat="cobertura%2cjson" \
             /p:CoverletOutput=./coverage/ \
             /p:Include="[Prompt]*" \
-            /p:ExcludeByAttribute="GeneratedCodeAttribute"
+            /p:ExcludeByAttribute="GeneratedCodeAttribute" \
+            /p:Threshold=50 \
+            /p:ThresholdType=line \
+            /p:ThresholdStat=total
+
+      - name: Generate coverage summary
+        if: always()
+        run: |
+          if [ -f tests/coverage/coverage.cobertura.xml ]; then
+            LINE_RATE=$(grep -oP 'line-rate="\K[^"]+' tests/coverage/coverage.cobertura.xml | head -1)
+            if [ -n "$LINE_RATE" ]; then
+              PCT=$(echo "$LINE_RATE * 100" | bc -l | xargs printf "%.1f")
+              {
+                echo "## Coverage Summary"
+                echo ""
+                echo "| Metric | Value |"
+                echo "|--------|-------|"
+                echo "| Line coverage | ${PCT}% |"
+                echo "| Threshold | 50% (line) |"
+                echo ""
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
 
       - name: Upload coverage to Codecov
         if: github.event_name == 'push'
