@@ -371,5 +371,217 @@ namespace Prompt.Tests
             Assert.Contains("backoff", json);
             System.Text.Json.JsonDocument.Parse(json);
         }
+
+        // --- Edge case tests added by Gardener #1147 ---
+
+        [Fact]
+        public void Execute_TotalTimeout_StopsRetries()
+        {
+            // TotalTimeout of 0 should prevent any retries
+            var config = new RetryPolicyConfig
+            {
+                MaxRetries = 10,
+                BaseDelay = TimeSpan.FromSeconds(10),
+                TotalTimeout = TimeSpan.Zero,
+                Backoff = BackoffStrategy.Fixed,
+                EnableJitter = false,
+                EnableCircuitBreaker = false
+            };
+            var policy = new PromptRetryPolicy(config);
+            var result = policy.Execute(attempt => (false, "500 error"));
+            // Should have at most 1 attempt (original) since timeout is 0
+            // and any retry delay would exceed it
+            Assert.False(result.Succeeded);
+            Assert.Contains("timeout", result.FinalError!, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void CircuitBreaker_HalfOpen_RecoversToClosed()
+        {
+            var config = new RetryPolicyConfig
+            {
+                MaxRetries = 0,
+                EnableCircuitBreaker = true,
+                CircuitBreakerThreshold = 2,
+                CircuitBreakerCooldown = TimeSpan.Zero // Immediate transition to half-open
+            };
+            var policy = new PromptRetryPolicy(config);
+
+            // Trip the circuit
+            policy.Execute(attempt => (false, "500 error"));
+            policy.Execute(attempt => (false, "500 error"));
+            Assert.Equal(CircuitState.Open, policy.CircuitState);
+
+            // Cooldown is zero, so next call should transition to half-open and succeed
+            var r1 = policy.Execute(attempt => (true, "ok"));
+            Assert.True(r1.Succeeded);
+            // Need 2 successes in half-open to close
+            var r2 = policy.Execute(attempt => (true, "ok"));
+            Assert.True(r2.Succeeded);
+            Assert.Equal(CircuitState.Closed, policy.CircuitState);
+        }
+
+        [Fact]
+        public void CircuitBreaker_HalfOpen_FailureReopens()
+        {
+            var config = new RetryPolicyConfig
+            {
+                MaxRetries = 0,
+                EnableCircuitBreaker = true,
+                CircuitBreakerThreshold = 2,
+                CircuitBreakerCooldown = TimeSpan.Zero
+            };
+            var policy = new PromptRetryPolicy(config);
+
+            // Trip the circuit
+            policy.Execute(attempt => (false, "500 error"));
+            policy.Execute(attempt => (false, "500 error"));
+            Assert.Equal(CircuitState.Open, policy.CircuitState);
+
+            // Cooldown is zero → half-open, but this call fails → back to open
+            var r = policy.Execute(attempt => (false, "503 error"));
+            Assert.False(r.Succeeded);
+            Assert.Equal(CircuitState.Open, policy.CircuitState);
+        }
+
+        [Fact]
+        public void Jitter_StaysWithinBounds()
+        {
+            var config = new RetryPolicyConfig
+            {
+                BaseDelay = TimeSpan.FromSeconds(10),
+                Backoff = BackoffStrategy.Fixed,
+                EnableJitter = true,
+                JitterFactor = 0.5, // ±50% → 5000..15000ms
+                MaxDelay = TimeSpan.FromSeconds(60)
+            };
+            var policy = new PromptRetryPolicy(config);
+
+            for (int i = 0; i < 100; i++)
+            {
+                var delay = policy.CalculateDelay(1, ErrorCategory.Unknown).TotalMilliseconds;
+                Assert.InRange(delay, 0, 15000); // Can go as low as 5000 but floor is 0
+            }
+        }
+
+        [Fact]
+        public void LinearBackoff_ScalesLinearly()
+        {
+            var config = new RetryPolicyConfig
+            {
+                BaseDelay = TimeSpan.FromSeconds(2),
+                Backoff = BackoffStrategy.Linear,
+                EnableJitter = false
+            };
+            var policy = new PromptRetryPolicy(config);
+            Assert.Equal(2000, policy.CalculateDelay(1, ErrorCategory.Unknown).TotalMilliseconds);
+            Assert.Equal(4000, policy.CalculateDelay(2, ErrorCategory.Unknown).TotalMilliseconds);
+            Assert.Equal(10000, policy.CalculateDelay(5, ErrorCategory.Unknown).TotalMilliseconds);
+        }
+
+        [Fact]
+        public void Execute_ExceptionOnFirstAttempt_NonRetryable_StopsImmediately()
+        {
+            var policy = new PromptRetryPolicy(new RetryPolicyConfig { MaxRetries = 5 });
+            var result = policy.Execute(attempt =>
+                throw new InvalidOperationException("403 forbidden access"));
+            Assert.False(result.Succeeded);
+            Assert.Single(result.Attempts);
+            Assert.Contains("Non-retryable", result.FinalError!);
+        }
+
+        [Fact]
+        public void CategoryPolicy_BackoffOverride()
+        {
+            var config = new RetryPolicyConfig
+            {
+                BaseDelay = TimeSpan.FromSeconds(1),
+                Backoff = BackoffStrategy.Fixed,
+                EnableJitter = false,
+                CategoryPolicies = new Dictionary<ErrorCategory, ErrorCategoryPolicy>
+                {
+                    [ErrorCategory.Overloaded] = new ErrorCategoryPolicy
+                    {
+                        ShouldRetry = true,
+                        Backoff = BackoffStrategy.Exponential,
+                        BaseDelay = TimeSpan.FromSeconds(3)
+                    }
+                }
+            };
+            var policy = new PromptRetryPolicy(config);
+            // Overloaded uses exponential with 3s base
+            Assert.Equal(3000, policy.CalculateDelay(1, ErrorCategory.Overloaded).TotalMilliseconds);
+            Assert.Equal(6000, policy.CalculateDelay(2, ErrorCategory.Overloaded).TotalMilliseconds);
+            // Other categories use fixed 1s
+            Assert.Equal(1000, policy.CalculateDelay(1, ErrorCategory.ServerError).TotalMilliseconds);
+            Assert.Equal(1000, policy.CalculateDelay(2, ErrorCategory.ServerError).TotalMilliseconds);
+        }
+
+        [Fact]
+        public void SuccessRate_CalculatedCorrectly()
+        {
+            var policy = new PromptRetryPolicy(new RetryPolicyConfig { MaxRetries = 0 });
+            policy.Execute(attempt => (true, "ok"));
+            policy.Execute(attempt => (true, "ok"));
+            policy.Execute(attempt => (false, "500 error"));
+            policy.Execute(attempt => (true, "ok"));
+
+            var stats = policy.GetStats();
+            Assert.Equal(4, stats.TotalExecutions);
+            Assert.Equal(3, stats.TotalSuccesses);
+            Assert.Equal(0.75, stats.SuccessRate);
+        }
+
+        [Fact]
+        public void GetHistory_NoLimit_ReturnsAll()
+        {
+            var policy = new PromptRetryPolicy(new RetryPolicyConfig { MaxRetries = 0 });
+            for (int i = 0; i < 5; i++)
+                policy.Execute(attempt => (true, "ok"));
+            Assert.Equal(5, policy.GetHistory(null).Count);
+            Assert.Equal(5, policy.GetHistory(0).Count); // 0 or negative → all
+        }
+
+        [Fact]
+        public void Execute_MixedErrorCategories_TracksAll()
+        {
+            var policy = new PromptRetryPolicy(new RetryPolicyConfig { MaxRetries = 2 });
+            // RateLimit → retryable, will retry
+            policy.Execute(attempt => (false, "429 rate limit"));
+            // Timeout → retryable
+            policy.Execute(attempt => (false, "connection timeout"));
+
+            var stats = policy.GetStats();
+            Assert.True(stats.ErrorCounts.ContainsKey(ErrorCategory.RateLimit));
+            Assert.True(stats.ErrorCounts.ContainsKey(ErrorCategory.Timeout));
+        }
+
+        [Fact]
+        public void ClassifyError_NullInput_ReturnsUnknown()
+        {
+            var policy = new PromptRetryPolicy();
+            Assert.Equal(ErrorCategory.Unknown, policy.ClassifyError(null!));
+        }
+
+        [Fact]
+        public void CircuitBreaker_TrippedDuringRetries()
+        {
+            // Circuit trips while retrying within a single Execute call
+            var config = new RetryPolicyConfig
+            {
+                MaxRetries = 10,
+                EnableCircuitBreaker = true,
+                CircuitBreakerThreshold = 3,
+                CircuitBreakerWindow = TimeSpan.FromMinutes(5),
+                BaseDelay = TimeSpan.Zero,
+                EnableJitter = false
+            };
+            var policy = new PromptRetryPolicy(config);
+            var result = policy.Execute(attempt => (false, "500 error"));
+            // Should stop before exhausting all 10 retries due to circuit breaker
+            Assert.False(result.Succeeded);
+            Assert.True(result.CircuitBreakerTripped);
+            Assert.True(result.Attempts.Count <= 4); // threshold 3 + possibly 1 more
+        }
     }
 }
