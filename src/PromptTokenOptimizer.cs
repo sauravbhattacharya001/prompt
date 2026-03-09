@@ -445,12 +445,8 @@ namespace Prompt
 
         // --- Internal methods ---
 
-        internal static int EstimateTokens(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return 0;
-            // Rough GPT-style estimate: ~4 chars per token on average
-            return Math.Max(1, (int)Math.Ceiling(text.Length / 4.0));
-        }
+        internal static int EstimateTokens(string text) =>
+            PromptGuard.EstimateTokens(text);
 
         internal List<PromptSection> IdentifySections(string prompt, int totalTokens)
         {

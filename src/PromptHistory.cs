@@ -387,7 +387,7 @@ namespace Prompt
         /// Rough token estimate (~4 chars per token for English text).
         /// </summary>
         internal static int EstimateTokens(string text) =>
-            string.IsNullOrEmpty(text) ? 0 : (int)Math.Ceiling(text.Length / 4.0);
+            PromptGuard.EstimateTokens(text);
 
         private static double Median(double[] sorted)
         {
