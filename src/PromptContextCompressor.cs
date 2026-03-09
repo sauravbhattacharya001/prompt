@@ -489,11 +489,11 @@ namespace Prompt
             }
 
             // Bonus for code blocks
-            bool hasCode = Regex.IsMatch(content, @"```[\s\S]*?```");
+            bool hasCode = Regex.IsMatch(content, @"```[\s\S]*?```", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             double codeBonus = hasCode && _options.PreserveCodeBlocks ? 0.2 : 0;
 
             // Bonus for URLs
-            bool hasUrl = Regex.IsMatch(content, @"https?://\S+");
+            bool hasUrl = Regex.IsMatch(content, @"https?://\S+", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             double urlBonus = hasUrl && _options.PreserveUrls ? 0.15 : 0;
 
             double score = _options.RecencyWeight * recency
@@ -577,7 +577,7 @@ namespace Prompt
         private static string NormalizeForComparison(string s)
         {
             s = s.ToLowerInvariant().Trim();
-            s = Regex.Replace(s, @"\s+", " ");
+            s = Regex.Replace(s, @"\s+", " ", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             return s;
         }
 

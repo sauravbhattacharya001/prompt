@@ -94,22 +94,22 @@ namespace Prompt
     /// </example>
     public class PromptSanitizer
     {
-        private static readonly Regex MultipleSpaces = new(@"[ \t]{2,}", RegexOptions.Compiled);
-        private static readonly Regex MultipleBlankLines = new(@"(\r?\n){3,}", RegexOptions.Compiled);
-        private static readonly Regex TrailingLineSpaces = new(@"[ \t]+(?=\r?\n|$)", RegexOptions.Compiled);
-        private static readonly Regex LeadingLineSpaces = new(@"(?<=\r?\n)[ \t]+", RegexOptions.Compiled);
+        private static readonly Regex MultipleSpaces = new(@"[ \t]{2,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        private static readonly Regex MultipleBlankLines = new(@"(\r?\n){3,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        private static readonly Regex TrailingLineSpaces = new(@"[ \t]+(?=\r?\n|$)", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        private static readonly Regex LeadingLineSpaces = new(@"(?<=\r?\n)[ \t]+", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         // PII patterns
         private static readonly Regex EmailPattern = new(
-            @"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b", RegexOptions.Compiled);
+            @"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         private static readonly Regex PhonePattern = new(
-            @"(?<!\d)(\+?1[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}(?!\d)", RegexOptions.Compiled);
+            @"(?<!\d)(\+?1[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}(?!\d)", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         private static readonly Regex SsnPattern = new(
-            @"\b\d{3}-\d{2}-\d{4}\b", RegexOptions.Compiled);
+            @"\b\d{3}-\d{2}-\d{4}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         private static readonly Regex CreditCardPattern = new(
-            @"\b(?:\d[ -]*?){13,16}\b", RegexOptions.Compiled);
+            @"\b(?:\d[ -]*?){13,16}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         private static readonly Regex IpAddressPattern = new(
-            @"\b(?:\d{1,3}\.){3}\d{1,3}\b", RegexOptions.Compiled);
+            @"\b(?:\d{1,3}\.){3}\d{1,3}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         // Injection patterns — phrases commonly used to override system prompts
         private static readonly string[] InjectionPhrases = new[]
@@ -153,7 +153,7 @@ namespace Prompt
         // Zero-width and invisible Unicode characters
         private static readonly Regex InvisibleChars = new(
             @"[\u200B\u200C\u200D\u200E\u200F\u202A-\u202E\u2060\u2061\u2062\u2063\u2064\uFEFF\u00AD\u034F\u061C\u180E]",
-            RegexOptions.Compiled);
+            RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         /// <summary>
         /// Sanitize a prompt using default options.

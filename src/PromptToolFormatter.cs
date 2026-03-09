@@ -102,7 +102,7 @@ namespace Prompt
                 var errors = new List<string>();
                 if (string.IsNullOrWhiteSpace(Name))
                     errors.Add("Tool name is required");
-                else if (!Regex.IsMatch(Name, @"^[a-zA-Z_][a-zA-Z0-9_-]*$"))
+                else if (!Regex.IsMatch(Name, @"^[a-zA-Z_][a-zA-Z0-9_-]*$", RegexOptions.None, TimeSpan.FromMilliseconds(500)))
                     errors.Add($"Tool name '{Name}' contains invalid characters (use letters, digits, underscores, hyphens)");
                 if (Name.Length > 64)
                     errors.Add($"Tool name '{Name}' exceeds 64 character limit");

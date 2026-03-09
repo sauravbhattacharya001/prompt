@@ -377,36 +377,36 @@ namespace Prompt
         private static readonly (Regex Pattern, LlmProvider Provider, double Weight, string Signal)[] DetectionPatterns =
         {
             // OpenAI signals
-            (new Regex(@"\bChatGPT\b", RegexOptions.IgnoreCase), LlmProvider.OpenAI, 0.8, "References ChatGPT"),
-            (new Regex(@"\bGPT-?[34]\b", RegexOptions.IgnoreCase), LlmProvider.OpenAI, 0.9, "References GPT model"),
-            (new Regex(@"\bOpenAI\b", RegexOptions.IgnoreCase), LlmProvider.OpenAI, 0.7, "References OpenAI"),
-            (new Regex(@"response_format.*json", RegexOptions.IgnoreCase), LlmProvider.OpenAI, 0.6, "OpenAI JSON mode syntax"),
-            (new Regex(@"\bDALL[·\-]?E\b", RegexOptions.IgnoreCase), LlmProvider.OpenAI, 0.7, "References DALL-E"),
-            (new Regex(@"\bseed\s*[:=]\s*\d+", RegexOptions.IgnoreCase), LlmProvider.OpenAI, 0.3, "Seed parameter (OpenAI convention)"),
+            (new Regex(@"\bChatGPT\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.OpenAI, 0.8, "References ChatGPT"),
+            (new Regex(@"\bGPT-?[34]\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.OpenAI, 0.9, "References GPT model"),
+            (new Regex(@"\bOpenAI\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.OpenAI, 0.7, "References OpenAI"),
+            (new Regex(@"response_format.*json", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.OpenAI, 0.6, "OpenAI JSON mode syntax"),
+            (new Regex(@"\bDALL[·\-]?E\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.OpenAI, 0.7, "References DALL-E"),
+            (new Regex(@"\bseed\s*[:=]\s*\d+", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.OpenAI, 0.3, "Seed parameter (OpenAI convention)"),
 
             // Anthropic signals
-            (new Regex(@"\bClaude\b", RegexOptions.IgnoreCase), LlmProvider.Anthropic, 0.9, "References Claude"),
-            (new Regex(@"\bAnthropic\b", RegexOptions.IgnoreCase), LlmProvider.Anthropic, 0.8, "References Anthropic"),
-            (new Regex(@"\bHuman:\s", RegexOptions.None), LlmProvider.Anthropic, 0.7, "Uses Human: turn marker"),
-            (new Regex(@"\bAssistant:\s", RegexOptions.None), LlmProvider.Anthropic, 0.5, "Uses Assistant: turn marker"),
-            (new Regex(@"<thinking>", RegexOptions.IgnoreCase), LlmProvider.Anthropic, 0.6, "Uses thinking XML tags"),
-            (new Regex(@"</?(?:instructions|context|example|output|document|user_input|response)>", RegexOptions.IgnoreCase), LlmProvider.Anthropic, 0.5, "Uses XML section tags (Anthropic convention)"),
+            (new Regex(@"\bClaude\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.Anthropic, 0.9, "References Claude"),
+            (new Regex(@"\bAnthropic\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.Anthropic, 0.8, "References Anthropic"),
+            (new Regex(@"\bHuman:\s", RegexOptions.None, TimeSpan.FromMilliseconds(500)), LlmProvider.Anthropic, 0.7, "Uses Human: turn marker"),
+            (new Regex(@"\bAssistant:\s", RegexOptions.None, TimeSpan.FromMilliseconds(500)), LlmProvider.Anthropic, 0.5, "Uses Assistant: turn marker"),
+            (new Regex(@"<thinking>", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.Anthropic, 0.6, "Uses thinking XML tags"),
+            (new Regex(@"</?(?:instructions|context|example|output|document|user_input|response)>", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.Anthropic, 0.5, "Uses XML section tags (Anthropic convention)"),
 
             // Google signals
-            (new Regex(@"\bGemini\b", RegexOptions.IgnoreCase), LlmProvider.Google, 0.9, "References Gemini"),
-            (new Regex(@"\bGoogle\s+AI\b", RegexOptions.IgnoreCase), LlmProvider.Google, 0.7, "References Google AI"),
-            (new Regex(@"\bsystem_instruction\b", RegexOptions.IgnoreCase), LlmProvider.Google, 0.6, "Uses system_instruction"),
-            (new Regex(@"\bharm_category\b", RegexOptions.IgnoreCase), LlmProvider.Google, 0.5, "References harm categories"),
+            (new Regex(@"\bGemini\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.Google, 0.9, "References Gemini"),
+            (new Regex(@"\bGoogle\s+AI\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.Google, 0.7, "References Google AI"),
+            (new Regex(@"\bsystem_instruction\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.Google, 0.6, "Uses system_instruction"),
+            (new Regex(@"\bharm_category\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.Google, 0.5, "References harm categories"),
 
             // Meta/Llama signals
-            (new Regex(@"\bLlama\s*[23]?\b", RegexOptions.IgnoreCase), LlmProvider.Meta, 0.8, "References Llama model"),
-            (new Regex(@"\[INST\]", RegexOptions.None), LlmProvider.Meta, 0.7, "Uses [INST] markers"),
-            (new Regex(@"<<SYS>>", RegexOptions.None), LlmProvider.Meta, 0.9, "Uses <<SYS>> system tags"),
-            (new Regex(@"\[/INST\]", RegexOptions.None), LlmProvider.Meta, 0.7, "Uses [/INST] markers"),
+            (new Regex(@"\bLlama\s*[23]?\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.Meta, 0.8, "References Llama model"),
+            (new Regex(@"\[INST\]", RegexOptions.None, TimeSpan.FromMilliseconds(500)), LlmProvider.Meta, 0.7, "Uses [INST] markers"),
+            (new Regex(@"<<SYS>>", RegexOptions.None, TimeSpan.FromMilliseconds(500)), LlmProvider.Meta, 0.9, "Uses <<SYS>> system tags"),
+            (new Regex(@"\[/INST\]", RegexOptions.None, TimeSpan.FromMilliseconds(500)), LlmProvider.Meta, 0.7, "Uses [/INST] markers"),
 
             // Mistral signals
-            (new Regex(@"\bMistral\b", RegexOptions.IgnoreCase), LlmProvider.Mistral, 0.8, "References Mistral"),
-            (new Regex(@"\bMixtral\b", RegexOptions.IgnoreCase), LlmProvider.Mistral, 0.7, "References Mixtral"),
+            (new Regex(@"\bMistral\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.Mistral, 0.8, "References Mistral"),
+            (new Regex(@"\bMixtral\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), LlmProvider.Mistral, 0.7, "References Mixtral"),
         };
 
         // Migration rules: (source, target, pattern, replacement_fn, category, severity, description)
@@ -424,108 +424,108 @@ namespace Prompt
         {
             // OpenAI → Anthropic: ChatGPT references
             new(LlmProvider.OpenAI, LlmProvider.Anthropic,
-                new Regex(@"\bChatGPT\b", RegexOptions.IgnoreCase),
+                new Regex(@"\bChatGPT\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                 _ => "Claude", MigrationCategory.RoleConvention, MigrationSeverity.Warning,
                 "Replace ChatGPT references with Claude"),
 
             // OpenAI → Anthropic: GPT model references
             new(LlmProvider.OpenAI, LlmProvider.Anthropic,
-                new Regex(@"\bGPT-?[34][^\s]*\b", RegexOptions.IgnoreCase),
+                new Regex(@"\bGPT-?[34][^\s]*\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                 _ => "Claude", MigrationCategory.RoleConvention, MigrationSeverity.Info,
                 "Replace GPT model references with Claude"),
 
             // OpenAI → Google: ChatGPT references
             new(LlmProvider.OpenAI, LlmProvider.Google,
-                new Regex(@"\bChatGPT\b", RegexOptions.IgnoreCase),
+                new Regex(@"\bChatGPT\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                 _ => "Gemini", MigrationCategory.RoleConvention, MigrationSeverity.Warning,
                 "Replace ChatGPT references with Gemini"),
 
             // Anthropic → OpenAI: Claude references
             new(LlmProvider.Anthropic, LlmProvider.OpenAI,
-                new Regex(@"\bClaude\b"), _ => "ChatGPT",
+                new Regex(@"\bClaude\b", RegexOptions.None, TimeSpan.FromMilliseconds(500)), _ => "ChatGPT",
                 MigrationCategory.RoleConvention, MigrationSeverity.Warning,
                 "Replace Claude references with ChatGPT"),
 
             // Anthropic → Google: Claude references
             new(LlmProvider.Anthropic, LlmProvider.Google,
-                new Regex(@"\bClaude\b"), _ => "Gemini",
+                new Regex(@"\bClaude\b", RegexOptions.None, TimeSpan.FromMilliseconds(500)), _ => "Gemini",
                 MigrationCategory.RoleConvention, MigrationSeverity.Warning,
                 "Replace Claude references with Gemini"),
 
             // Google → OpenAI: Gemini references
             new(LlmProvider.Google, LlmProvider.OpenAI,
-                new Regex(@"\bGemini\b", RegexOptions.IgnoreCase), _ => "ChatGPT",
+                new Regex(@"\bGemini\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), _ => "ChatGPT",
                 MigrationCategory.RoleConvention, MigrationSeverity.Warning,
                 "Replace Gemini references with ChatGPT"),
 
             // Google → Anthropic: Gemini references
             new(LlmProvider.Google, LlmProvider.Anthropic,
-                new Regex(@"\bGemini\b", RegexOptions.IgnoreCase), _ => "Claude",
+                new Regex(@"\bGemini\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), _ => "Claude",
                 MigrationCategory.RoleConvention, MigrationSeverity.Warning,
                 "Replace Gemini references with Claude"),
 
             // Meta → OpenAI: [INST] markers
             new(LlmProvider.Meta, LlmProvider.OpenAI,
-                new Regex(@"\[/?INST\]"), _ => "",
+                new Regex(@"\[/?INST\]", RegexOptions.None, TimeSpan.FromMilliseconds(500)), _ => "",
                 MigrationCategory.Formatting, MigrationSeverity.Warning,
                 "Remove [INST]/[/INST] markers (not used by OpenAI)"),
 
             // Meta → Anthropic: [INST] markers
             new(LlmProvider.Meta, LlmProvider.Anthropic,
-                new Regex(@"\[/?INST\]"), _ => "",
+                new Regex(@"\[/?INST\]", RegexOptions.None, TimeSpan.FromMilliseconds(500)), _ => "",
                 MigrationCategory.Formatting, MigrationSeverity.Warning,
                 "Remove [INST]/[/INST] markers (not used by Anthropic)"),
 
             // Meta → Google: [INST] markers
             new(LlmProvider.Meta, LlmProvider.Google,
-                new Regex(@"\[/?INST\]"), _ => "",
+                new Regex(@"\[/?INST\]", RegexOptions.None, TimeSpan.FromMilliseconds(500)), _ => "",
                 MigrationCategory.Formatting, MigrationSeverity.Warning,
                 "Remove [INST]/[/INST] markers (not used by Google)"),
 
             // Meta → *: <<SYS>> markers
             new(LlmProvider.Meta, LlmProvider.OpenAI,
-                new Regex(@"<</?SYS>>"), _ => "",
+                new Regex(@"<</?SYS>>", RegexOptions.None, TimeSpan.FromMilliseconds(500)), _ => "",
                 MigrationCategory.SystemPrompt, MigrationSeverity.Warning,
                 "Remove <<SYS>> markers (use system message role instead)"),
             new(LlmProvider.Meta, LlmProvider.Anthropic,
-                new Regex(@"<</?SYS>>"), _ => "",
+                new Regex(@"<</?SYS>>", RegexOptions.None, TimeSpan.FromMilliseconds(500)), _ => "",
                 MigrationCategory.SystemPrompt, MigrationSeverity.Warning,
                 "Remove <<SYS>> markers (use system parameter instead)"),
             new(LlmProvider.Meta, LlmProvider.Google,
-                new Regex(@"<</?SYS>>"), _ => "",
+                new Regex(@"<</?SYS>>", RegexOptions.None, TimeSpan.FromMilliseconds(500)), _ => "",
                 MigrationCategory.SystemPrompt, MigrationSeverity.Warning,
                 "Remove <<SYS>> markers (use system_instruction instead)"),
 
             // Anthropic → OpenAI: Human/Assistant markers
             new(LlmProvider.Anthropic, LlmProvider.OpenAI,
-                new Regex(@"^Human:\s?", RegexOptions.Multiline), _ => "User: ",
+                new Regex(@"^Human:\s?", RegexOptions.Multiline, TimeSpan.FromMilliseconds(500)), _ => "User: ",
                 MigrationCategory.RoleConvention, MigrationSeverity.Info,
                 "Replace Human: with User: (OpenAI convention)"),
 
             // Any → Meta: need [INST] markers
             new(null, LlmProvider.Meta,
-                new Regex(@"^(?!\[INST\])(.+)", RegexOptions.None),
+                new Regex(@"^(?!\[INST\])(.+)", RegexOptions.None, TimeSpan.FromMilliseconds(500)),
                 _ => _.Value, // no auto-fix, just flag
                 MigrationCategory.Formatting, MigrationSeverity.Info,
                 "Consider wrapping instructions in [INST][/INST] markers for Llama"),
 
             // Anthropic → *: Anthropic-specific references
             new(LlmProvider.Anthropic, LlmProvider.OpenAI,
-                new Regex(@"\bAnthropic\b"), _ => "OpenAI",
+                new Regex(@"\bAnthropic\b", RegexOptions.None, TimeSpan.FromMilliseconds(500)), _ => "OpenAI",
                 MigrationCategory.RoleConvention, MigrationSeverity.Info,
                 "Replace Anthropic company references"),
             new(LlmProvider.Anthropic, LlmProvider.Google,
-                new Regex(@"\bAnthropic\b"), _ => "Google",
+                new Regex(@"\bAnthropic\b", RegexOptions.None, TimeSpan.FromMilliseconds(500)), _ => "Google",
                 MigrationCategory.RoleConvention, MigrationSeverity.Info,
                 "Replace Anthropic company references"),
 
             // OpenAI → *: OpenAI-specific references
             new(LlmProvider.OpenAI, LlmProvider.Anthropic,
-                new Regex(@"\bOpenAI\b"), _ => "Anthropic",
+                new Regex(@"\bOpenAI\b", RegexOptions.None, TimeSpan.FromMilliseconds(500)), _ => "Anthropic",
                 MigrationCategory.RoleConvention, MigrationSeverity.Info,
                 "Replace OpenAI company references"),
             new(LlmProvider.OpenAI, LlmProvider.Google,
-                new Regex(@"\bOpenAI\b"), _ => "Google",
+                new Regex(@"\bOpenAI\b", RegexOptions.None, TimeSpan.FromMilliseconds(500)), _ => "Google",
                 MigrationCategory.RoleConvention, MigrationSeverity.Info,
                 "Replace OpenAI company references"),
         };
@@ -677,7 +677,7 @@ namespace Prompt
             }
 
             // Clean up whitespace artifacts
-            migrated = Regex.Replace(migrated, @"\n{3,}", "\n\n");
+            migrated = Regex.Replace(migrated, @"\n{3,}", "\n\n", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             migrated = migrated.Trim();
 
             // Recalculate issues after migration
@@ -792,7 +792,7 @@ namespace Prompt
             var issues = new List<MigrationIssue>();
 
             // XML tags: Anthropic loves them, others are neutral
-            var xmlTagCount = Regex.Matches(prompt, @"</?[a-zA-Z_][a-zA-Z0-9_-]*>").Count;
+            var xmlTagCount = Regex.Matches(prompt, @"</?[a-zA-Z_][a-zA-Z0-9_-]*>", RegexOptions.None, TimeSpan.FromMilliseconds(500)).Count;
             if (source == LlmProvider.Anthropic && xmlTagCount > 2 &&
                 target != LlmProvider.Anthropic)
             {
@@ -808,7 +808,7 @@ namespace Prompt
 
             // [INST] markers: Llama/Mistral
             if ((source == LlmProvider.Meta || source == LlmProvider.Mistral) &&
-                Regex.IsMatch(prompt, @"\[INST\]") &&
+                Regex.IsMatch(prompt, @"\[INST\]", RegexOptions.None, TimeSpan.FromMilliseconds(500)) &&
                 target != LlmProvider.Meta && target != LlmProvider.Mistral)
             {
                 issues.Add(new MigrationIssue
@@ -822,7 +822,7 @@ namespace Prompt
             }
 
             // <<SYS>> markers: Llama
-            if (source == LlmProvider.Meta && Regex.IsMatch(prompt, @"<<SYS>>") &&
+            if (source == LlmProvider.Meta && Regex.IsMatch(prompt, @"<<SYS>>", RegexOptions.None, TimeSpan.FromMilliseconds(500)) &&
                 target != LlmProvider.Meta)
             {
                 issues.Add(new MigrationIssue
@@ -836,7 +836,7 @@ namespace Prompt
             }
 
             // Human/Assistant markers: Anthropic convention
-            if (Regex.IsMatch(prompt, @"^Human:\s", RegexOptions.Multiline) &&
+            if (Regex.IsMatch(prompt, @"^Human:\s", RegexOptions.Multiline, TimeSpan.FromMilliseconds(500)) &&
                 target != LlmProvider.Anthropic)
             {
                 issues.Add(new MigrationIssue
@@ -850,7 +850,7 @@ namespace Prompt
             }
 
             // Markdown structure check
-            var hasMarkdownHeaders = Regex.IsMatch(prompt, @"^#{1,3}\s", RegexOptions.Multiline);
+            var hasMarkdownHeaders = Regex.IsMatch(prompt, @"^#{1,3}\s", RegexOptions.Multiline, TimeSpan.FromMilliseconds(500));
             if (!hasMarkdownHeaders && prompt.Length > 500 &&
                 target == LlmProvider.OpenAI)
             {
@@ -874,7 +874,7 @@ namespace Prompt
             var targetProfile = GetProfile(target);
 
             // JSON mode references
-            if (Regex.IsMatch(prompt, @"response_format.*json|json_object", RegexOptions.IgnoreCase) &&
+            if (Regex.IsMatch(prompt, @"response_format.*json|json_object", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)) &&
                 !targetProfile.SupportsJson)
             {
                 issues.Add(new MigrationIssue
@@ -888,7 +888,7 @@ namespace Prompt
             }
 
             // Tool/function calling references
-            if (Regex.IsMatch(prompt, @"\bfunction[_\s]?call|tool[_\s]?use|tool_choice", RegexOptions.IgnoreCase) &&
+            if (Regex.IsMatch(prompt, @"\bfunction[_\s]?call|tool[_\s]?use|tool_choice", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)) &&
                 !targetProfile.SupportsToolCalling)
             {
                 issues.Add(new MigrationIssue
@@ -902,7 +902,7 @@ namespace Prompt
             }
 
             // Image references
-            if (Regex.IsMatch(prompt, @"\bimage_url|vision|image\s+input", RegexOptions.IgnoreCase) &&
+            if (Regex.IsMatch(prompt, @"\bimage_url|vision|image\s+input", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)) &&
                 !targetProfile.SupportsImages)
             {
                 issues.Add(new MigrationIssue
@@ -917,7 +917,7 @@ namespace Prompt
 
             // Thinking blocks: Anthropic → others
             if (source == LlmProvider.Anthropic &&
-                Regex.IsMatch(prompt, @"<thinking>|think step by step in <thinking> tags", RegexOptions.IgnoreCase) &&
+                Regex.IsMatch(prompt, @"<thinking>|think step by step in <thinking> tags", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)) &&
                 target != LlmProvider.Anthropic)
             {
                 issues.Add(new MigrationIssue
@@ -932,7 +932,7 @@ namespace Prompt
 
             // System instruction reference: Google → others
             if (source == LlmProvider.Google &&
-                Regex.IsMatch(prompt, @"system_instruction", RegexOptions.IgnoreCase) &&
+                Regex.IsMatch(prompt, @"system_instruction", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)) &&
                 target != LlmProvider.Google)
             {
                 issues.Add(new MigrationIssue

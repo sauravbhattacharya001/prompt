@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 namespace Prompt
 {
     using System.Text.Json;
@@ -51,7 +52,7 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Environment name cannot be empty.", nameof(name));
 
-            if (!System.Text.RegularExpressions.Regex.IsMatch(name, @"^[a-zA-Z0-9_-]+$"))
+            if (!System.Text.RegularExpressions.Regex.IsMatch(name, @"^[a-zA-Z0-9_-]+$", RegexOptions.None, TimeSpan.FromMilliseconds(500)))
                 throw new ArgumentException(
                     "Environment name must contain only letters, digits, hyphens, and underscores.",
                     nameof(name));

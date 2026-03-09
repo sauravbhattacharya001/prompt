@@ -40,7 +40,7 @@ namespace Prompt
         internal const int MaxJsonPayloadBytes = SerializationGuards.MaxJsonPayloadBytes;
 
         private static readonly Regex VariablePattern =
-            new Regex(@"\{\{(\w+)\}\}", RegexOptions.Compiled);
+            new Regex(@"\{\{(\w+)\}\}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private readonly string _template;
         private readonly Dictionary<string, string> _defaults;

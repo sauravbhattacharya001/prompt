@@ -337,7 +337,7 @@ namespace Prompt
         /// </summary>
         private DimensionScore EvaluateConciseness(string prompt, string response)
         {
-            var words = Regex.Split(response, @"\s+")
+            var words = Regex.Split(response, @"\s+", RegexOptions.None, TimeSpan.FromMilliseconds(500))
                 .Where(w => w.Length > 0).ToArray();
 
             if (words.Length == 0)
@@ -361,12 +361,12 @@ namespace Prompt
             double uniqueRatio = (double)uniqueWords.Count / words.Length;
 
             // 3. Length proportionality — very long responses to short prompts are penalized
-            var promptWords = Regex.Split(prompt, @"\s+").Where(w => w.Length > 0).Count();
+            var promptWords = Regex.Split(prompt, @"\s+", RegexOptions.None, TimeSpan.FromMilliseconds(500)).Where(w => w.Length > 0).Count();
             double lengthRatio = (double)words.Length / Math.Max(1, promptWords);
             double lengthPenalty = lengthRatio > 20 ? 0.15 : lengthRatio > 10 ? 0.05 : 0;
 
             // 4. Sentence-level repetition
-            var sentences = Regex.Split(response, @"[.!?]+")
+            var sentences = Regex.Split(response, @"[.!?]+", RegexOptions.None, TimeSpan.FromMilliseconds(500))
                 .Select(s => s.Trim().ToLowerInvariant())
                 .Where(s => s.Length > 10)
                 .ToList();
@@ -402,18 +402,18 @@ namespace Prompt
             double penalty = 0;
 
             // 1. Check for PII patterns
-            if (Regex.IsMatch(response, @"\b\d{3}-\d{2}-\d{4}\b"))
+            if (Regex.IsMatch(response, @"\b\d{3}-\d{2}-\d{4}\b", RegexOptions.None, TimeSpan.FromMilliseconds(500)))
             {
                 issues.Add("Possible SSN detected");
                 penalty += 0.3;
             }
-            if (Regex.IsMatch(response, @"\b\d{16}\b|\b\d{4}[- ]\d{4}[- ]\d{4}[- ]\d{4}\b"))
+            if (Regex.IsMatch(response, @"\b\d{16}\b|\b\d{4}[- ]\d{4}[- ]\d{4}[- ]\d{4}\b", RegexOptions.None, TimeSpan.FromMilliseconds(500)))
             {
                 issues.Add("Possible credit card number");
                 penalty += 0.3;
             }
             if (Regex.IsMatch(response, @"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
-                RegexOptions.IgnoreCase))
+                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)))
             {
                 issues.Add("Email address detected");
                 penalty += 0.1;
@@ -429,7 +429,7 @@ namespace Prompt
             };
             foreach (var pattern in leakagePatterns)
             {
-                if (Regex.IsMatch(response, pattern))
+                if (Regex.IsMatch(response, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(500)))
                 {
                     issues.Add("Possible system prompt leakage");
                     penalty += 0.15;
@@ -445,7 +445,7 @@ namespace Prompt
             };
             foreach (var pattern in refusalPatterns)
             {
-                if (Regex.IsMatch(response.Trim(), pattern))
+                if (Regex.IsMatch(response.Trim(), pattern, RegexOptions.None, TimeSpan.FromMilliseconds(500)))
                 {
                     issues.Add("Canned refusal detected");
                     penalty += 0.2;
@@ -487,7 +487,7 @@ namespace Prompt
                 "please", "make", "create", "show", "include"
             };
 
-            var words = Regex.Split(text.ToLowerInvariant(), @"[^\w]+")
+            var words = Regex.Split(text.ToLowerInvariant(), @"[^\w]+", RegexOptions.None, TimeSpan.FromMilliseconds(500))
                 .Where(w => w.Length > 2 && !stopWords.Contains(w))
                 .ToHashSet();
 
@@ -499,7 +499,7 @@ namespace Prompt
         /// </summary>
         internal static List<string> ExtractEntities(string text)
         {
-            var matches = Regex.Matches(text, @"(?<=[.!?]\s+|\n)([A-Z][a-z]+)|(?<=\s)([A-Z][a-z]{2,})");
+            var matches = Regex.Matches(text, @"(?<=[.!?]\s+|\n)([A-Z][a-z]+)|(?<=\s)([A-Z][a-z]{2,})", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             return matches.Select(m => m.Value)
                 .Where(v => v.Length > 2)
                 .Distinct()
@@ -516,24 +516,24 @@ namespace Prompt
             var parts = new List<string>();
 
             // Try numbered items: "1. ... 2. ... 3. ..."
-            var numbered = Regex.Split(prompt, @"(?<=\n|^)\s*\d+[.)]\s*")
+            var numbered = Regex.Split(prompt, @"(?<=\n|^)\s*\d+[.)]\s*", RegexOptions.None, TimeSpan.FromMilliseconds(500))
                 .Where(s => s.Trim().Length > 5).ToList();
             if (numbered.Count > 1) return numbered;
 
             // Try bullet points
-            var bullets = Regex.Split(prompt, @"(?<=\n|^)\s*[-*\u2022]\s+")
+            var bullets = Regex.Split(prompt, @"(?<=\n|^)\s*[-*\u2022]\s+", RegexOptions.None, TimeSpan.FromMilliseconds(500))
                 .Where(s => s.Trim().Length > 5).ToList();
             if (bullets.Count > 1) return bullets;
 
             // Try "and"/"also" conjunctions for multi-instruction prompts
             var conjunctions = Regex.Split(prompt,
                 @"\b(?:and also|and then|also|additionally|furthermore|moreover)\b",
-                RegexOptions.IgnoreCase)
+                RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500))
                 .Where(s => s.Trim().Length > 10).ToList();
             if (conjunctions.Count > 1) return conjunctions;
 
             // Try multiple questions
-            var questions = Regex.Split(prompt, @"\?\s+")
+            var questions = Regex.Split(prompt, @"\?\s+", RegexOptions.None, TimeSpan.FromMilliseconds(500))
                 .Where(s => s.Trim().Length > 5).ToList();
             if (questions.Count > 1) return questions;
 
@@ -548,15 +548,15 @@ namespace Prompt
         {
             var lower = prompt.ToLowerInvariant();
 
-            if (Regex.IsMatch(lower, @"\bjson\b|json format|json object|json array"))
+            if (Regex.IsMatch(lower, @"\bjson\b|json format|json object|json array", RegexOptions.None, TimeSpan.FromMilliseconds(500)))
                 return ResponseFormat.Json;
-            if (Regex.IsMatch(lower, @"\blist\b.*\d|numbered list|bullet(ed)? (list|points?)"))
+            if (Regex.IsMatch(lower, @"\blist\b.*\d|numbered list|bullet(ed)? (list|points?)", RegexOptions.None, TimeSpan.FromMilliseconds(500)))
                 return ResponseFormat.List;
-            if (Regex.IsMatch(lower, @"\bcode\b|function|class|implement|program|script"))
+            if (Regex.IsMatch(lower, @"\bcode\b|function|class|implement|program|script", RegexOptions.None, TimeSpan.FromMilliseconds(500)))
                 return ResponseFormat.Code;
-            if (Regex.IsMatch(lower, @"\btable\b|tabular|columns?|rows?.*header"))
+            if (Regex.IsMatch(lower, @"\btable\b|tabular|columns?|rows?.*header", RegexOptions.None, TimeSpan.FromMilliseconds(500)))
                 return ResponseFormat.Table;
-            if (Regex.IsMatch(lower, @"step.by.step|steps?\b|instructions?|how to"))
+            if (Regex.IsMatch(lower, @"step.by.step|steps?\b|instructions?|how to", RegexOptions.None, TimeSpan.FromMilliseconds(500)))
                 return ResponseFormat.StepByStep;
 
             return ResponseFormat.None;
@@ -565,7 +565,7 @@ namespace Prompt
         private static bool ContainsJson(string text)
         {
             // Look for { ... } or [ ... ] blocks
-            var match = Regex.Match(text, @"[\[{][\s\S]*?[\]}]");
+            var match = Regex.Match(text, @"[\[{][\s\S]*?[\]}]", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             if (!match.Success) return false;
             try
             {
@@ -577,25 +577,25 @@ namespace Prompt
 
         private static bool ContainsList(string text)
         {
-            return Regex.IsMatch(text, @"(?m)^\s*(\d+[.)]\s+|-\s+|\*\s+|\u2022\s+)");
+            return Regex.IsMatch(text, @"(?m)^\s*(\d+[.)]\s+|-\s+|\*\s+|\u2022\s+)", RegexOptions.None, TimeSpan.FromMilliseconds(500));
         }
 
         private static bool ContainsCodeBlock(string text)
         {
             return text.Contains("```") ||
-                   Regex.IsMatch(text, @"(?m)^    \S.*\n(    \S.*\n){2,}");
+                   Regex.IsMatch(text, @"(?m)^    \S.*\n(    \S.*\n){2,}", RegexOptions.None, TimeSpan.FromMilliseconds(500));
         }
 
         private static bool ContainsTable(string text)
         {
-            return Regex.IsMatch(text, @"\|.*\|.*\|") &&
-                   Regex.IsMatch(text, @"\|[\s-:]+\|");
+            return Regex.IsMatch(text, @"\|.*\|.*\|", RegexOptions.None, TimeSpan.FromMilliseconds(500)) &&
+                   Regex.IsMatch(text, @"\|[\s-:]+\|", RegexOptions.None, TimeSpan.FromMilliseconds(500));
         }
 
         private static bool ContainsSteps(string text)
         {
             var stepMatches = Regex.Matches(text,
-                @"(?mi)^(?:step\s+\d+|(?:\d+)[.)]\s)");
+                @"(?mi)^(?:step\s+\d+|(?:\d+)[.)]\s)", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             return stepMatches.Count >= 2;
         }
 

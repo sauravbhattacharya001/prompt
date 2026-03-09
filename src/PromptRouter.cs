@@ -155,7 +155,7 @@ namespace Prompt
         {
             var results = new List<RouteMatch>();
             var lowerInput = (input ?? "").ToLowerInvariant();
-            var words = Regex.Split(lowerInput, @"\W+").Where(w => w.Length > 0).ToHashSet();
+            var words = Regex.Split(lowerInput, @"\W+", RegexOptions.None, TimeSpan.FromMilliseconds(500)).Where(w => w.Length > 0).ToHashSet();
 
             foreach (var (name, config) in _routes)
             {

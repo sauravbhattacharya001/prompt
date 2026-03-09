@@ -219,7 +219,7 @@ namespace Prompt
             var results = new List<ExplainerTechnique>();
             foreach (var (pattern, name, desc) in TechniquePatterns)
             {
-                var matches = Regex.Matches(prompt, pattern);
+                var matches = Regex.Matches(prompt, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(500));
                 if (matches.Count > 0)
                 {
                     var best = matches[0];
@@ -254,7 +254,7 @@ namespace Prompt
 
                 foreach (var (pattern, sectionType, explTemplate) in SectionPatterns)
                 {
-                    if (Regex.IsMatch(line, pattern))
+                    if (Regex.IsMatch(line, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(500)))
                     {
                         matchedType = sectionType;
                         explanation = explTemplate;
@@ -263,7 +263,7 @@ namespace Prompt
                 }
 
                 // Also detect markdown-style headers as section boundaries
-                if (matchedType == null && Regex.IsMatch(line, @"^#{1,3}\s+\S"))
+                if (matchedType == null && Regex.IsMatch(line, @"^#{1,3}\s+\S", RegexOptions.None, TimeSpan.FromMilliseconds(500)))
                 {
                     matchedType = "Heading";
                     explanation = "Section header: " + line.TrimStart('#', ' ');
@@ -375,7 +375,7 @@ namespace Prompt
             }
 
             // Check for excessive negative constraints
-            var negCount = Regex.Matches(prompt, @"(?i)\b(do not|don'?t|never|must not)\b").Count;
+            var negCount = Regex.Matches(prompt, @"(?i)\b(do not|don'?t|never|must not)\b", RegexOptions.None, TimeSpan.FromMilliseconds(500)).Count;
             if (negCount > 5)
             {
                 suggestions.Add(new ExplainerSuggestion
@@ -387,7 +387,7 @@ namespace Prompt
             }
 
             // Check for ambiguous pronouns
-            var pronounMatches = Regex.Matches(prompt, @"(?i)\b(it|this|that|these|those|they)\b(?!\s+(?:is|are|was|were|should|must|will|can))");
+            var pronounMatches = Regex.Matches(prompt, @"(?i)\b(it|this|that|these|those|they)\b(?!\s+(?:is|are|was|were|should|must|will|can))", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             if (pronounMatches.Count > 8)
             {
                 suggestions.Add(new ExplainerSuggestion
@@ -400,7 +400,7 @@ namespace Prompt
 
             // Suggest chain-of-thought for complex tasks
             if (!techniques.Any(t => t.Name == "Chain-of-Thought") &&
-                (Regex.IsMatch(prompt, @"(?i)\b(analyze|compare|evaluate|explain|solve|debug|reason)\b")))
+                (Regex.IsMatch(prompt, @"(?i)\b(analyze|compare|evaluate|explain|solve|debug|reason)\b", RegexOptions.None, TimeSpan.FromMilliseconds(500))))
             {
                 suggestions.Add(new ExplainerSuggestion
                 {
@@ -412,7 +412,7 @@ namespace Prompt
 
             // Check for no examples on classification/extraction tasks
             if (!techniques.Any(t => t.Name == "Few-Shot") &&
-                Regex.IsMatch(prompt, @"(?i)\b(classify|categorize|extract|identify|label|tag)\b"))
+                Regex.IsMatch(prompt, @"(?i)\b(classify|categorize|extract|identify|label|tag)\b", RegexOptions.None, TimeSpan.FromMilliseconds(500)))
             {
                 suggestions.Add(new ExplainerSuggestion
                 {

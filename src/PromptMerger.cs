@@ -145,11 +145,11 @@ namespace Prompt
 
         private static readonly Regex HeadingPattern = new(
             @"^(?:#{1,4}\s+(.+)|([A-Z][A-Z\s]{2,}):)\s*$",
-            RegexOptions.Multiline | RegexOptions.Compiled);
+            RegexOptions.Multiline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex VariablePattern = new(
             @"\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}",
-            RegexOptions.Compiled);
+            RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         /// <summary>Merges multiple prompts into a single cohesive prompt.</summary>
         public MergeResult Merge(IEnumerable<string> prompts, MergeOptions? options = null)
@@ -424,7 +424,7 @@ namespace Prompt
         }
 
         private static string NormalizeSectionName(string name)
-            => Regex.Replace(name.Trim().ToLowerInvariant(), @"\s+", " ");
+            => Regex.Replace(name.Trim().ToLowerInvariant(), @"\s+", " ", RegexOptions.None, TimeSpan.FromMilliseconds(500));
 
         private (string merged, int removed) ResolveSectionConflict(List<MergedSection> group, MergeOptions opts)
         {

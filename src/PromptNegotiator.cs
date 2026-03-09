@@ -551,7 +551,7 @@ namespace Prompt
             {
                 ValidationRuleKind.JsonFormat => IsValidJson(response),
                 ValidationRuleKind.RegexMatch => !string.IsNullOrEmpty(rule.Parameter) &&
-                    System.Text.RegularExpressions.Regex.IsMatch(response, rule.Parameter),
+                    System.Text.RegularExpressions.Regex.IsMatch(response, rule.Parameter, RegexOptions.None, TimeSpan.FromMilliseconds(500)),
                 ValidationRuleKind.LengthRange => EvaluateLength(rule, response),
                 ValidationRuleKind.ContainsKeywords => EvaluateContains(rule, response),
                 ValidationRuleKind.ExcludesKeywords => EvaluateExcludes(rule, response),

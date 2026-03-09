@@ -164,11 +164,11 @@ namespace Prompt
     /// </summary>
     public class PromptDocGenerator
     {
-        private static readonly Regex VariablePattern = new(@"\{\{(\w+)\}\}", RegexOptions.Compiled);
-        private static readonly Regex HeadingPattern = new(@"^(#{1,6})\s+(.+)$", RegexOptions.Multiline | RegexOptions.Compiled);
-        private static readonly Regex MetadataPattern = new(@"^@(\w+)\s*:\s*(.+)$", RegexOptions.Multiline | RegexOptions.Compiled);
-        private static readonly Regex ConditionalPattern = new(@"\{\{#if\s+(\w+)\}\}.*?\{\{/if\}\}", RegexOptions.Singleline | RegexOptions.Compiled);
-        private static readonly Regex LoopPattern = new(@"\{\{#each\s+(\w+)\}\}.*?\{\{/each\}\}", RegexOptions.Singleline | RegexOptions.Compiled);
+        private static readonly Regex VariablePattern = new(@"\{\{(\w+)\}\}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        private static readonly Regex HeadingPattern = new(@"^(#{1,6})\s+(.+)$", RegexOptions.Multiline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        private static readonly Regex MetadataPattern = new(@"^@(\w+)\s*:\s*(.+)$", RegexOptions.Multiline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        private static readonly Regex ConditionalPattern = new(@"\{\{#if\s+(\w+)\}\}.*?\{\{/if\}\}", RegexOptions.Singleline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        private static readonly Regex LoopPattern = new(@"\{\{#each\s+(\w+)\}\}.*?\{\{/each\}\}", RegexOptions.Singleline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private readonly DocGeneratorOptions _options;
 
@@ -581,7 +581,7 @@ namespace Prompt
                 var doc = catalog.Prompts[i];
                 string md = ToMarkdown(doc);
                 // Bump heading levels for catalog embedding
-                md = Regex.Replace(md, @"^(#{1,5})", "$1#", RegexOptions.Multiline);
+                md = Regex.Replace(md, @"^(#{1,5})", "$1#", RegexOptions.Multiline, TimeSpan.FromMilliseconds(500));
                 sb.Append(md);
             }
 
