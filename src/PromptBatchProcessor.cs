@@ -377,6 +377,7 @@ namespace Prompt
     public class PromptBatchProcessor
     {
         private readonly List<BatchItem> _items = new();
+        private readonly Dictionary<string, BatchItem> _itemsById = new(StringComparer.Ordinal);
         private readonly object _lock = new();
         private Action<BatchProgress>? _progressCallback;
         private Func<string, string?>? _processFunc;
@@ -423,10 +424,17 @@ namespace Prompt
                 if (_items.Count >= MaxBatchSize)
                     throw new InvalidOperationException(
                         $"Batch size cannot exceed {MaxBatchSize} items.");
-                if (_items.Any(i => i.Id == id))
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    // Let BatchItem constructor throw the proper ArgumentException
+                    _ = new BatchItem(id, template, variables, tags);
+                }
+                if (_itemsById.ContainsKey(id))
                     throw new ArgumentException(
                         $"An item with ID '{id}' already exists in the batch.", nameof(id));
-                _items.Add(new BatchItem(id, template, variables, tags));
+                var item = new BatchItem(id, template, variables, tags);
+                _items.Add(item);
+                _itemsById[id] = item;
             }
             return this;
         }
@@ -526,7 +534,11 @@ namespace Prompt
         /// </summary>
         public void Clear()
         {
-            lock (_lock) _items.Clear();
+            lock (_lock)
+            {
+                _items.Clear();
+                _itemsById.Clear();
+            }
         }
 
         /// <summary>
@@ -602,7 +614,7 @@ namespace Prompt
         public BatchItem? ProcessSingle(string id)
         {
             BatchItem? item;
-            lock (_lock) item = _items.FirstOrDefault(i => i.Id == id);
+            lock (_lock) _itemsById.TryGetValue(id, out item);
             if (item == null) return null;
 
             ProcessSingleItem(item);
@@ -616,7 +628,7 @@ namespace Prompt
         /// <returns>The batch item, or null if not found.</returns>
         public BatchItem? GetItem(string id)
         {
-            lock (_lock) return _items.FirstOrDefault(i => i.Id == id);
+            lock (_lock) return _itemsById.TryGetValue(id, out var item) ? item : null;
         }
 
         /// <summary>
