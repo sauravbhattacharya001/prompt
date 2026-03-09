@@ -198,6 +198,9 @@ namespace Prompt
         /// <summary>Maximum estimated output tokens allowed.</summary>
         public const int MaxOutputTokens = 1_000_000;
 
+        /// <summary>Catalog version date for built-in pricing data.</summary>
+        public const string CatalogVersion = "2026-03-09";
+
         /// <summary>Default estimated output tokens if not specified.</summary>
         public const int DefaultOutputTokens = 1_000;
 
@@ -428,18 +431,22 @@ namespace Prompt
             // OpenAI
             _models.Add(new ModelPricing("gpt-4o", "OpenAI", "GPT-4o", 2.50m, 10.00m, 128_000, 16_384));
             _models.Add(new ModelPricing("gpt-4o-mini", "OpenAI", "GPT-4o Mini", 0.15m, 0.60m, 128_000, 16_384));
+            _models.Add(new ModelPricing("gpt-4.5-preview", "OpenAI", "GPT-4.5 Preview", 75.00m, 150.00m, 128_000, 16_384));
             _models.Add(new ModelPricing("gpt-4-turbo", "OpenAI", "GPT-4 Turbo", 10.00m, 30.00m, 128_000, 4_096));
             _models.Add(new ModelPricing("o1", "OpenAI", "o1", 15.00m, 60.00m, 200_000, 100_000));
             _models.Add(new ModelPricing("o1-mini", "OpenAI", "o1-mini", 3.00m, 12.00m, 128_000, 65_536));
             _models.Add(new ModelPricing("o3-mini", "OpenAI", "o3-mini", 1.10m, 4.40m, 200_000, 100_000));
 
             // Anthropic
+            _models.Add(new ModelPricing("claude-4-sonnet", "Anthropic", "Claude 4 Sonnet", 3.00m, 15.00m, 200_000, 16_000));
+            _models.Add(new ModelPricing("claude-3.7-sonnet", "Anthropic", "Claude 3.7 Sonnet", 3.00m, 15.00m, 200_000, 128_000));
             _models.Add(new ModelPricing("claude-3-5-sonnet", "Anthropic", "Claude 3.5 Sonnet", 3.00m, 15.00m, 200_000, 8_192));
             _models.Add(new ModelPricing("claude-3-5-haiku", "Anthropic", "Claude 3.5 Haiku", 0.80m, 4.00m, 200_000, 8_192));
             _models.Add(new ModelPricing("claude-3-opus", "Anthropic", "Claude 3 Opus", 15.00m, 75.00m, 200_000, 4_096));
 
             // Google
-            _models.Add(new ModelPricing("gemini-2.0-flash", "Google", "Gemini 2.0 Flash", 0.10m, 0.40m, 1_000_000, 8_192));
+            _models.Add(new ModelPricing("gemini-2.5-pro", "Google", "Gemini 2.5 Pro", 1.25m, 10.00m, 1_048_576, 65_536));
+            _models.Add(new ModelPricing("gemini-2.0-flash", "Google", "Gemini 2.0 Flash", 0.10m, 0.40m, 1_048_576, 8_192));
             _models.Add(new ModelPricing("gemini-1.5-pro", "Google", "Gemini 1.5 Pro", 1.25m, 5.00m, 2_000_000, 8_192));
 
             // DeepSeek

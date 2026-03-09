@@ -142,8 +142,7 @@ namespace Prompt
 
         // ── Regex timeout guard ──────────────────────────────────
 
-        /// <summary>Maximum allowed regex evaluation time.</summary>
-        private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(2);
+        // (Uses RegexTimeout defined at class top — 500ms)
 
         // ── Pre-compiled regex patterns for hot-path methods ────
 
