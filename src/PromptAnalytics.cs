@@ -268,17 +268,9 @@ namespace Prompt
         /// <returns>Number of templates imported.</returns>
         public static PromptAnalytics FromJson(string json)
         {
-            if (string.IsNullOrWhiteSpace(json))
-                throw new ArgumentException("JSON string cannot be null or empty.", nameof(json));
+            SerializationGuards.ValidateJsonInput(json);
 
-            SerializationGuards.ThrowIfPayloadTooLarge(json);
-
-            var options = new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            };
-            var data = JsonSerializer.Deserialize<AnalyticsData>(json, options)
-                ?? throw new InvalidOperationException("Invalid analytics JSON.");
+            var data = SerializationGuards.SafeDeserialize<AnalyticsData>(json);
 
             var analytics = new PromptAnalytics();
             foreach (var t in data.Templates)

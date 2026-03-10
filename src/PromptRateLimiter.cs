@@ -631,10 +631,7 @@ namespace Prompt
         /// <returns>A new rate limiter with the deserialized profiles.</returns>
         public static PromptRateLimiter FromJson(string json)
         {
-            if (string.IsNullOrWhiteSpace(json))
-                throw new ArgumentException("JSON cannot be empty.", nameof(json));
-
-            SerializationGuards.ThrowIfPayloadTooLarge(json);
+            SerializationGuards.ValidateJsonInput(json);
 
             var profiles = JsonSerializer.Deserialize<List<RateLimitProfile>>(json, SerializationGuards.WriteIndented);
             var limiter = new PromptRateLimiter();

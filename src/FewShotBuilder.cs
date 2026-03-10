@@ -592,10 +592,7 @@ namespace Prompt
         /// <summary>Deserialize a builder from a JSON string.</summary>
         public static FewShotBuilder FromJson(string json)
         {
-            if (string.IsNullOrEmpty(json))
-                throw new ArgumentException("JSON string cannot be null or empty.", nameof(json));
-
-            SerializationGuards.ThrowIfPayloadTooLarge(json);
+            SerializationGuards.ValidateJsonInput(json);
 
             var dto = JsonSerializer.Deserialize<FewShotDto>(json, SerializationGuards.ReadWithEnums);
 

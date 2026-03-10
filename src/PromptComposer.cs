@@ -348,10 +348,7 @@ namespace Prompt
         /// <exception cref="InvalidOperationException">Thrown when the JSON payload is too large.</exception>
         public static PromptComposer FromJson(string json)
         {
-            if (string.IsNullOrWhiteSpace(json))
-                throw new ArgumentException("JSON cannot be empty.", nameof(json));
-
-            SerializationGuards.ThrowIfPayloadTooLarge(json);
+            SerializationGuards.ValidateJsonInput(json);
 
             var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;

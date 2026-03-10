@@ -252,7 +252,7 @@ namespace Prompt
         /// <summary>Deserialize router configuration from JSON.</summary>
         public static PromptRouter FromJson(string json, PromptLibrary? library = null)
         {
-            SerializationGuards.ThrowIfPayloadTooLarge(json);
+            SerializationGuards.ValidateJsonInput(json);
 
             var data = JsonSerializer.Deserialize<RouterData>(json, SerializationGuards.ReadCamelCase);
 

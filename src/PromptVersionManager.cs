@@ -493,11 +493,7 @@ namespace Prompt
         /// </exception>
         public static PromptVersionManager FromJson(string json)
         {
-            if (string.IsNullOrWhiteSpace(json))
-                throw new ArgumentException(
-                    "JSON string cannot be null or empty.", nameof(json));
-
-            SerializationGuards.ThrowIfPayloadTooLarge(json);
+            SerializationGuards.ValidateJsonInput(json);
 
             var wrapper = JsonSerializer.Deserialize<VersionManagerData>(json,
                 SerializationGuards.ReadCamelCase);

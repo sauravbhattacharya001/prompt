@@ -608,12 +608,7 @@ namespace Prompt
         /// </exception>
         public static Conversation LoadFromJson(string json)
         {
-            if (string.IsNullOrWhiteSpace(json))
-                throw new ArgumentException(
-                    "JSON string cannot be null or empty.", nameof(json));
-
-            // Guard against oversized payloads that could cause memory exhaustion
-            SerializationGuards.ThrowIfPayloadTooLarge(json);
+            SerializationGuards.ValidateJsonInput(json);
 
             var data = JsonSerializer.Deserialize<ConversationData>(json, SerializationGuards.ReadCamelCase);
 

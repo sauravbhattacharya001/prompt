@@ -714,7 +714,7 @@ namespace Prompt.Tests
         [Fact]
         public void FromJson_NullString_Throws()
         {
-            Assert.Throws<ArgumentNullException>(() => PromptCache.FromJson(null!));
+            Assert.Throws<ArgumentException>(() => PromptCache.FromJson(null!));
         }
 
         [Fact]
