@@ -419,11 +419,7 @@ namespace Prompt
         /// </summary>
         public static TokenBudget FromJson(string json)
         {
-            if (string.IsNullOrWhiteSpace(json))
-                throw new ArgumentException(
-                    "JSON string cannot be null or empty.", nameof(json));
-
-            SerializationGuards.ThrowIfPayloadTooLarge(json);
+            SerializationGuards.ValidateJsonInput(json);
 
             var data = JsonSerializer.Deserialize<TokenBudgetData>(json, SerializationGuards.ReadCamelCase)
                 ?? throw new InvalidOperationException(

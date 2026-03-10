@@ -543,7 +543,7 @@ namespace Prompt
         /// <exception cref="JsonException">If deserialization fails.</exception>
         public static PromptTestSuite FromJson(string json)
         {
-            SerializationGuards.ThrowIfPayloadTooLarge(json);
+            SerializationGuards.ValidateJsonInput(json);
             var data = JsonSerializer.Deserialize<SuiteData>(json, SerializationGuards.ReadCamelCase) ?? throw new JsonException("Failed to deserialize PromptTestSuite.");
 
             var suite = new PromptTestSuite(data.Name ?? "Unnamed");

@@ -92,6 +92,45 @@ namespace Prompt
         // ── Payload guards ───────────────────────────────────────────
 
         /// <summary>
+        /// Validates a JSON input string: checks for null/empty and oversized payloads.
+        /// Combines the null check and size guard that most FromJson methods need.
+        /// </summary>
+        /// <param name="json">The JSON string to validate.</param>
+        /// <param name="paramName">Parameter name for the exception (default: "json").</param>
+        /// <exception cref="ArgumentException">
+        /// Thrown when <paramref name="json"/> is null or whitespace.
+        /// </exception>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown when the payload exceeds <see cref="MaxJsonPayloadBytes"/>.
+        /// </exception>
+        internal static void ValidateJsonInput(string json, string paramName = "json")
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                throw new ArgumentException("JSON string cannot be null or empty.", paramName);
+            ThrowIfPayloadTooLarge(json);
+        }
+
+        /// <summary>
+        /// Deserializes JSON with input validation and size guard.
+        /// Combines null check, payload size check, and deserialization.
+        /// </summary>
+        /// <typeparam name="T">Target type to deserialize into.</typeparam>
+        /// <param name="json">JSON string to deserialize.</param>
+        /// <param name="options">JSON serializer options (null uses defaults).</param>
+        /// <param name="paramName">Parameter name for exceptions (default: "json").</param>
+        /// <returns>The deserialized object.</returns>
+        /// <exception cref="ArgumentException">If JSON is null or whitespace.</exception>
+        /// <exception cref="InvalidOperationException">If payload too large or deserialization returns null.</exception>
+        internal static T SafeDeserialize<T>(string json, JsonSerializerOptions? options = null,
+            string paramName = "json") where T : class
+        {
+            ValidateJsonInput(json, paramName);
+            return JsonSerializer.Deserialize<T>(json, options ?? ReadCamelCase)
+                ?? throw new InvalidOperationException(
+                    $"Failed to deserialize JSON to {typeof(T).Name}.");
+        }
+
+        /// <summary>
         /// Throws <see cref="InvalidOperationException"/> if the JSON string
         /// exceeds <see cref="MaxJsonPayloadBytes"/> in UTF-8 encoded size.
         /// </summary>

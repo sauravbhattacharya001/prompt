@@ -547,8 +547,7 @@ namespace Prompt
         /// <exception cref="InvalidOperationException">If cassette exists and overwrite is false.</exception>
         public string ImportCassette(string json, bool overwrite = false)
         {
-            if (string.IsNullOrWhiteSpace(json))
-                throw new ArgumentException("JSON cannot be null or empty.", nameof(json));
+            SerializationGuards.ValidateJsonInput(json);
 
             Cassette cassette;
             try

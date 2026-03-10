@@ -243,8 +243,7 @@ namespace Prompt
         /// <param name="overwrite">If true, overwrites existing translations.</param>
         public void ImportFromJson(string json, bool overwrite = false)
         {
-            if (string.IsNullOrWhiteSpace(json))
-                throw new ArgumentException("JSON cannot be null or empty.", nameof(json));
+            SerializationGuards.ValidateJsonInput(json);
 
             var data = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(json);
             if (data == null) return;

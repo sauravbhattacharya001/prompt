@@ -480,8 +480,7 @@ namespace Prompt
         /// </exception>
         public static PromptCache FromJson(string json)
         {
-            if (json == null)
-                throw new ArgumentNullException(nameof(json));
+            SerializationGuards.ValidateJsonInput(json);
 
             var dto = JsonSerializer.Deserialize<CacheDto>(json, SerializationGuards.ReadCamelCase);
 

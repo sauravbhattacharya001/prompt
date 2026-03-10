@@ -688,10 +688,7 @@ namespace Prompt
         /// <returns>A fully restored PromptABTester.</returns>
         public static PromptABTester FromJson(string json)
         {
-            if (string.IsNullOrWhiteSpace(json))
-                throw new ArgumentException("JSON cannot be null or empty.", nameof(json));
-
-            SerializationGuards.ThrowIfPayloadTooLarge(json);
+            SerializationGuards.ValidateJsonInput(json);
 
             var data = JsonSerializer.Deserialize<ExperimentData>(json)
                 ?? throw new JsonException("Failed to deserialize experiment data.");

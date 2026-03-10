@@ -555,11 +555,7 @@ namespace Prompt
         /// </exception>
         public static PromptLibrary FromJson(string json)
         {
-            if (string.IsNullOrWhiteSpace(json))
-                throw new ArgumentException(
-                    "JSON string cannot be null or empty.", nameof(json));
-
-            SerializationGuards.ThrowIfPayloadTooLarge(json);
+            SerializationGuards.ValidateJsonInput(json);
 
             var data = JsonSerializer.Deserialize<LibraryData>(json,
                 SerializationGuards.ReadCamelCase);

@@ -592,8 +592,11 @@ namespace Prompt
         /// <summary>
         /// Deserializes a debug report from JSON.
         /// </summary>
-        public static DebugReport? FromJson(string json) =>
-            JsonSerializer.Deserialize<DebugReport>(json, JsonOptions);
+        public static DebugReport? FromJson(string json)
+        {
+            SerializationGuards.ThrowIfPayloadTooLarge(json);
+            return JsonSerializer.Deserialize<DebugReport>(json, JsonOptions);
+        }
     }
 
     // ── Models ───────────────────────────────────────────────────
