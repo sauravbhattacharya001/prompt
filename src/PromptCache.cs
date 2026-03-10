@@ -483,6 +483,8 @@ namespace Prompt
             if (json == null)
                 throw new ArgumentNullException(nameof(json));
 
+            SerializationGuards.ThrowIfPayloadTooLarge(json);
+
             var dto = JsonSerializer.Deserialize<CacheDto>(json, SerializationGuards.ReadCamelCase);
 
             if (dto == null)

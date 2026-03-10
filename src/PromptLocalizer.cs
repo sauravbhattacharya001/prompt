@@ -246,6 +246,8 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(json))
                 throw new ArgumentException("JSON cannot be null or empty.", nameof(json));
 
+            SerializationGuards.ThrowIfPayloadTooLarge(json);
+
             var data = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(json);
             if (data == null) return;
 

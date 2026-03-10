@@ -634,6 +634,8 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(json))
                 throw new ArgumentException("JSON cannot be empty.", nameof(json));
 
+            SerializationGuards.ThrowIfPayloadTooLarge(json);
+
             var profiles = JsonSerializer.Deserialize<List<RateLimitProfile>>(json, SerializationGuards.WriteIndented);
             var limiter = new PromptRateLimiter();
             if (profiles != null)

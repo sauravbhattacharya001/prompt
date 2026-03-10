@@ -271,6 +271,8 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(json))
                 throw new ArgumentException("JSON string cannot be null or empty.", nameof(json));
 
+            SerializationGuards.ThrowIfPayloadTooLarge(json);
+
             var options = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase

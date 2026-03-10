@@ -550,6 +550,8 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(json))
                 throw new ArgumentException("JSON cannot be null or empty.", nameof(json));
 
+            SerializationGuards.ThrowIfPayloadTooLarge(json);
+
             Cassette cassette;
             try
             {

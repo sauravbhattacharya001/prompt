@@ -560,6 +560,8 @@ namespace Prompt
         /// <summary>Import rule sets from JSON (merges with existing).</summary>
         public int ImportRuleSets(string json)
         {
+            SerializationGuards.ThrowIfPayloadTooLarge(json);
+
             var imported = JsonSerializer.Deserialize<Dictionary<string, GrammarRuleSet>>(json)
                 ?? new();
             foreach (var kv in imported)

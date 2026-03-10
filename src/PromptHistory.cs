@@ -362,6 +362,8 @@ namespace Prompt
                 throw new FileNotFoundException($"History file not found: {filePath}", filePath);
 
             var json = await File.ReadAllTextAsync(filePath, cancellationToken);
+            SerializationGuards.ThrowIfPayloadTooLarge(json);
+
             var options = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
