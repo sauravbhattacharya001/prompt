@@ -371,5 +371,46 @@ namespace Prompt.Tests
             Assert.Contains("backoff", json);
             System.Text.Json.JsonDocument.Parse(json);
         }
+
+        [Fact]
+        public void Execute_ActuallyWaitsBetweenRetries()
+        {
+            var config = new RetryPolicyConfig
+            {
+                MaxRetries = 1,
+                BaseDelay = TimeSpan.FromMilliseconds(200),
+                Backoff = BackoffStrategy.Fixed,
+                EnableJitter = false
+            };
+            var policy = new PromptRetryPolicy(config);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var result = policy.Execute(attempt =>
+                attempt == 0 ? (false, "500 error") : (true, "ok"));
+            sw.Stop();
+            Assert.True(result.Succeeded);
+            // Should have waited at least ~200ms for the retry delay
+            Assert.True(sw.ElapsedMilliseconds >= 150,
+                $"Expected >= 150ms delay but only {sw.ElapsedMilliseconds}ms elapsed");
+        }
+
+        [Fact]
+        public void Execute_DelayScalesWithBackoff()
+        {
+            var config = new RetryPolicyConfig
+            {
+                MaxRetries = 2,
+                BaseDelay = TimeSpan.FromMilliseconds(100),
+                Backoff = BackoffStrategy.Exponential,
+                EnableJitter = false
+            };
+            var policy = new PromptRetryPolicy(config);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var result = policy.Execute(attempt => (false, "503 unavailable"));
+            sw.Stop();
+            Assert.False(result.Succeeded);
+            // Attempt 1: 100ms, Attempt 2: 200ms = 300ms total delay minimum
+            Assert.True(sw.ElapsedMilliseconds >= 250,
+                $"Expected >= 250ms total delay but only {sw.ElapsedMilliseconds}ms elapsed");
+        }
     }
 }

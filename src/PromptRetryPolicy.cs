@@ -4,6 +4,7 @@ namespace Prompt
     using System.Collections.Generic;
     using System.Linq;
     using System.Text.Json;
+    using System.Threading;
 
     /// <summary>Backoff strategy for retry delays.</summary>
     public enum BackoffStrategy
@@ -311,6 +312,10 @@ namespace Prompt
                         result.FinalError = "Total timeout exceeded.";
                         break;
                     }
+
+                    // Actually wait for the computed backoff delay before retrying
+                    if (delay > TimeSpan.Zero)
+                        Thread.Sleep(delay);
                 }
 
                 try
