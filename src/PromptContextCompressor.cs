@@ -74,6 +74,33 @@ namespace Prompt
 
         /// <summary>Keyword weight factor (0.0-1.0). Higher = keyword-containing messages score higher.</summary>
         public double KeywordWeight { get; set; } = 0.2;
+
+        /// <summary>
+        /// Creates a deep copy of these options with an optional strategy override.
+        /// </summary>
+        /// <param name="strategy">If provided, overrides the Strategy on the clone.</param>
+        /// <returns>A new <see cref="CompressionOptions"/> with all fields copied.</returns>
+        public CompressionOptions Clone(CompressionStrategy? strategy = null)
+        {
+            return new CompressionOptions
+            {
+                TargetTokens = TargetTokens,
+                Strategy = strategy ?? Strategy,
+                KeepFirstTurns = KeepFirstTurns,
+                KeepLastTurns = KeepLastTurns,
+                ImportanceThreshold = ImportanceThreshold,
+                SimilarityThreshold = SimilarityThreshold,
+                ImportantKeywords = new List<string>(ImportantKeywords),
+                ProtectedRoles = new List<string>(ProtectedRoles),
+                SummaryPlaceholder = SummaryPlaceholder,
+                PreserveCodeBlocks = PreserveCodeBlocks,
+                PreserveUrls = PreserveUrls,
+                RecencyWeight = RecencyWeight,
+                LengthWeight = LengthWeight,
+                RoleWeight = RoleWeight,
+                KeywordWeight = KeywordWeight,
+            };
+        }
     }
 
     /// <summary>
@@ -415,16 +442,8 @@ namespace Prompt
             // Step 2: If still over budget, apply anchor window
             if (!FitsInBudgetInternal(current))
             {
-                var anchorCompressor = new PromptContextCompressor(new CompressionOptions
-                {
-                    TargetTokens = _options.TargetTokens,
-                    KeepFirstTurns = _options.KeepFirstTurns,
-                    KeepLastTurns = _options.KeepLastTurns,
-                    ProtectedRoles = _options.ProtectedRoles,
-                    SummaryPlaceholder = _options.SummaryPlaceholder,
-                    PreserveCodeBlocks = _options.PreserveCodeBlocks,
-                    Strategy = CompressionStrategy.AnchorWindow
-                });
+                var anchorCompressor = new PromptContextCompressor(
+                    _options.Clone(CompressionStrategy.AnchorWindow));
                 var anchorResult = anchorCompressor.Compress(current);
                 current = anchorResult.Messages;
             }
@@ -432,19 +451,8 @@ namespace Prompt
             // Step 3: If still over budget, apply importance scoring
             if (!FitsInBudgetInternal(current))
             {
-                var importCompressor = new PromptContextCompressor(new CompressionOptions
-                {
-                    TargetTokens = _options.TargetTokens,
-                    ImportanceThreshold = _options.ImportanceThreshold,
-                    ImportantKeywords = _options.ImportantKeywords,
-                    ProtectedRoles = _options.ProtectedRoles,
-                    RecencyWeight = _options.RecencyWeight,
-                    LengthWeight = _options.LengthWeight,
-                    RoleWeight = _options.RoleWeight,
-                    KeywordWeight = _options.KeywordWeight,
-                    PreserveCodeBlocks = _options.PreserveCodeBlocks,
-                    Strategy = CompressionStrategy.ImportanceScoring
-                });
+                var importCompressor = new PromptContextCompressor(
+                    _options.Clone(CompressionStrategy.ImportanceScoring));
                 var importResult = importCompressor.Compress(current);
                 current = importResult.Messages;
             }
