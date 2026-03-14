@@ -147,6 +147,78 @@ namespace Prompt
     {
         private readonly LinterConfig _config;
 
+        // ── Pre-compiled regex patterns (avoid per-call recompilation) ──
+
+        private static readonly TimeSpan RxTimeout = TimeSpan.FromMilliseconds(500);
+
+        private static readonly (Regex regex, string word)[] VaguePatterns =
+        {
+            (new(@"\b(something)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "something"),
+            (new(@"\b(somehow)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "somehow"),
+            (new(@"\b(stuff)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "stuff"),
+            (new(@"\b(things)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "things"),
+            (new(@"\b(kind of)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "kind of"),
+            (new(@"\b(sort of)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "sort of"),
+            (new(@"\b(maybe)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "maybe"),
+            (new(@"\b(probably)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "probably"),
+            (new(@"\b(do (?:it|this|that) (?:well|good|properly|nicely))\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "vague quality"),
+            (new(@"\b(etc\.?)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "etc"),
+            (new(@"\b(and so on)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "and so on"),
+        };
+
+        private static readonly Regex[] RolePatterns =
+        {
+            new(@"\byou are (?:a|an) (\w+)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout),
+            new(@"\bact as (?:a|an) (\w+)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout),
+            new(@"\byou'?re (?:a|an) (\w+)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout),
+        };
+
+        private static readonly (Regex regex, string description)[] JailbreakPatterns =
+        {
+            (new(@"ignore (?:all |any )?(?:previous |prior |above )?instructions", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "instruction override attempt"),
+            (new(@"forget (?:all |any )?(?:previous |prior |above )?(?:instructions|rules|constraints)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "instruction override attempt"),
+            (new(@"you (?:are|have) no (?:rules|restrictions|limitations|constraints)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "constraint removal"),
+            (new(@"pretend (?:you (?:are|have)|there (?:are|is)) no", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "constraint evasion via pretense"),
+            (new(@"DAN|do anything now", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "DAN jailbreak pattern"),
+            (new(@"developer mode|maintenance mode", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout), "mode-switching attack"),
+            (new(@"\[system\]|\[SYSTEM\]", RegexOptions.Compiled, RxTimeout), "system tag injection"),
+        };
+
+        private static readonly Regex[] PlaceholderPatterns =
+        {
+            new(@"\[(?:INSERT|YOUR|FILL|ADD|REPLACE|TODO|TBD|XXX)[^\]]*\]", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout),
+            new(@"\{(?:INSERT|YOUR|FILL|ADD|REPLACE|TODO|TBD|XXX)[^}]*\}", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout),
+            new(@"<(?:INSERT|YOUR|FILL|ADD|REPLACE|TODO|TBD|XXX)[^>]*>", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout),
+            new(@"\bTODO\b", RegexOptions.Compiled, RxTimeout),
+            new(@"\bFIXME\b", RegexOptions.Compiled, RxTimeout),
+            new(@"\bXXX\b", RegexOptions.Compiled, RxTimeout),
+        };
+
+        private static readonly Regex[] NegativePatterns =
+        {
+            new(@"\bdon'?t\s+(?!use\b|include\b|add\b|mention\b|forget\b)(\w+)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout),
+            new(@"\bnever\s+(\w+)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout),
+            new(@"\bavoid\s+(\w+(?:\s+\w+)?)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout),
+        };
+
+        private static readonly Regex[] HardcodedPatterns =
+        {
+            new(@"(?:john|jane)\s+(?:doe|smith)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout),
+            new(@"example\.com", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout),
+            new(@"123\s*main\s*st", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout),
+            new(@"555-\d{4}", RegexOptions.Compiled, RxTimeout),
+            new(@"foo(?:bar|baz)", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout),
+        };
+
+        private static readonly Regex SentenceSplitter = new(@"(?<=[.!?])\s+", RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex PleasePattern = new(@"\bplease\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex ImperativePattern = new(@"(?:^|\.\s+)[A-Z][a-z]+\b", RegexOptions.Multiline | RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex AllCapsWord = new(@"^[A-Z]+$", RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex HeaderPattern = new(@"^#{1,4}\s", RegexOptions.Multiline | RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex NumberedListPattern = new(@"^\d+[.)]\s", RegexOptions.Multiline | RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex BulletPattern = new(@"^[-*•]\s", RegexOptions.Multiline | RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex WhitespaceNorm = new(@"\s+", RegexOptions.Compiled, RxTimeout);
+
         /// <summary>
         /// Initializes a new linter with default configuration.
         /// </summary>
@@ -220,26 +292,11 @@ namespace Prompt
 
         private void CheckVagueLanguage(string prompt, string[] lines, List<LintFinding> findings)
         {
-            var vaguePatterns = new (string pattern, string word)[]
-            {
-                (@"\b(something)\b", "something"),
-                (@"\b(somehow)\b", "somehow"),
-                (@"\b(stuff)\b", "stuff"),
-                (@"\b(things)\b", "things"),
-                (@"\b(kind of)\b", "kind of"),
-                (@"\b(sort of)\b", "sort of"),
-                (@"\b(maybe)\b", "maybe"),
-                (@"\b(probably)\b", "probably"),
-                (@"\b(do (?:it|this|that) (?:well|good|properly|nicely))\b", "vague quality"),
-                (@"\b(etc\.?)\b", "etc"),
-                (@"\b(and so on)\b", "and so on"),
-            };
-
-            foreach (var (pattern, word) in vaguePatterns)
+            foreach (var (regex, word) in VaguePatterns)
             {
                 for (int i = 0; i < lines.Length; i++)
                 {
-                    var match = Regex.Match(lines[i], pattern, RegexOptions.IgnoreCase);
+                    var match = regex.Match(lines[i]);
                     if (match.Success)
                     {
                         AddFinding(findings, "PL002", "VagueLanguage", LintSeverity.Warning,
@@ -277,7 +334,7 @@ namespace Prompt
         {
             for (int i = 0; i < lines.Length; i++)
             {
-                var sentences = Regex.Split(lines[i], @"(?<=[.!?])\s+");
+                var sentences = SentenceSplitter.Split(lines[i]);
                 foreach (var sentence in sentences)
                 {
                     var wordCount = sentence.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
@@ -323,17 +380,10 @@ namespace Prompt
 
         private void CheckRoleConfusion(string prompt, string[] lines, List<LintFinding> findings)
         {
-            var rolePatterns = new Regex[]
-            {
-                new(@"\byou are (?:a|an) (\w+)", RegexOptions.IgnoreCase),
-                new(@"\bact as (?:a|an) (\w+)", RegexOptions.IgnoreCase),
-                new(@"\byou'?re (?:a|an) (\w+)", RegexOptions.IgnoreCase),
-            };
-
             var roles = new List<(string role, int line)>();
             for (int i = 0; i < lines.Length; i++)
             {
-                foreach (var pattern in rolePatterns)
+                foreach (var pattern in RolePatterns)
                 {
                     var matches = pattern.Matches(lines[i]);
                     foreach (Match m in matches)
@@ -354,22 +404,11 @@ namespace Prompt
 
         private void CheckJailbreakPatterns(string prompt, string[] lines, List<LintFinding> findings)
         {
-            var patterns = new (string regex, string description)[]
-            {
-                (@"ignore (?:all |any )?(?:previous |prior |above )?instructions", "instruction override attempt"),
-                (@"forget (?:all |any )?(?:previous |prior |above )?(?:instructions|rules|constraints)", "instruction override attempt"),
-                (@"you (?:are|have) no (?:rules|restrictions|limitations|constraints)", "constraint removal"),
-                (@"pretend (?:you (?:are|have)|there (?:are|is)) no", "constraint evasion via pretense"),
-                (@"DAN|do anything now", "DAN jailbreak pattern"),
-                (@"developer mode|maintenance mode", "mode-switching attack"),
-                (@"\[system\]|\[SYSTEM\]", "system tag injection"),
-            };
-
             for (int i = 0; i < lines.Length; i++)
             {
-                foreach (var (regex, description) in patterns)
+                foreach (var (regex, description) in JailbreakPatterns)
                 {
-                    var match = Regex.Match(lines[i], regex, RegexOptions.IgnoreCase);
+                    var match = regex.Match(lines[i]);
                     if (match.Success)
                     {
                         AddFinding(findings, "PL007", "JailbreakPattern", LintSeverity.Error,
@@ -395,9 +434,9 @@ namespace Prompt
 
             if (prompt.Length > 800)
             {
-                bool hasHeaders = Regex.IsMatch(prompt, @"^#{1,4}\s", RegexOptions.Multiline);
-                bool hasNumberedList = Regex.IsMatch(prompt, @"^\d+[.)]\s", RegexOptions.Multiline);
-                bool hasBullets = Regex.IsMatch(prompt, @"^[-*•]\s", RegexOptions.Multiline);
+                bool hasHeaders = HeaderPattern.IsMatch(prompt);
+                bool hasNumberedList = NumberedListPattern.IsMatch(prompt);
+                bool hasBullets = BulletPattern.IsMatch(prompt);
 
                 if (!hasHeaders && !hasNumberedList && !hasBullets)
                 {
@@ -413,7 +452,7 @@ namespace Prompt
         private void CheckRedundancy(string prompt, string[] lines, List<LintFinding> findings)
         {
             var normalized = lines
-                .Select(l => Regex.Replace(l.Trim().ToLowerInvariant(), @"\s+", " "))
+                .Select(l => WhitespaceNorm.Replace(l.Trim().ToLowerInvariant(), " "))
                 .Where(l => l.Length > 20)
                 .ToList();
 
@@ -440,8 +479,8 @@ namespace Prompt
             // Check if the prompt uses only "please" style without any imperative.
             // Imperative is generally preferred for clarity with LLMs.
             var lower = prompt.ToLowerInvariant();
-            int pleaseCount = Regex.Matches(lower, @"\bplease\b").Count;
-            bool hasImperative = Regex.IsMatch(prompt, @"(?:^|\.\s+)[A-Z][a-z]+\b", RegexOptions.Multiline);
+            int pleaseCount = PleasePattern.Matches(lower).Count;
+            bool hasImperative = ImperativePattern.IsMatch(prompt);
 
             if (pleaseCount > 3 && prompt.Length < 500)
             {
@@ -455,21 +494,11 @@ namespace Prompt
 
         private void CheckPlaceholders(string prompt, string[] lines, List<LintFinding> findings)
         {
-            var placeholderPatterns = new[]
-            {
-                @"\[(?:INSERT|YOUR|FILL|ADD|REPLACE|TODO|TBD|XXX)[^\]]*\]",
-                @"\{(?:INSERT|YOUR|FILL|ADD|REPLACE|TODO|TBD|XXX)[^}]*\}",
-                @"<(?:INSERT|YOUR|FILL|ADD|REPLACE|TODO|TBD|XXX)[^>]*>",
-                @"\bTODO\b",
-                @"\bFIXME\b",
-                @"\bXXX\b",
-            };
-
             for (int i = 0; i < lines.Length; i++)
             {
-                foreach (var pattern in placeholderPatterns)
+                foreach (var pattern in PlaceholderPatterns)
                 {
-                    var match = Regex.Match(lines[i], pattern, RegexOptions.IgnoreCase);
+                    var match = pattern.Match(lines[i]);
                     if (match.Success)
                     {
                         AddFinding(findings, "PL012", "UnfilledPlaceholder", LintSeverity.Error,
@@ -488,7 +517,7 @@ namespace Prompt
             {
                 var words = lines[i].Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 // Count consecutive ALL-CAPS words (3+ letters each)
-                int capsWords = words.Count(w => w.Length >= 3 && w == w.ToUpperInvariant() && Regex.IsMatch(w, @"^[A-Z]+$"));
+                int capsWords = words.Count(w => w.Length >= 3 && w == w.ToUpperInvariant() && AllCapsWord.IsMatch(w));
                 if (capsWords >= 4)
                 {
                     AddFinding(findings, "PL013", "ExcessiveCaps", LintSeverity.Info,
@@ -515,19 +544,12 @@ namespace Prompt
 
         private void CheckNegativeFraming(string prompt, string[] lines, List<LintFinding> findings)
         {
-            var negativePatterns = new[]
-            {
-                @"\bdon'?t\s+(?!use\b|include\b|add\b|mention\b|forget\b)(\w+)",
-                @"\bnever\s+(\w+)",
-                @"\bavoid\s+(\w+(?:\s+\w+)?)",
-            };
-
             int negCount = 0;
             for (int i = 0; i < lines.Length; i++)
             {
-                foreach (var pattern in negativePatterns)
+                foreach (var pattern in NegativePatterns)
                 {
-                    negCount += Regex.Matches(lines[i], pattern, RegexOptions.IgnoreCase).Count;
+                    negCount += pattern.Matches(lines[i]).Count;
                 }
             }
 
@@ -566,20 +588,11 @@ namespace Prompt
 
         private void CheckHardcodedExamples(string prompt, string[] lines, List<LintFinding> findings)
         {
-            var hardcodedPatterns = new[]
-            {
-                @"(?:john|jane)\s+(?:doe|smith)",
-                @"example\.com",
-                @"123\s*main\s*st",
-                @"555-\d{4}",
-                @"foo(?:bar|baz)",
-            };
-
             for (int i = 0; i < lines.Length; i++)
             {
-                foreach (var pattern in hardcodedPatterns)
+                foreach (var pattern in HardcodedPatterns)
                 {
-                    var match = Regex.Match(lines[i], pattern, RegexOptions.IgnoreCase);
+                    var match = pattern.Match(lines[i]);
                     if (match.Success)
                     {
                         AddFinding(findings, "PL017", "HardcodedExample", LintSeverity.Info,
