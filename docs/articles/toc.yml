@@ -16,5 +16,7 @@
   href: options.md
 - name: Error Handling
   href: error-handling.md
+- name: Production Features
+  href: production-features.md
 - name: Migration Guide
   href: migration.md
