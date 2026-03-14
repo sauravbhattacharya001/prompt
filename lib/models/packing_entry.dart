@@ -2,16 +2,8 @@
 
 /// Category of packing items.
 enum PackingCategory {
-  clothing,
-  toiletries,
-  electronics,
-  documents,
-  medications,
-  food,
-  gear,
-  entertainment,
-  accessories,
-  other;
+  clothing, toiletries, electronics, documents, medications,
+  food, gear, entertainment, accessories, other;
 
   String get label {
     switch (this) {
@@ -46,14 +38,7 @@ enum PackingCategory {
 
 /// Trip type for template suggestions.
 enum TripType {
-  beach,
-  business,
-  camping,
-  cityBreak,
-  skiing,
-  roadTrip,
-  backpacking,
-  custom;
+  beach, business, camping, cityBreak, skiing, roadTrip, backpacking, custom;
 
   String get label {
     switch (this) {
@@ -80,48 +65,26 @@ class PackingItem {
   final String? notes;
 
   const PackingItem({
-    required this.id,
-    required this.name,
-    required this.category,
-    this.quantity = 1,
-    this.isPacked = false,
-    this.isEssential = false,
-    this.notes,
+    required this.id, required this.name, required this.category,
+    this.quantity = 1, this.isPacked = false, this.isEssential = false, this.notes,
   });
 
-  PackingItem copyWith({
-    String? name,
-    PackingCategory? category,
-    int? quantity,
-    bool? isPacked,
-    bool? isEssential,
-    String? notes,
-  }) {
-    return PackingItem(
-      id: id,
-      name: name ?? this.name,
-      category: category ?? this.category,
-      quantity: quantity ?? this.quantity,
-      isPacked: isPacked ?? this.isPacked,
-      isEssential: isEssential ?? this.isEssential,
-      notes: notes ?? this.notes,
-    );
-  }
+  PackingItem copyWith({String? name, PackingCategory? category, int? quantity,
+      bool? isPacked, bool? isEssential, String? notes}) =>
+    PackingItem(id: id, name: name ?? this.name, category: category ?? this.category,
+      quantity: quantity ?? this.quantity, isPacked: isPacked ?? this.isPacked,
+      isEssential: isEssential ?? this.isEssential, notes: notes ?? this.notes);
 
   Map<String, dynamic> toJson() => {
     'id': id, 'name': name, 'category': category.name,
-    'quantity': quantity, 'isPacked': isPacked,
-    'isEssential': isEssential, 'notes': notes,
+    'quantity': quantity, 'isPacked': isPacked, 'isEssential': isEssential, 'notes': notes,
   };
 
   factory PackingItem.fromJson(Map<String, dynamic> json) => PackingItem(
-    id: json['id'] as String,
-    name: json['name'] as String,
+    id: json['id'] as String, name: json['name'] as String,
     category: PackingCategory.values.firstWhere((c) => c.name == json['category']),
-    quantity: json['quantity'] as int? ?? 1,
-    isPacked: json['isPacked'] as bool? ?? false,
-    isEssential: json['isEssential'] as bool? ?? false,
-    notes: json['notes'] as String?,
+    quantity: json['quantity'] as int? ?? 1, isPacked: json['isPacked'] as bool? ?? false,
+    isEssential: json['isEssential'] as bool? ?? false, notes: json['notes'] as String?,
   );
 }
 
@@ -137,14 +100,9 @@ class PackingList {
   final DateTime createdAt;
 
   const PackingList({
-    required this.id,
-    required this.name,
-    required this.tripType,
-    this.departureDate,
-    this.returnDate,
-    this.destination,
-    this.items = const [],
-    required this.createdAt,
+    required this.id, required this.name, required this.tripType,
+    this.departureDate, this.returnDate, this.destination,
+    this.items = const [], required this.createdAt,
   });
 
   int get totalItems => items.length;
@@ -156,36 +114,27 @@ class PackingList {
   double get progressPercent => totalItems > 0 ? (packedItems / totalItems * 100) : 0;
   bool get isComplete => totalItems > 0 && packedItems == totalItems;
 
-  int? get daysUntilDeparture {
-    if (departureDate == null) return null;
-    return departureDate!.difference(DateTime.now()).inDays;
-  }
+  int? get daysUntilDeparture =>
+    departureDate != null ? departureDate!.difference(DateTime.now()).inDays : null;
 
-  int? get tripDurationDays {
-    if (departureDate == null || returnDate == null) return null;
-    return returnDate!.difference(departureDate!).inDays;
-  }
+  int? get tripDurationDays =>
+    (departureDate != null && returnDate != null) ? returnDate!.difference(departureDate!).inDays : null;
 
   Map<PackingCategory, List<PackingItem>> get itemsByCategory {
     final map = <PackingCategory, List<PackingItem>>{};
-    for (final item in items) {
-      map.putIfAbsent(item.category, () => []).add(item);
-    }
+    for (final item in items) map.putIfAbsent(item.category, () => []).add(item);
     return map;
   }
 
   Map<String, dynamic> toJson() => {
     'id': id, 'name': name, 'tripType': tripType.name,
     'departureDate': departureDate?.toIso8601String(),
-    'returnDate': returnDate?.toIso8601String(),
-    'destination': destination,
-    'items': items.map((i) => i.toJson()).toList(),
-    'createdAt': createdAt.toIso8601String(),
+    'returnDate': returnDate?.toIso8601String(), 'destination': destination,
+    'items': items.map((i) => i.toJson()).toList(), 'createdAt': createdAt.toIso8601String(),
   };
 
   factory PackingList.fromJson(Map<String, dynamic> json) => PackingList(
-    id: json['id'] as String,
-    name: json['name'] as String,
+    id: json['id'] as String, name: json['name'] as String,
     tripType: TripType.values.firstWhere((t) => t.name == json['tripType']),
     departureDate: json['departureDate'] != null ? DateTime.parse(json['departureDate'] as String) : null,
     returnDate: json['returnDate'] != null ? DateTime.parse(json['returnDate'] as String) : null,
