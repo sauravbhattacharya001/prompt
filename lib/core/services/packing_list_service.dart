@@ -4,7 +4,6 @@ import '../../models/packing_entry.dart';
 class PackingListService {
   const PackingListService();
 
-  /// Pre-built template items for common trip types.
   List<PackingItem> getTemplateItems(TripType tripType) {
     switch (tripType) {
       case TripType.beach: return _beachTemplate();
@@ -18,55 +17,34 @@ class PackingListService {
     }
   }
 
-  /// Overall packing progress across multiple lists.
   PackingStats computeStats(List<PackingList> lists) {
-    if (lists.isEmpty) {
-      return const PackingStats(totalLists: 0, completedLists: 0, totalItems: 0,
-        packedItems: 0, essentialItems: 0, packedEssentials: 0, categoryBreakdown: {});
+    if (lists.isEmpty) return const PackingStats(totalLists: 0, completedLists: 0, totalItems: 0, packedItems: 0, essentialItems: 0, packedEssentials: 0, categoryBreakdown: {});
+    int total = 0, packed = 0, essential = 0, packedEss = 0, completed = 0;
+    final cats = <PackingCategory, int>{};
+    for (final l in lists) {
+      total += l.totalItems; packed += l.packedItems;
+      essential += l.essentialItems; packedEss += l.packedEssentials;
+      if (l.isComplete) completed++;
+      for (final i in l.items) cats[i.category] = (cats[i.category] ?? 0) + 1;
     }
-    int totalItems = 0, packedItems = 0, essentialItems = 0, packedEssentials = 0, completedLists = 0;
-    final catCounts = <PackingCategory, int>{};
-    for (final list in lists) {
-      totalItems += list.totalItems;
-      packedItems += list.packedItems;
-      essentialItems += list.essentialItems;
-      packedEssentials += list.packedEssentials;
-      if (list.isComplete) completedLists++;
-      for (final item in list.items) {
-        catCounts[item.category] = (catCounts[item.category] ?? 0) + 1;
-      }
-    }
-    return PackingStats(totalLists: lists.length, completedLists: completedLists,
-      totalItems: totalItems, packedItems: packedItems,
-      essentialItems: essentialItems, packedEssentials: packedEssentials, categoryBreakdown: catCounts);
+    return PackingStats(totalLists: lists.length, completedLists: completed, totalItems: total, packedItems: packed, essentialItems: essential, packedEssentials: packedEss, categoryBreakdown: cats);
   }
 
-  /// Find commonly forgotten items (unpacked essentials across lists).
   List<String> findCommonlyForgotten(List<PackingList> lists) {
-    final forgottenCounts = <String, int>{};
-    for (final list in lists) {
-      for (final item in list.items) {
-        if (item.isEssential && !item.isPacked) {
-          forgottenCounts[item.name] = (forgottenCounts[item.name] ?? 0) + 1;
-        }
-      }
-    }
-    final sorted = forgottenCounts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final counts = <String, int>{};
+    for (final l in lists) for (final i in l.items) if (i.isEssential && !i.isPacked) counts[i.name] = (counts[i.name] ?? 0) + 1;
+    final sorted = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     return sorted.map((e) => e.key).toList();
   }
 
-  /// Category with the most unpacked items.
   PackingCategory? mostUnpackedCategory(PackingList list) {
     if (list.items.isEmpty) return null;
     final counts = <PackingCategory, int>{};
-    for (final item in list.items) {
-      if (!item.isPacked) counts[item.category] = (counts[item.category] ?? 0) + 1;
-    }
+    for (final i in list.items) if (!i.isPacked) counts[i.category] = (counts[i.category] ?? 0) + 1;
     if (counts.isEmpty) return null;
     return counts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
   }
 
-  /// Get items sorted by priority (essentials first, then by category).
   List<PackingItem> prioritizedUnpacked(PackingList list) {
     final unpacked = list.items.where((i) => !i.isPacked).toList();
     unpacked.sort((a, b) {
@@ -76,136 +54,122 @@ class PackingListService {
     return unpacked;
   }
 
-  /// Suggest quantities based on trip duration.
   Map<String, int> suggestQuantities(int tripDays) => {
-    'Underwear': tripDays + 1,
-    'Socks': tripDays + 1,
+    'Underwear': tripDays + 1, 'Socks': tripDays + 1,
     'T-shirts': (tripDays * 0.7).ceil().clamp(2, 10),
     'Pants/Shorts': (tripDays / 3).ceil().clamp(1, 5),
     'Outfits': (tripDays / 2).ceil().clamp(1, 7),
   };
 
-  // ── Templates ──
-
   List<PackingItem> _essentialsTemplate() => [
-    _item('e1', 'Passport/ID', PackingCategory.documents, essential: true),
-    _item('e2', 'Phone charger', PackingCategory.electronics, essential: true),
-    _item('e3', 'Medications', PackingCategory.medications, essential: true),
-    _item('e4', 'Wallet', PackingCategory.accessories, essential: true),
-    _item('e5', 'Toothbrush', PackingCategory.toiletries, essential: true),
-    _item('e6', 'Toothpaste', PackingCategory.toiletries),
-    _item('e7', 'Deodorant', PackingCategory.toiletries),
-    _item('e8', 'Underwear', PackingCategory.clothing, qty: 3),
-    _item('e9', 'Socks', PackingCategory.clothing, qty: 3),
+    _i('e1', 'Passport/ID', PackingCategory.documents, e: true),
+    _i('e2', 'Phone charger', PackingCategory.electronics, e: true),
+    _i('e3', 'Medications', PackingCategory.medications, e: true),
+    _i('e4', 'Wallet', PackingCategory.accessories, e: true),
+    _i('e5', 'Toothbrush', PackingCategory.toiletries, e: true),
+    _i('e6', 'Toothpaste', PackingCategory.toiletries),
+    _i('e7', 'Deodorant', PackingCategory.toiletries),
+    _i('e8', 'Underwear', PackingCategory.clothing, q: 3),
+    _i('e9', 'Socks', PackingCategory.clothing, q: 3),
   ];
 
   List<PackingItem> _beachTemplate() => [..._essentialsTemplate(),
-    _item('b1', 'Swimsuit', PackingCategory.clothing, essential: true),
-    _item('b2', 'Sunscreen', PackingCategory.toiletries, essential: true),
-    _item('b3', 'Sunglasses', PackingCategory.accessories),
-    _item('b4', 'Beach towel', PackingCategory.gear),
-    _item('b5', 'Flip flops', PackingCategory.clothing),
-    _item('b6', 'Hat', PackingCategory.accessories),
-    _item('b7', 'Aloe vera', PackingCategory.toiletries),
-    _item('b8', 'Snorkel gear', PackingCategory.gear),
-    _item('b9', 'Waterproof phone case', PackingCategory.electronics),
-    _item('b10', 'Light cover-up', PackingCategory.clothing),
+    _i('b1', 'Swimsuit', PackingCategory.clothing, e: true),
+    _i('b2', 'Sunscreen', PackingCategory.toiletries, e: true),
+    _i('b3', 'Sunglasses', PackingCategory.accessories),
+    _i('b4', 'Beach towel', PackingCategory.gear),
+    _i('b5', 'Flip flops', PackingCategory.clothing),
+    _i('b6', 'Hat', PackingCategory.accessories),
+    _i('b7', 'Aloe vera', PackingCategory.toiletries),
+    _i('b8', 'Snorkel gear', PackingCategory.gear),
+    _i('b9', 'Waterproof phone case', PackingCategory.electronics),
+    _i('b10', 'Light cover-up', PackingCategory.clothing),
   ];
 
   List<PackingItem> _businessTemplate() => [..._essentialsTemplate(),
-    _item('bz1', 'Suit/Blazer', PackingCategory.clothing, essential: true),
-    _item('bz2', 'Dress shoes', PackingCategory.clothing, essential: true),
-    _item('bz3', 'Laptop', PackingCategory.electronics, essential: true),
-    _item('bz4', 'Laptop charger', PackingCategory.electronics, essential: true),
-    _item('bz5', 'Business cards', PackingCategory.documents),
-    _item('bz6', 'Dress shirts', PackingCategory.clothing, qty: 2),
-    _item('bz7', 'Tie', PackingCategory.accessories),
-    _item('bz8', 'Notebook & pen', PackingCategory.other),
-    _item('bz9', 'Travel iron', PackingCategory.gear),
+    _i('bz1', 'Suit/Blazer', PackingCategory.clothing, e: true),
+    _i('bz2', 'Dress shoes', PackingCategory.clothing, e: true),
+    _i('bz3', 'Laptop', PackingCategory.electronics, e: true),
+    _i('bz4', 'Laptop charger', PackingCategory.electronics, e: true),
+    _i('bz5', 'Business cards', PackingCategory.documents),
+    _i('bz6', 'Dress shirts', PackingCategory.clothing, q: 2),
+    _i('bz7', 'Tie', PackingCategory.accessories),
+    _i('bz8', 'Notebook & pen', PackingCategory.other),
+    _i('bz9', 'Travel iron', PackingCategory.gear),
   ];
 
   List<PackingItem> _campingTemplate() => [..._essentialsTemplate(),
-    _item('ca1', 'Tent', PackingCategory.gear, essential: true),
-    _item('ca2', 'Sleeping bag', PackingCategory.gear, essential: true),
-    _item('ca3', 'Flashlight', PackingCategory.gear, essential: true),
-    _item('ca4', 'First aid kit', PackingCategory.medications, essential: true),
-    _item('ca5', 'Water bottle', PackingCategory.food, essential: true),
-    _item('ca6', 'Camp stove', PackingCategory.gear),
-    _item('ca7', 'Matches/Lighter', PackingCategory.gear),
-    _item('ca8', 'Bug spray', PackingCategory.toiletries),
-    _item('ca9', 'Hiking boots', PackingCategory.clothing),
-    _item('ca10', 'Rain jacket', PackingCategory.clothing),
-    _item('ca11', 'Knife/Multi-tool', PackingCategory.gear),
-    _item('ca12', 'Rope', PackingCategory.gear),
+    _i('ca1', 'Tent', PackingCategory.gear, e: true),
+    _i('ca2', 'Sleeping bag', PackingCategory.gear, e: true),
+    _i('ca3', 'Flashlight', PackingCategory.gear, e: true),
+    _i('ca4', 'First aid kit', PackingCategory.medications, e: true),
+    _i('ca5', 'Water bottle', PackingCategory.food, e: true),
+    _i('ca6', 'Camp stove', PackingCategory.gear),
+    _i('ca7', 'Matches/Lighter', PackingCategory.gear),
+    _i('ca8', 'Bug spray', PackingCategory.toiletries),
+    _i('ca9', 'Hiking boots', PackingCategory.clothing),
+    _i('ca10', 'Rain jacket', PackingCategory.clothing),
+    _i('ca11', 'Knife/Multi-tool', PackingCategory.gear),
+    _i('ca12', 'Rope', PackingCategory.gear),
   ];
 
   List<PackingItem> _cityBreakTemplate() => [..._essentialsTemplate(),
-    _item('cb1', 'Comfortable shoes', PackingCategory.clothing, essential: true),
-    _item('cb2', 'Day backpack', PackingCategory.gear),
-    _item('cb3', 'Camera', PackingCategory.electronics),
-    _item('cb4', 'Guidebook/Map', PackingCategory.entertainment),
-    _item('cb5', 'Umbrella', PackingCategory.accessories),
-    _item('cb6', 'Portable battery', PackingCategory.electronics),
+    _i('cb1', 'Comfortable shoes', PackingCategory.clothing, e: true),
+    _i('cb2', 'Day backpack', PackingCategory.gear),
+    _i('cb3', 'Camera', PackingCategory.electronics),
+    _i('cb4', 'Guidebook/Map', PackingCategory.entertainment),
+    _i('cb5', 'Umbrella', PackingCategory.accessories),
+    _i('cb6', 'Portable battery', PackingCategory.electronics),
   ];
 
   List<PackingItem> _skiingTemplate() => [..._essentialsTemplate(),
-    _item('sk1', 'Ski jacket', PackingCategory.clothing, essential: true),
-    _item('sk2', 'Ski pants', PackingCategory.clothing, essential: true),
-    _item('sk3', 'Thermal base layers', PackingCategory.clothing, essential: true, qty: 2),
-    _item('sk4', 'Goggles', PackingCategory.gear, essential: true),
-    _item('sk5', 'Gloves', PackingCategory.clothing, essential: true),
-    _item('sk6', 'Helmet', PackingCategory.gear),
-    _item('sk7', 'Lip balm (SPF)', PackingCategory.toiletries),
-    _item('sk8', 'Hand warmers', PackingCategory.gear),
-    _item('sk9', 'Neck gaiter', PackingCategory.clothing),
-    _item('sk10', 'Ski socks', PackingCategory.clothing, qty: 3),
+    _i('sk1', 'Ski jacket', PackingCategory.clothing, e: true),
+    _i('sk2', 'Ski pants', PackingCategory.clothing, e: true),
+    _i('sk3', 'Thermal base layers', PackingCategory.clothing, e: true, q: 2),
+    _i('sk4', 'Goggles', PackingCategory.gear, e: true),
+    _i('sk5', 'Gloves', PackingCategory.clothing, e: true),
+    _i('sk6', 'Helmet', PackingCategory.gear),
+    _i('sk7', 'Lip balm (SPF)', PackingCategory.toiletries),
+    _i('sk8', 'Hand warmers', PackingCategory.gear),
+    _i('sk9', 'Neck gaiter', PackingCategory.clothing),
+    _i('sk10', 'Ski socks', PackingCategory.clothing, q: 3),
   ];
 
   List<PackingItem> _roadTripTemplate() => [..._essentialsTemplate(),
-    _item('rt1', 'Snacks', PackingCategory.food, essential: true),
-    _item('rt2', 'Water bottles', PackingCategory.food, qty: 2),
-    _item('rt3', 'Car charger', PackingCategory.electronics),
-    _item('rt4', 'Music playlist', PackingCategory.entertainment),
-    _item('rt5', 'Pillow', PackingCategory.gear),
-    _item('rt6', 'Blanket', PackingCategory.gear),
-    _item('rt7', 'Trash bags', PackingCategory.other),
-    _item('rt8', 'Cooler', PackingCategory.gear),
+    _i('rt1', 'Snacks', PackingCategory.food, e: true),
+    _i('rt2', 'Water bottles', PackingCategory.food, q: 2),
+    _i('rt3', 'Car charger', PackingCategory.electronics),
+    _i('rt4', 'Music playlist', PackingCategory.entertainment),
+    _i('rt5', 'Pillow', PackingCategory.gear),
+    _i('rt6', 'Blanket', PackingCategory.gear),
+    _i('rt7', 'Trash bags', PackingCategory.other),
+    _i('rt8', 'Cooler', PackingCategory.gear),
   ];
 
   List<PackingItem> _backpackingTemplate() => [..._essentialsTemplate(),
-    _item('bp1', 'Backpack (50-70L)', PackingCategory.gear, essential: true),
-    _item('bp2', 'Quick-dry towel', PackingCategory.toiletries),
-    _item('bp3', 'Padlock', PackingCategory.accessories),
-    _item('bp4', 'Universal adapter', PackingCategory.electronics, essential: true),
-    _item('bp5', 'Rain cover', PackingCategory.gear),
-    _item('bp6', 'Dry bags', PackingCategory.gear),
-    _item('bp7', 'Flip flops (hostel)', PackingCategory.clothing),
-    _item('bp8', 'Headlamp', PackingCategory.gear),
-    _item('bp9', 'Copies of documents', PackingCategory.documents, essential: true),
-    _item('bp10', 'Travel insurance docs', PackingCategory.documents, essential: true),
+    _i('bp1', 'Backpack (50-70L)', PackingCategory.gear, e: true),
+    _i('bp2', 'Quick-dry towel', PackingCategory.toiletries),
+    _i('bp3', 'Padlock', PackingCategory.accessories),
+    _i('bp4', 'Universal adapter', PackingCategory.electronics, e: true),
+    _i('bp5', 'Rain cover', PackingCategory.gear),
+    _i('bp6', 'Dry bags', PackingCategory.gear),
+    _i('bp7', 'Flip flops (hostel)', PackingCategory.clothing),
+    _i('bp8', 'Headlamp', PackingCategory.gear),
+    _i('bp9', 'Copies of documents', PackingCategory.documents, e: true),
+    _i('bp10', 'Travel insurance docs', PackingCategory.documents, e: true),
   ];
 
-  PackingItem _item(String id, String name, PackingCategory cat,
-      {bool essential = false, int qty = 1}) =>
-    PackingItem(id: id, name: name, category: cat, quantity: qty, isEssential: essential);
+  PackingItem _i(String id, String name, PackingCategory cat, {bool e = false, int q = 1}) =>
+    PackingItem(id: id, name: name, category: cat, quantity: q, isEssential: e);
 }
 
-/// Aggregate packing statistics.
 class PackingStats {
-  final int totalLists;
-  final int completedLists;
-  final int totalItems;
-  final int packedItems;
-  final int essentialItems;
-  final int packedEssentials;
+  final int totalLists, completedLists, totalItems, packedItems, essentialItems, packedEssentials;
   final Map<PackingCategory, int> categoryBreakdown;
 
-  const PackingStats({
-    required this.totalLists, required this.completedLists,
+  const PackingStats({required this.totalLists, required this.completedLists,
     required this.totalItems, required this.packedItems,
-    required this.essentialItems, required this.packedEssentials,
-    required this.categoryBreakdown,
-  });
+    required this.essentialItems, required this.packedEssentials, required this.categoryBreakdown});
 
   double get overallProgress => totalItems > 0 ? (packedItems / totalItems * 100) : 0;
   double get essentialProgress => essentialItems > 0 ? (packedEssentials / essentialItems * 100) : 0;
