@@ -357,18 +357,19 @@ namespace Prompt
 
         private static readonly Regex ControlCharsPattern =
             new(@"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
-        private static readonly Regex SystemDelimiterPattern =
-            new(@"\[\s*SYSTEM\s*\]", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
-        private static readonly Regex InstDelimiterPattern =
-            new(@"\[\s*INST\s*\]", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
-        private static readonly Regex SysDelimiterPattern =
-            new(@"<<\s*SYS\s*>>", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
-        private static readonly Regex SystemTagPattern =
-            new(@"<\|system\|>", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
-        private static readonly Regex ImStartTagPattern =
-            new(@"<\|im_start\|>", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
-        private static readonly Regex ImEndTagPattern =
-            new(@"<\|im_end\|>", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
+        /// <summary>
+        /// Delimiter injection patterns and their sanitised replacements.
+        /// New delimiters can be blocked by adding a single entry here.
+        /// </summary>
+        private static readonly (Regex Pattern, string Replacement)[] DelimiterSanitizeRules =
+        {
+            (new Regex(@"\[\s*SYSTEM\s*\]",   RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), "[BLOCKED_SYSTEM]"),
+            (new Regex(@"\[\s*INST\s*\]",     RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), "[BLOCKED_INST]"),
+            (new Regex(@"<<\s*SYS\s*>>",      RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), "<<BLOCKED_SYS>>"),
+            (new Regex(@"<\|system\|>",       RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), "<|blocked_system|>"),
+            (new Regex(@"<\|im_start\|>",     RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), "<|blocked_im_start|>"),
+            (new Regex(@"<\|im_end\|>",       RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)), "<|blocked_im_end|>"),
+        };
         private static readonly Regex ExcessiveSpacesPattern =
             new(@" {3,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         private static readonly Regex ExcessiveNewlinesPattern =
@@ -701,12 +702,8 @@ namespace Prompt
             result = StripUnicodeBypassChars(result);
 
             // Remove common delimiter injection markers
-            result = SystemDelimiterPattern.Replace(result, "[BLOCKED_SYSTEM]");
-            result = InstDelimiterPattern.Replace(result, "[BLOCKED_INST]");
-            result = SysDelimiterPattern.Replace(result, "<<BLOCKED_SYS>>");
-            result = SystemTagPattern.Replace(result, "<|blocked_system|>");
-            result = ImStartTagPattern.Replace(result, "<|blocked_im_start|>");
-            result = ImEndTagPattern.Replace(result, "<|blocked_im_end|>");
+            foreach (var (pattern, replacement) in DelimiterSanitizeRules)
+                result = pattern.Replace(result, replacement);
 
             // Normalize excessive whitespace (3+ consecutive spaces → 2 spaces,
             // 3+ consecutive newlines → 2 newlines)
