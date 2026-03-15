@@ -277,13 +277,35 @@ namespace Prompt
             var m = metric ?? _defaultMetric;
             var pairs = new List<SimilarityResult>();
 
+            // Pre-normalize all strings once to avoid redundant work in O(n²) loop
+            var normalized = new string[list.Count];
+            for (int i = 0; i < list.Count; i++)
+                normalized[i] = Normalize(list[i]);
+
             for (int i = 0; i < list.Count; i++)
             {
                 for (int j = i + 1; j < list.Count; j++)
                 {
-                    var result = Compare(list[i], list[j], m, t);
-                    if (result.IsDuplicate)
-                        pairs.Add(result);
+                    var score = ComputeSimilarity(normalized[i], normalized[j], m);
+                    if (score >= t)
+                    {
+                        var tokensA = Tokenize(normalized[i]);
+                        var tokensB = Tokenize(normalized[j]);
+                        var setA = new HashSet<string>(tokensA);
+                        var setB = new HashSet<string>(tokensB);
+
+                        pairs.Add(new SimilarityResult
+                        {
+                            PromptA = list[i],
+                            PromptB = list[j],
+                            Metric = m,
+                            Score = score,
+                            IsDuplicate = true,
+                            SharedTokens = setA.Intersect(setB).OrderBy(x => x).ToList(),
+                            UniqueToA = setA.Except(setB).OrderBy(x => x).ToList(),
+                            UniqueToB = setB.Except(setA).OrderBy(x => x).ToList()
+                        });
+                    }
                 }
             }
 
@@ -336,12 +358,17 @@ namespace Prompt
             var matrix = new double[n, n];
             var m = metric ?? _defaultMetric;
 
+            // Pre-normalize once to avoid O(n²) redundant Normalize() calls
+            var normalized = new string[n];
+            for (int i = 0; i < n; i++)
+                normalized[i] = Normalize(prompts[i]);
+
             for (int i = 0; i < n; i++)
             {
                 matrix[i, i] = 1.0;
                 for (int j = i + 1; j < n; j++)
                 {
-                    var score = ComputeSimilarity(Normalize(prompts[i]), Normalize(prompts[j]), m);
+                    var score = ComputeSimilarity(normalized[i], normalized[j], m);
                     matrix[i, j] = score;
                     matrix[j, i] = score;
                 }
@@ -398,25 +425,34 @@ namespace Prompt
 
         private static int LevenshteinDistance(string a, string b)
         {
+            // Ensure we iterate over the shorter string in the inner loop
+            // to minimize memory: O(min(m,n)) instead of O(m*n).
+            if (a.Length < b.Length)
+            {
+                var tmp = a; a = b; b = tmp;
+            }
+
             var m = a.Length;
             var n = b.Length;
-            var dp = new int[m + 1, n + 1];
+            var prev = new int[n + 1];
+            var curr = new int[n + 1];
 
-            for (int i = 0; i <= m; i++) dp[i, 0] = i;
-            for (int j = 0; j <= n; j++) dp[0, j] = j;
+            for (int j = 0; j <= n; j++) prev[j] = j;
 
             for (int i = 1; i <= m; i++)
             {
+                curr[0] = i;
                 for (int j = 1; j <= n; j++)
                 {
                     var cost = a[i - 1] == b[j - 1] ? 0 : 1;
-                    dp[i, j] = Math.Min(
-                        Math.Min(dp[i - 1, j] + 1, dp[i, j - 1] + 1),
-                        dp[i - 1, j - 1] + cost);
+                    curr[j] = Math.Min(
+                        Math.Min(prev[j] + 1, curr[j - 1] + 1),
+                        prev[j - 1] + cost);
                 }
+                var swap = prev; prev = curr; curr = swap;
             }
 
-            return dp[m, n];
+            return prev[n];
         }
 
         private double JaccardSimilarity(string a, string b)
@@ -478,21 +514,30 @@ namespace Prompt
 
         private static int LCSLength(string a, string b)
         {
+            // Two-row DP: O(min(m,n)) memory instead of O(m*n).
+            if (a.Length < b.Length)
+            {
+                var tmp = a; a = b; b = tmp;
+            }
+
             var m = a.Length;
             var n = b.Length;
-            var dp = new int[m + 1, n + 1];
+            var prev = new int[n + 1];
+            var curr = new int[n + 1];
 
             for (int i = 1; i <= m; i++)
             {
                 for (int j = 1; j <= n; j++)
                 {
-                    dp[i, j] = a[i - 1] == b[j - 1]
-                        ? dp[i - 1, j - 1] + 1
-                        : Math.Max(dp[i - 1, j], dp[i, j - 1]);
+                    curr[j] = a[i - 1] == b[j - 1]
+                        ? prev[j - 1] + 1
+                        : Math.Max(prev[j], curr[j - 1]);
                 }
+                var swap = prev; prev = curr; curr = swap;
+                Array.Clear(curr, 0, curr.Length);
             }
 
-            return dp[m, n];
+            return prev[n];
         }
 
         // ── Helpers ──
