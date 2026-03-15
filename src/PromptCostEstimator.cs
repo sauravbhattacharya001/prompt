@@ -279,7 +279,33 @@ namespace Prompt
                 throw new ArgumentException($"Estimated output tokens cannot exceed {MaxOutputTokens}.");
 
             var inputTokens = PromptGuard.EstimateTokens(promptText);
+            return BuildCostReport(promptText, inputTokens, estimatedOutputTokens);
+        }
 
+        /// <summary>
+        /// Estimate cost for a pre-counted token amount (when you already know the token count).
+        /// </summary>
+        /// <param name="inputTokens">Known input token count.</param>
+        /// <param name="estimatedOutputTokens">Expected output length in tokens.</param>
+        /// <returns>A <see cref="CostReport"/> with per-model estimates.</returns>
+        public CostReport EstimateFromTokens(int inputTokens, int estimatedOutputTokens = DefaultOutputTokens)
+        {
+            if (inputTokens < 0)
+                throw new ArgumentException("Input tokens cannot be negative.");
+            if (estimatedOutputTokens < 0)
+                throw new ArgumentException("Estimated output tokens cannot be negative.");
+            if (estimatedOutputTokens > MaxOutputTokens)
+                throw new ArgumentException($"Estimated output tokens cannot exceed {MaxOutputTokens}.");
+
+            return BuildCostReport("", inputTokens, estimatedOutputTokens);
+        }
+
+        /// <summary>
+        /// Shared helper that builds a cost report for the given token counts
+        /// across all registered models.
+        /// </summary>
+        private CostReport BuildCostReport(string promptText, int inputTokens, int estimatedOutputTokens)
+        {
             var estimates = new List<CostEstimate>();
 
             foreach (var model in _models)
@@ -324,66 +350,7 @@ namespace Prompt
             };
         }
 
-        /// <summary>
-        /// Estimate cost for a pre-counted token amount (when you already know the token count).
-        /// </summary>
-        /// <param name="inputTokens">Known input token count.</param>
-        /// <param name="estimatedOutputTokens">Expected output length in tokens.</param>
-        /// <returns>A <see cref="CostReport"/> with per-model estimates.</returns>
-        public CostReport EstimateFromTokens(int inputTokens, int estimatedOutputTokens = DefaultOutputTokens)
-        {
-            if (inputTokens < 0)
-                throw new ArgumentException("Input tokens cannot be negative.");
-            if (estimatedOutputTokens < 0)
-                throw new ArgumentException("Estimated output tokens cannot be negative.");
-            if (estimatedOutputTokens > MaxOutputTokens)
-                throw new ArgumentException($"Estimated output tokens cannot exceed {MaxOutputTokens}.");
-
-            var estimates = new List<CostEstimate>();
-
-            foreach (var model in _models)
-            {
-                var totalInputNeeded = inputTokens + estimatedOutputTokens;
-                var exceedsContext = totalInputNeeded > model.ContextWindow;
-                var contextUsage = model.ContextWindow > 0
-                    ? (double)totalInputNeeded / model.ContextWindow * 100
-                    : 100.0;
-
-                var cappedOutput = Math.Min(estimatedOutputTokens, model.MaxOutputTokens);
-                var inputCost = model.InputCost(inputTokens);
-                var outputCost = model.OutputCost(cappedOutput);
-
-                string? warning = null;
-                if (!exceedsContext && contextUsage > 80)
-                    warning = "Context window usage above 80%";
-                if (estimatedOutputTokens > model.MaxOutputTokens)
-                    warning = $"Output capped to model max ({model.MaxOutputTokens})";
-
-                estimates.Add(new CostEstimate(
-                    Model: model,
-                    InputTokens: inputTokens,
-                    EstimatedOutputTokens: cappedOutput,
-                    InputCost: inputCost,
-                    OutputCost: outputCost,
-                    TotalCost: inputCost + outputCost,
-                    ContextUsagePercent: contextUsage,
-                    ExceedsContext: exceedsContext,
-                    Warning: warning
-                ));
-            }
-
-            estimates.Sort((a, b) => a.TotalCost.CompareTo(b.TotalCost));
-
-            return new CostReport
-            {
-                PromptText = "",
-                InputTokens = inputTokens,
-                EstimatedOutputTokens = estimatedOutputTokens,
-                Estimates = estimates
-            };
-        }
-
-        /// <summary>
+                /// <summary>
         /// Estimate how many calls you can make within a budget.
         /// </summary>
         /// <param name="modelId">The model to estimate for.</param>

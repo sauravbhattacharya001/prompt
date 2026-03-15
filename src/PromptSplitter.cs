@@ -490,6 +490,7 @@ namespace Prompt
                         segments.Add((pos, m.Index));
                     }
                     codeStart = m.Index;
+                    pos = m.Index; // Track that we've consumed up to this point
                     inCode = true;
                 }
                 else
