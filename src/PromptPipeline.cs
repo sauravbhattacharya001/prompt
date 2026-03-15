@@ -1,4 +1,4 @@
-namespace Prompt
+﻿namespace Prompt
 {
     using System.Collections.Concurrent;
     using System.Diagnostics;
@@ -147,17 +147,23 @@ namespace Prompt
         private readonly Dictionary<string, LinkedListNode<string>> _nodeMap = new();
         private readonly object _evictLock = new();
 
+        private readonly ConcurrentDictionary<string, Task<string?>> _inflight = new();
+
         public string Name => "Caching";
         public int Order { get; }
 
-        /// <summary>Number of cache hits.</summary>
-        public int HitCount { get; private set; }
+        private int _hitCount;
+        private int _missCount;
+        private int _evictionCount;
 
-        /// <summary>Number of cache misses.</summary>
-        public int MissCount { get; private set; }
+        /// <summary>Number of cache hits (thread-safe).</summary>
+        public int HitCount => _hitCount;
 
-        /// <summary>Number of entries evicted due to capacity limits.</summary>
-        public int EvictionCount { get; private set; }
+        /// <summary>Number of cache misses (thread-safe).</summary>
+        public int MissCount => _missCount;
+
+        /// <summary>Number of entries evicted due to capacity limits (thread-safe).</summary>
+        public int EvictionCount => _evictionCount;
 
         /// <summary>
         /// Creates a caching middleware with TTL and optional max capacity.
@@ -177,26 +183,67 @@ namespace Prompt
             var key = context.RenderedPrompt;
             if (string.IsNullOrEmpty(key)) key = context.PromptText;
 
+            // Check cache (fast path)
             if (_cache.TryGetValue(key, out var entry) &&
                 DateTimeOffset.UtcNow - entry.CreatedAt < _ttl)
             {
                 context.Response = entry.Response;
                 context.ShortCircuited = true;
                 context.Metadata["cache"] = "hit";
-                HitCount++;
+                Interlocked.Increment(ref _hitCount);
                 TouchKey(key);
                 return;
             }
 
-            MissCount++;
+            Interlocked.Increment(ref _missCount);
             context.Metadata["cache"] = "miss";
-            await next(context);
 
-            if (context.Response != null)
+            // Coalesce concurrent requests for the same key to prevent
+            // thundering herd: only the first caller executes the pipeline,
+            // subsequent callers for the same key await the same Task.
+            var isLeader = false;
+            var inflightTask = _inflight.GetOrAdd(key, _ =>
             {
-                _cache[key] = new CacheEntry(context.Response, DateTimeOffset.UtcNow);
-                TouchKey(key);
-                EvictIfNeeded();
+                isLeader = true;
+                return ExecuteAndCacheAsync(key, context, next);
+            });
+
+            if (!isLeader)
+            {
+                // Follower: wait for the leader to finish, use cached result
+                var result = await inflightTask;
+                if (result != null)
+                {
+                    context.Response = result;
+                    context.ShortCircuited = true;
+                    context.Metadata["cache"] = "coalesced";
+                }
+            }
+            else
+            {
+                await inflightTask;
+            }
+        }
+
+        private async Task<string?> ExecuteAndCacheAsync(
+            string key, PromptPipelineContext context, PromptPipelineDelegate next)
+        {
+            try
+            {
+                await next(context);
+
+                if (context.Response != null)
+                {
+                    _cache[key] = new CacheEntry(context.Response, DateTimeOffset.UtcNow);
+                    TouchKey(key);
+                    EvictIfNeeded();
+                }
+
+                return context.Response;
+            }
+            finally
+            {
+                _inflight.TryRemove(key, out _);
             }
         }
 
@@ -244,7 +291,7 @@ namespace Prompt
                     _accessOrder.RemoveFirst();
                     _nodeMap.Remove(oldest);
                     _cache.TryRemove(oldest, out _);
-                    EvictionCount++;
+                    Interlocked.Increment(ref _evictionCount);
                 }
             }
         }
