@@ -14,6 +14,8 @@
   href: testing.md
 - name: Prompt Safety & Analysis
   href: safety.md
+- name: Security Hardening
+  href: security-hardening.md
 - name: Model Options
   href: options.md
 - name: Error Handling
