@@ -12,25 +12,25 @@ namespace Prompt.Tests
         [Fact]
         public void EstimateTokens_EmptyString_ReturnsZero()
         {
-            Assert.Equal(0, PromptTokenOptimizer.EstimateTokens(""));
+            Assert.Equal(0, PromptGuard.EstimateTokens(""));
         }
 
         [Fact]
         public void EstimateTokens_Null_ReturnsZero()
         {
-            Assert.Equal(0, PromptTokenOptimizer.EstimateTokens(null!));
+            Assert.Equal(0, PromptGuard.EstimateTokens(null!));
         }
 
         [Fact]
         public void EstimateTokens_ShortText_ReturnsAtLeastOne()
         {
-            Assert.True(PromptTokenOptimizer.EstimateTokens("Hi") >= 1);
+            Assert.True(PromptGuard.EstimateTokens("Hi") >= 1);
         }
 
         [Fact]
         public void EstimateTokens_LongerText_ReturnsReasonableCount()
         {
-            var tokens = PromptTokenOptimizer.EstimateTokens("The quick brown fox jumps over the lazy dog");
+            var tokens = PromptGuard.EstimateTokens("The quick brown fox jumps over the lazy dog");
             Assert.True(tokens > 5 && tokens < 20);
         }
 
@@ -179,7 +179,7 @@ namespace Prompt.Tests
         public void IdentifySections_MarkdownHeadings_Splits()
         {
             var prompt = "## Part 1\nContent A\n\n## Part 2\nContent B";
-            var totalTokens = PromptTokenOptimizer.EstimateTokens(prompt);
+            var totalTokens = PromptGuard.EstimateTokens(prompt);
             var sections = _optimizer.IdentifySections(prompt, totalTokens);
             Assert.True(sections.Count >= 2);
         }
@@ -188,7 +188,7 @@ namespace Prompt.Tests
         public void IdentifySections_SingleBlock_OneSection()
         {
             var prompt = "Just a simple prompt with no sections.";
-            var totalTokens = PromptTokenOptimizer.EstimateTokens(prompt);
+            var totalTokens = PromptGuard.EstimateTokens(prompt);
             var sections = _optimizer.IdentifySections(prompt, totalTokens);
             Assert.Single(sections);
         }
@@ -197,7 +197,7 @@ namespace Prompt.Tests
         public void IdentifySections_PercentOfTotal_SumsToApprox100()
         {
             var prompt = "## A\nContent\n\n## B\nMore content\n\n## C\nEven more";
-            var totalTokens = PromptTokenOptimizer.EstimateTokens(prompt);
+            var totalTokens = PromptGuard.EstimateTokens(prompt);
             var sections = _optimizer.IdentifySections(prompt, totalTokens);
             var total = sections.Sum(s => s.PercentOfTotal);
             Assert.InRange(total, 80, 120); // approximate

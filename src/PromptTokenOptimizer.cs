@@ -274,7 +274,7 @@ namespace Prompt
                 };
             }
 
-            var totalTokens = EstimateTokens(prompt);
+            var totalTokens = PromptGuard.EstimateTokens(prompt);
             var sections = IdentifySections(prompt, totalTokens);
             var instructions = ExtractInstructions(prompt);
             var redundancies = DetectRedundancies(instructions);
@@ -318,7 +318,7 @@ namespace Prompt
             var optimizedPrompt = _config.AutoApply
                 ? ApplyOptimizations(prompt, recommendations)
                 : prompt;
-            var optimizedTokens = EstimateTokens(optimizedPrompt);
+            var optimizedTokens = PromptGuard.EstimateTokens(optimizedPrompt);
 
             var score = CalculateOptimizationScore(totalTokens, recommendations);
 
@@ -358,7 +358,7 @@ namespace Prompt
         /// </summary>
         public BudgetCheck CheckBudget(string prompt, int tokenLimit, double reserveRatio = 0.2)
         {
-            var tokens = EstimateTokens(prompt);
+            var tokens = PromptGuard.EstimateTokens(prompt);
             var reserveTokens = (int)(tokenLimit * reserveRatio);
             var availableForPrompt = tokenLimit - reserveTokens;
 
@@ -382,7 +382,7 @@ namespace Prompt
             if (string.IsNullOrEmpty(prompt) || maxTokensPerChunk <= 0)
                 return new[] { prompt ?? "" };
 
-            var totalTokens = EstimateTokens(prompt);
+            var totalTokens = PromptGuard.EstimateTokens(prompt);
             if (totalTokens <= maxTokensPerChunk)
                 return new[] { prompt };
 
@@ -414,7 +414,7 @@ namespace Prompt
                     var sentenceTokens = 0;
                     foreach (var s in sentences)
                     {
-                        var st = EstimateTokens(s);
+                        var st = PromptGuard.EstimateTokens(s);
                         if (sentenceTokens + st > maxTokensPerChunk && sentenceChunk.Count > 0)
                         {
                             chunks.Add(string.Join(" ", sentenceChunk));
@@ -445,9 +445,6 @@ namespace Prompt
 
         // --- Internal methods ---
 
-        internal static int EstimateTokens(string text) =>
-            PromptGuard.EstimateTokens(text);
-
         internal List<PromptSection> IdentifySections(string prompt, int totalTokens)
         {
             var sections = new List<PromptSection>();
@@ -467,7 +464,7 @@ namespace Prompt
                     }
 
                     var name = ExtractSectionName(trimmed);
-                    var tokens = EstimateTokens(trimmed);
+                    var tokens = PromptGuard.EstimateTokens(trimmed);
 
                     sections.Add(new PromptSection
                     {
@@ -566,7 +563,7 @@ namespace Prompt
                     {
                         var shorter = instructions[i].Length <= instructions[j].Length
                             ? instructions[i] : instructions[j];
-                        var longerTokens = EstimateTokens(
+                        var longerTokens = PromptGuard.EstimateTokens(
                             instructions[i].Length > instructions[j].Length
                                 ? instructions[i] : instructions[j]);
 
@@ -620,7 +617,7 @@ namespace Prompt
                 var matches = pattern.Matches(prompt);
                 if (matches.Count > 0)
                 {
-                    var totalSaved = matches.Sum(m => EstimateTokens(m.Value) - EstimateTokens(replacement));
+                    var totalSaved = matches.Sum(m => PromptGuard.EstimateTokens(m.Value) - PromptGuard.EstimateTokens(replacement));
                     if (totalSaved > 0)
                     {
                         recs.Add(new OptimizationRecommendation
@@ -650,11 +647,11 @@ namespace Prompt
 
                 // Check for high word-to-instruction ratio
                 var sentences = Regex.Split(section.Content, @"(?<=[.!?])\s+", RegexOptions.None, TimeSpan.FromMilliseconds(500));
-                var longSentences = sentences.Where(s => EstimateTokens(s) > 30).ToList();
+                var longSentences = sentences.Where(s => PromptGuard.EstimateTokens(s) > 30).ToList();
 
                 if (longSentences.Count > 0)
                 {
-                    var savings = longSentences.Sum(s => EstimateTokens(s) / 4); // estimate 25% reduction
+                    var savings = longSentences.Sum(s => PromptGuard.EstimateTokens(s) / 4); // estimate 25% reduction
                     recs.Add(new OptimizationRecommendation
                     {
                         Category = OptimizationCategory.Verbosity,
@@ -690,7 +687,7 @@ namespace Prompt
                     Description = $"Format instructions repeated {formatMentions.Count} times — consolidate into one directive",
                     OriginalText = string.Join("; ", formatMentions.Take(3)),
                     SuggestedText = formatMentions[0], // keep first
-                    EstimatedTokensSaved = (formatMentions.Count - 1) * EstimateTokens(formatMentions[0]),
+                    EstimatedTokensSaved = (formatMentions.Count - 1) * PromptGuard.EstimateTokens(formatMentions[0]),
                     Confidence = 0.85,
                     Severity = OptimizationSeverity.Medium
                 });
@@ -710,9 +707,9 @@ namespace Prompt
 
             var totalExampleTokens = 0;
             foreach (Match m in exampleMatches)
-                totalExampleTokens += EstimateTokens(m.Value);
+                totalExampleTokens += PromptGuard.EstimateTokens(m.Value);
 
-            var totalTokens = EstimateTokens(prompt);
+            var totalTokens = PromptGuard.EstimateTokens(prompt);
             if (totalExampleTokens > totalTokens * 0.3 && totalExampleTokens > 30)
             {
                 recs.Add(new OptimizationRecommendation

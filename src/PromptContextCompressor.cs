@@ -270,7 +270,7 @@ namespace Prompt
         public bool FitsInBudget(List<(string Role, string Content)> messages)
         {
             if (messages == null) return true;
-            int total = messages.Sum(m => EstimateTokens(m.Content));
+            int total = messages.Sum(m => PromptGuard.EstimateTokens(m.Content));
             return total <= _options.TargetTokens;
         }
 
@@ -457,8 +457,8 @@ namespace Prompt
                 current = importResult.Messages;
             }
 
-            int originalTokens = messages.Sum(m => EstimateTokens(m.Content));
-            int compressedTokens = current.Sum(m => EstimateTokens(m.Content));
+            int originalTokens = messages.Sum(m => PromptGuard.EstimateTokens(m.Content));
+            int compressedTokens = current.Sum(m => PromptGuard.EstimateTokens(m.Content));
 
             return new CompressionResult
             {
@@ -478,7 +478,7 @@ namespace Prompt
         private ScoredMessage ScoreMessage(string role, string content, int index, int totalCount)
         {
             double recency = totalCount > 1 ? (double)index / (totalCount - 1) : 1.0;
-            double length = Math.Min(1.0, EstimateTokens(content) / 500.0);
+            double length = Math.Min(1.0, PromptGuard.EstimateTokens(content) / 500.0);
             double roleScore = role.ToLowerInvariant() switch
             {
                 "system" => 1.0,
@@ -519,7 +519,7 @@ namespace Prompt
                 Role = role,
                 Content = content,
                 ImportanceScore = Math.Round(score, 3),
-                EstimatedTokens = EstimateTokens(content)
+                EstimatedTokens = PromptGuard.EstimateTokens(content)
             };
         }
 
@@ -607,12 +607,9 @@ namespace Prompt
 
         // --- Helpers ---
 
-        private static int EstimateTokens(string text) =>
-            PromptGuard.EstimateTokens(text);
-
         private bool FitsInBudgetInternal(List<(string Role, string Content)> messages)
         {
-            return messages.Sum(m => EstimateTokens(m.Content)) <= _options.TargetTokens;
+            return messages.Sum(m => PromptGuard.EstimateTokens(m.Content)) <= _options.TargetTokens;
         }
 
         private CompressionResult BuildResult(
@@ -626,7 +623,7 @@ namespace Prompt
                 .Where((m, i) => keepIndices.Contains(i))
                 .ToList();
 
-            int compressedTokens = compressed.Sum(m => EstimateTokens(m.Content));
+            int compressedTokens = compressed.Sum(m => PromptGuard.EstimateTokens(m.Content));
 
             return new CompressionResult
             {
@@ -678,7 +675,7 @@ namespace Prompt
                 compressed.Add(("system", placeholder));
             }
 
-            int compressedTokens = compressed.Sum(m => EstimateTokens(m.Content));
+            int compressedTokens = compressed.Sum(m => PromptGuard.EstimateTokens(m.Content));
 
             return new CompressionResult
             {

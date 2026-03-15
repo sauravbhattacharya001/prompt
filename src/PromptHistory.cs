@@ -94,8 +94,8 @@ namespace Prompt
                 Tags = tags != null ? new List<string>(tags) : null,
                 Error = error,
                 Success = error == null && response != null,
-                EstimatedPromptTokens = EstimateTokens(prompt),
-                EstimatedResponseTokens = response != null ? EstimateTokens(response) : 0,
+                EstimatedPromptTokens = PromptGuard.EstimateTokens(prompt),
+                EstimatedResponseTokens = response != null ? PromptGuard.EstimateTokens(response) : 0,
                 Temperature = options?.Temperature,
                 MaxTokens = options?.MaxTokens
             };
@@ -388,8 +388,6 @@ namespace Prompt
         /// <summary>
         /// Rough token estimate (~4 chars per token for English text).
         /// </summary>
-        internal static int EstimateTokens(string text) =>
-            PromptGuard.EstimateTokens(text);
 
         private static double Median(double[] sorted)
         {

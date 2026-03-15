@@ -337,8 +337,8 @@ namespace Prompt
                     RenderedPrompt = rendered,
                     Response = simulatedResponse,
                     Elapsed = simulatedElapsed ?? TimeSpan.Zero,
-                    InputTokens = EstimateTokens(rendered),
-                    OutputTokens = EstimateTokens(simulatedResponse),
+                    InputTokens = PromptGuard.EstimateTokens(rendered),
+                    OutputTokens = PromptGuard.EstimateTokens(simulatedResponse),
                     Variables = variables != null ? new Dictionary<string, string>(variables) : null,
                     Success = true,
                     Timestamp = DateTimeOffset.UtcNow
@@ -389,8 +389,8 @@ namespace Prompt
                 result.Response = await modelCall(rendered).ConfigureAwait(false);
                 sw.Stop();
                 result.Elapsed = sw.Elapsed;
-                result.InputTokens = EstimateTokens(rendered);
-                result.OutputTokens = EstimateTokens(result.Response ?? "");
+                result.InputTokens = PromptGuard.EstimateTokens(rendered);
+                result.OutputTokens = PromptGuard.EstimateTokens(result.Response ?? "");
                 result.Success = true;
             }
             catch (Exception ex)
@@ -726,9 +726,6 @@ namespace Prompt
                 throw new InvalidOperationException(
                     $"Maximum of {MaxTrialsPerVariant} trials per variant reached.");
         }
-
-        private static int EstimateTokens(string text) =>
-            PromptGuard.EstimateTokens(text);
 
         private static VariantStats ComputeStats(string name, List<TrialResult> trials)
         {
