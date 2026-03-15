@@ -258,7 +258,7 @@ namespace Prompt
             if (text.Length == 0) return meta;
 
             meta.WordCount = text.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length;
-            meta.EstimatedTokens = EstimateTokens(text);
+            meta.EstimatedTokens = PromptGuard.EstimateTokens(text);
             meta.Language = DetectLanguage(text);
             meta.QuestionCount = CountMatches(QuestionRx, text);
             meta.InstructionCount = CountMatches(InstructionRx, text);
@@ -281,9 +281,6 @@ namespace Prompt
         }
 
         // ── Internals ────────────────────────────────────────────────
-
-        private static int EstimateTokens(string text) =>
-            PromptGuard.EstimateTokens(text);
 
         private static DetectedLanguage DetectLanguage(string text)
         {

@@ -202,9 +202,9 @@ namespace Prompt.Tests
         public void EstimateTokens_ApproximatelyCorrect()
         {
             // ~4 chars per token
-            Assert.Equal(0, PromptHistory.EstimateTokens(""));
-            Assert.Equal(0, PromptHistory.EstimateTokens(null!));
-            Assert.Equal(3, PromptHistory.EstimateTokens("Hello World!")); // 12 chars -> 3 tokens
+            Assert.Equal(0, PromptGuard.EstimateTokens(""));
+            Assert.Equal(0, PromptGuard.EstimateTokens(null!));
+            Assert.Equal(3, PromptGuard.EstimateTokens("Hello World!")); // 12 chars -> 3 tokens
         }
 
         [Fact]
