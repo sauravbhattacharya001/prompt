@@ -284,19 +284,20 @@ namespace Prompt
 
         private string EscapeTokens(string text, SanitizeResult result)
         {
-            var sb = new StringBuilder(text);
             var escaped = 0;
             foreach (var token in SpecialTokens)
             {
-                if (text.Contains(token, StringComparison.OrdinalIgnoreCase))
+                var idx = text.IndexOf(token, StringComparison.OrdinalIgnoreCase);
+                while (idx >= 0)
                 {
-                    // Escape by inserting a zero-width space inside the token
-                    var replacement = token.Insert(1, "\u200B");
-                    // Since we strip invisible chars first, use a visible escape instead
-                    replacement = token.Replace("<", "＜").Replace(">", "＞")
-                                       .Replace("[", "［").Replace("]", "］");
-                    sb.Replace(token, replacement);
+                    // Extract the actual matched substring (preserving original case)
+                    var matched = text.Substring(idx, token.Length);
+                    var replacement = matched.Replace("<", "＜").Replace(">", "＞")
+                                             .Replace("[", "［").Replace("]", "］");
+                    text = string.Concat(text.AsSpan(0, idx), replacement, text.AsSpan(idx + token.Length));
                     escaped++;
+                    // Continue searching after the replacement
+                    idx = text.IndexOf(token, idx + replacement.Length, StringComparison.OrdinalIgnoreCase);
                 }
             }
             if (escaped > 0)
@@ -304,10 +305,10 @@ namespace Prompt
                 result.Actions.Add(new SanitizeAction
                 {
                     Type = "escape_tokens",
-                    Description = $"Escaped {escaped} special token type(s)"
+                    Description = $"Escaped {escaped} special token occurrence(s)"
                 });
             }
-            return sb.ToString();
+            return text;
         }
 
         private string NeutralizeInjectionPatterns(string text, SanitizeResult result)

@@ -141,6 +141,7 @@ namespace Prompt
         private DateTime _circuitOpenedAt = DateTime.MinValue;
         private int _halfOpenSuccesses;
         private readonly List<RetryResult> _history = new();
+        private const int MaxHistorySize = 1000;
         private readonly Random _rng = new();
         private int _totalExecutions;
         private int _totalRetries;
@@ -288,7 +289,7 @@ namespace Prompt
                 result.FinalError = "Circuit breaker is open — too many recent failures.";
                 result.TotalElapsed = DateTime.UtcNow - startTime;
                 _totalCircuitBreaks++;
-                _history.Add(result);
+                AddToHistory(result);
                 return result;
             }
 
@@ -363,7 +364,7 @@ namespace Prompt
                 _totalRetries += result.RetryCount;
 
             result.TotalElapsed = DateTime.UtcNow - startTime;
-            _history.Add(result);
+            AddToHistory(result);
             return result;
         }
 
@@ -554,6 +555,21 @@ namespace Prompt
             if (!_errorCounts.ContainsKey(category))
                 _errorCounts[category] = 0;
             _errorCounts[category]++;
+        }
+
+        /// <summary>
+        /// Adds a result to history, trimming oldest entries if the history
+        /// exceeds <see cref="MaxHistorySize"/> to prevent unbounded memory growth.
+        /// </summary>
+        private void AddToHistory(RetryResult result)
+        {
+            AddToHistory(result);
+            if (_history.Count > MaxHistorySize)
+            {
+                // Remove the oldest 10% to avoid trimming on every call
+                int removeCount = MaxHistorySize / 10;
+                _history.RemoveRange(0, removeCount);
+            }
         }
 
         private static int Fib(int n)
