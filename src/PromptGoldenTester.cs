@@ -19,6 +19,11 @@ namespace Prompt
         private double _matchThreshold = 0.95;
         private double _driftThreshold = 0.70;
 
+        /// <summary>
+        /// Initializes a new golden tester suite with the specified name.
+        /// </summary>
+        /// <param name="name">Unique name identifying this golden test suite.</param>
+        /// <exception cref="ArgumentException">Thrown when <paramref name="name"/> is null or whitespace.</exception>
         public PromptGoldenTester(string name)
         {
             if (string.IsNullOrWhiteSpace(name))
@@ -26,9 +31,18 @@ namespace Prompt
             _name = name;
         }
 
+        /// <summary>Gets the name of this golden test suite.</summary>
         public string Name => _name;
+
+        /// <summary>Gets the number of golden entries registered in this suite.</summary>
         public int Count => _entries.Count;
 
+        /// <summary>
+        /// Sets the similarity threshold at or above which an output is considered a match.
+        /// </summary>
+        /// <param name="threshold">A value in (0, 1.0].</param>
+        /// <returns>This instance for fluent chaining.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="threshold"/> is out of range.</exception>
         public PromptGoldenTester WithMatchThreshold(double threshold)
         {
             if (threshold <= 0 || threshold > 1.0)
@@ -37,6 +51,13 @@ namespace Prompt
             return this;
         }
 
+        /// <summary>
+        /// Sets the similarity threshold below which an output is classified as a regression.
+        /// Values between drift and match thresholds are classified as drift.
+        /// </summary>
+        /// <param name="threshold">A value in [0, matchThreshold).</param>
+        /// <returns>This instance for fluent chaining.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="threshold"/> is out of range.</exception>
         public PromptGoldenTester WithDriftThreshold(double threshold)
         {
             if (threshold < 0 || threshold >= _matchThreshold)
@@ -45,6 +66,14 @@ namespace Prompt
             return this;
         }
 
+        /// <summary>
+        /// Records a golden (expected) output for a given test input.
+        /// </summary>
+        /// <param name="id">Unique identifier for this golden entry.</param>
+        /// <param name="input">The prompt input text.</param>
+        /// <param name="expectedOutput">The expected (golden) output to compare against.</param>
+        /// <param name="tags">Optional tags for filtering entries in batch runs.</param>
+        /// <exception cref="ArgumentException">Thrown when required string parameters are null or whitespace.</exception>
         public void RecordGolden(string id, string input, string expectedOutput, params string[] tags)
         {
             if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Id must not be empty.", nameof(id));
@@ -53,9 +82,21 @@ namespace Prompt
             _entries[id] = new GoldenEntry { Id = id, Input = input, GoldenOutput = expectedOutput, Tags = tags?.Where(t => !string.IsNullOrWhiteSpace(t)).ToList() ?? new List<string>(), RecordedAt = DateTimeOffset.UtcNow, Version = 1 };
         }
 
+        /// <summary>Removes a golden entry by its identifier.</summary>
+        /// <param name="id">The entry identifier to remove.</param>
+        /// <returns><c>true</c> if the entry was found and removed; otherwise <c>false</c>.</returns>
         public bool RemoveGolden(string id) => _entries.Remove(id);
+
+        /// <summary>Retrieves a golden entry by its identifier, or <c>null</c> if not found.</summary>
+        /// <param name="id">The entry identifier.</param>
+        /// <returns>The <see cref="GoldenEntry"/> if found; otherwise <c>null</c>.</returns>
         public GoldenEntry? GetEntry(string id) => _entries.TryGetValue(id, out var e) ? e : null;
 
+        /// <summary>
+        /// Lists all entry identifiers, optionally filtered by tag.
+        /// </summary>
+        /// <param name="tag">If specified, only entries containing this tag are returned.</param>
+        /// <returns>A sorted list of matching entry identifiers.</returns>
         public IReadOnlyList<string> ListIds(string? tag = null)
         {
             var q = _entries.Values.AsEnumerable();
@@ -63,6 +104,15 @@ namespace Prompt
             return q.Select(e => e.Id).OrderBy(id => id).ToList();
         }
 
+        /// <summary>
+        /// Compares an actual output against the stored golden output for the given entry,
+        /// computing a similarity score and classifying the result as match, drift, or regression.
+        /// </summary>
+        /// <param name="id">The golden entry identifier to compare against.</param>
+        /// <param name="actualOutput">The actual output produced by the current prompt run.</param>
+        /// <returns>A <see cref="CompareResult"/> with similarity score, status, and diffs.</returns>
+        /// <exception cref="KeyNotFoundException">Thrown when no entry exists for <paramref name="id"/>.</exception>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="actualOutput"/> is null.</exception>
         public CompareResult Compare(string id, string actualOutput)
         {
             if (!_entries.TryGetValue(id, out var entry)) throw new KeyNotFoundException($"No golden entry found for '{id}'.");
@@ -74,6 +124,12 @@ namespace Prompt
             return new CompareResult { Id = id, Status = ClassifyStatus(similarity), SimilarityScore = similarity, GoldenOutput = entry.GoldenOutput, ActualOutput = actualOutput, Diffs = ComputeDiffs(entry.GoldenOutput, actualOutput), ComparedAt = entry.LastComparedAt.Value };
         }
 
+        /// <summary>
+        /// Promotes the last compared actual output to become the new golden output,
+        /// incrementing the entry version.
+        /// </summary>
+        /// <param name="id">The golden entry identifier to approve.</param>
+        /// <returns><c>true</c> if the entry was updated; <c>false</c> if the entry was not found or had no last actual output.</returns>
         public bool ApproveActual(string id)
         {
             if (!_entries.TryGetValue(id, out var entry) || entry.LastActual == null) return false;
@@ -81,6 +137,14 @@ namespace Prompt
             return true;
         }
 
+        /// <summary>
+        /// Runs a batch comparison across all entries (optionally filtered by tag),
+        /// invoking <paramref name="runFunc"/> for each input and comparing against golden outputs.
+        /// </summary>
+        /// <param name="runFunc">A function that takes a prompt input and returns the actual output.</param>
+        /// <param name="tag">If specified, only entries with this tag are included.</param>
+        /// <returns>A <see cref="BatchReport"/> summarizing match/drift/regression/error counts and average similarity.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="runFunc"/> is null.</exception>
         public BatchReport RunBatch(Func<string, string> runFunc, string? tag = null)
         {
             if (runFunc == null) throw new ArgumentNullException(nameof(runFunc));
@@ -94,11 +158,22 @@ namespace Prompt
             return new BatchReport { SuiteName = _name, Results = results, TotalCount = results.Count, MatchCount = results.Count(r => r.Status == GoldenStatus.Match), DriftCount = results.Count(r => r.Status == GoldenStatus.Drift), RegressionCount = results.Count(r => r.Status == GoldenStatus.Regression), ErrorCount = results.Count(r => r.Status == GoldenStatus.Error), AverageSimilarity = results.Count > 0 ? results.Average(r => r.SimilarityScore) : 0, RunAt = DateTimeOffset.UtcNow };
         }
 
+        /// <summary>
+        /// Serializes all golden entries and suite configuration to a JSON string for persistence or sharing.
+        /// </summary>
+        /// <returns>A formatted JSON string representing the entire golden test suite.</returns>
         public string ExportJson()
         {
             return JsonSerializer.Serialize(new GoldenExport { SuiteName = _name, MatchThreshold = _matchThreshold, DriftThreshold = _driftThreshold, Entries = _entries.Values.OrderBy(e => e.Id).ToList(), ExportedAt = DateTimeOffset.UtcNow }, new JsonSerializerOptions { WriteIndented = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull });
         }
 
+        /// <summary>
+        /// Imports golden entries from a JSON string previously produced by <see cref="ExportJson"/>.
+        /// Existing entries with the same identifier are overwritten.
+        /// </summary>
+        /// <param name="json">The JSON string to import.</param>
+        /// <returns>The number of entries imported.</returns>
+        /// <exception cref="ArgumentException">Thrown when JSON is empty or malformed.</exception>
         public int ImportJson(string json)
         {
             if (string.IsNullOrWhiteSpace(json)) throw new ArgumentException("JSON must not be empty.", nameof(json));
@@ -111,6 +186,11 @@ namespace Prompt
             return count;
         }
 
+        /// <summary>
+        /// Formats a <see cref="BatchReport"/> into a human-readable text summary with per-entry status icons and diffs.
+        /// </summary>
+        /// <param name="report">The batch report to format.</param>
+        /// <returns>A multi-line formatted string suitable for console or log output.</returns>
         public static string FormatReport(BatchReport report)
         {
             var sb = new StringBuilder();
