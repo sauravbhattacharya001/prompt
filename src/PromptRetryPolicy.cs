@@ -5,6 +5,7 @@ namespace Prompt
     using System.Linq;
     using System.Text.Json;
     using System.Threading;
+    using System.Threading.Tasks;
 
     /// <summary>Backoff strategy for retry delays.</summary>
     public enum BackoffStrategy
@@ -369,6 +370,106 @@ namespace Prompt
         }
 
         /// <summary>
+        /// Async version of Execute that uses Task.Delay instead of Thread.Sleep,
+        /// avoiding stack pressure and supporting cancellation.
+        /// </summary>
+        public async Task<RetryResult> ExecuteAsync(
+            Func<int, CancellationToken, Task<(bool success, string resultOrError)>> operation,
+            CancellationToken cancellationToken = default)
+        {
+            var result = new RetryResult();
+            var startTime = DateTime.UtcNow;
+            var maxRetries = _config.MaxRetries;
+
+            _totalExecutions++;
+
+            if (IsCircuitOpen())
+            {
+                result.CircuitBreakerTripped = true;
+                result.FinalError = "Circuit breaker is open — too many recent failures.";
+                result.TotalElapsed = DateTime.UtcNow - startTime;
+                _totalCircuitBreaks++;
+                AddToHistory(result);
+                return result;
+            }
+
+            for (int attempt = 0; attempt <= maxRetries; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var attemptRecord = new RetryAttempt
+                {
+                    AttemptNumber = attempt,
+                    Timestamp = DateTime.UtcNow
+                };
+
+                if (attempt > 0)
+                {
+                    var lastAttempt = result.Attempts.Last();
+                    var delay = CalculateDelay(attempt, lastAttempt.Category);
+                    attemptRecord.Delay = delay;
+
+                    if (_config.TotalTimeout.HasValue &&
+                        (DateTime.UtcNow - startTime + delay) > _config.TotalTimeout.Value)
+                    {
+                        result.FinalError = "Total timeout exceeded.";
+                        break;
+                    }
+
+                    if (delay > TimeSpan.Zero)
+                        await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                }
+
+                try
+                {
+                    var (success, resultOrError) = await operation(attempt, cancellationToken).ConfigureAwait(false);
+
+                    if (success)
+                    {
+                        attemptRecord.Succeeded = true;
+                        result.Succeeded = true;
+                        result.Result = resultOrError;
+                        result.Attempts.Add(attemptRecord);
+                        _totalRetries += attempt;
+                        _totalSuccesses++;
+                        RecordSuccess();
+                        break;
+                    }
+                    else
+                    {
+                        var category = ClassifyError(resultOrError);
+                        attemptRecord.Category = category;
+                        attemptRecord.ErrorMessage = resultOrError;
+                        result.Attempts.Add(attemptRecord);
+                        result.FinalError = resultOrError;
+
+                        if (HandleFailedAttempt(result, category, resultOrError))
+                            break;
+                    }
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    var category = ClassifyError(ex.Message);
+                    attemptRecord.Category = category;
+                    attemptRecord.ErrorMessage = ex.Message;
+                    result.Attempts.Add(attemptRecord);
+                    result.FinalError = ex.Message;
+
+                    if (HandleFailedAttempt(result, category, ex.Message))
+                        break;
+                }
+            }
+
+            if (!result.Succeeded && result.RetryCount > 0)
+                _totalRetries += result.RetryCount;
+
+            result.TotalElapsed = DateTime.UtcNow - startTime;
+            AddToHistory(result);
+            return result;
+        }
+
+        /// <summary>
         /// Handles a failed attempt: records the failure, checks category policies
         /// and circuit breaker. Returns true if retries should stop.
         /// </summary>
@@ -563,7 +664,7 @@ namespace Prompt
         /// </summary>
         private void AddToHistory(RetryResult result)
         {
-            AddToHistory(result);
+            _history.Add(result);
             if (_history.Count > MaxHistorySize)
             {
                 // Remove the oldest 10% to avoid trimming on every call
