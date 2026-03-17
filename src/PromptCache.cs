@@ -255,25 +255,25 @@ namespace Prompt
             string key = ComputeKey(prompt, model);
             var effectiveTtl = ttl ?? _defaultTtl;
 
-            var entry = new CacheEntry
-            {
-                Prompt = prompt,
-                Response = response,
-                Model = model,
-                CreatedAt = DateTimeOffset.UtcNow,
-                LastAccessedAt = DateTimeOffset.UtcNow,
-                AccessCount = 1,
-                Metadata = metadata != null ? new Dictionary<string, string>(metadata) : null,
-                ExpiresAt = effectiveTtl.HasValue && effectiveTtl.Value != TimeSpan.MaxValue
-                    ? DateTimeOffset.UtcNow + effectiveTtl.Value
-                    : null
-            };
-
             lock (_lock)
             {
-                // Update existing entry
+                // Update existing entry — preserve creation time and accumulate access count
                 if (_map.TryGetValue(key, out var existing))
                 {
+                    var prev = existing.Value.Entry;
+                    var entry = new CacheEntry
+                    {
+                        Prompt = prompt,
+                        Response = response,
+                        Model = model,
+                        CreatedAt = prev.CreatedAt,
+                        LastAccessedAt = DateTimeOffset.UtcNow,
+                        AccessCount = prev.AccessCount + 1,
+                        Metadata = metadata != null ? new Dictionary<string, string>(metadata) : null,
+                        ExpiresAt = effectiveTtl.HasValue && effectiveTtl.Value != TimeSpan.MaxValue
+                            ? DateTimeOffset.UtcNow + effectiveTtl.Value
+                            : null
+                    };
                     _order.Remove(existing);
                     existing.Value = new KeyedCacheEntry(key, entry);
                     _order.AddFirst(existing);
@@ -292,7 +292,21 @@ namespace Prompt
                     }
                 }
 
-                var keyed = new KeyedCacheEntry(key, entry);
+                var newEntry = new CacheEntry
+                {
+                    Prompt = prompt,
+                    Response = response,
+                    Model = model,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    LastAccessedAt = DateTimeOffset.UtcNow,
+                    AccessCount = 1,
+                    Metadata = metadata != null ? new Dictionary<string, string>(metadata) : null,
+                    ExpiresAt = effectiveTtl.HasValue && effectiveTtl.Value != TimeSpan.MaxValue
+                        ? DateTimeOffset.UtcNow + effectiveTtl.Value
+                        : null
+                };
+
+                var keyed = new KeyedCacheEntry(key, newEntry);
                 var node = new LinkedListNode<KeyedCacheEntry>(keyed);
                 _order.AddFirst(node);
                 _map[key] = node;
