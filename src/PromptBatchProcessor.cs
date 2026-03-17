@@ -91,55 +91,77 @@ namespace Prompt
 
     /// <summary>
     /// Configuration for retry behavior when processing batch items.
+    /// Thin wrapper around <see cref="RetryPolicyConfig"/> and
+    /// <see cref="PromptRetryPolicy"/> to avoid duplicating backoff/jitter logic.
     /// </summary>
     public class RetryPolicy
     {
+        private readonly RetryPolicyConfig _config;
+        private readonly PromptRetryPolicy _inner;
+
         /// <summary>Maximum number of retry attempts (0 = no retries).</summary>
-        public int MaxRetries { get; set; }
+        public int MaxRetries
+        {
+            get => _config.MaxRetries;
+            set => _config.MaxRetries = value;
+        }
 
         /// <summary>Base delay between retries in milliseconds.</summary>
-        public int BaseDelayMs { get; set; } = 100;
+        public int BaseDelayMs
+        {
+            get => (int)_config.BaseDelay.TotalMilliseconds;
+            set => _config.BaseDelay = TimeSpan.FromMilliseconds(value);
+        }
 
         /// <summary>Whether to use exponential backoff (delay doubles each retry).</summary>
-        public bool ExponentialBackoff { get; set; } = true;
+        public bool ExponentialBackoff
+        {
+            get => _config.Backoff == BackoffStrategy.Exponential;
+            set => _config.Backoff = value ? BackoffStrategy.Exponential : BackoffStrategy.Fixed;
+        }
 
         /// <summary>Maximum delay cap in milliseconds (prevents runaway backoff).</summary>
-        public int MaxDelayMs { get; set; } = 5000;
+        public int MaxDelayMs
+        {
+            get => (int)_config.MaxDelay.TotalMilliseconds;
+            set => _config.MaxDelay = TimeSpan.FromMilliseconds(value);
+        }
 
         /// <summary>
         /// Whether to add random jitter to retry delays to prevent thundering herd.
         /// </summary>
-        public bool Jitter { get; set; } = true;
+        public bool Jitter
+        {
+            get => _config.EnableJitter;
+            set => _config.EnableJitter = value;
+        }
+
+        /// <summary>Creates a new retry policy with default settings.</summary>
+        public RetryPolicy()
+        {
+            _config = new RetryPolicyConfig
+            {
+                MaxRetries = 0,
+                BaseDelay = TimeSpan.FromMilliseconds(100),
+                MaxDelay = TimeSpan.FromMilliseconds(5000),
+                Backoff = BackoffStrategy.Exponential,
+                EnableJitter = true,
+                JitterFactor = 0.25,
+                EnableCircuitBreaker = false,
+                TotalTimeout = null
+            };
+            _inner = new PromptRetryPolicy(_config);
+        }
 
         /// <summary>
         /// Returns the delay in milliseconds for a given attempt number (0-based).
+        /// Delegates to <see cref="PromptRetryPolicy.CalculateDelay"/>.
         /// </summary>
         /// <param name="attempt">The attempt number (0-based).</param>
         /// <returns>Delay in milliseconds.</returns>
         public int GetDelay(int attempt)
         {
-            if (attempt <= 0 || BaseDelayMs <= 0) return 0;
-
-            int delay = BaseDelayMs;
-            if (ExponentialBackoff)
-            {
-                // 2^attempt * base, capped at MaxDelayMs
-                for (int i = 0; i < attempt && delay < MaxDelayMs; i++)
-                    delay = Math.Min(delay * 2, MaxDelayMs);
-            }
-
-            delay = Math.Min(delay, MaxDelayMs);
-
-            if (Jitter)
-            {
-                // Add ±25% jitter using the thread-safe shared instance
-                // to avoid identical seeds when called in quick succession.
-                int jitterRange = Math.Max(1, delay / 4);
-                delay += Random.Shared.Next(-jitterRange, jitterRange + 1);
-                delay = Math.Max(1, delay);
-            }
-
-            return delay;
+            return (int)_inner.CalculateDelay(attempt, ErrorCategory.Unknown).TotalMilliseconds;
         }
 
         /// <summary>
