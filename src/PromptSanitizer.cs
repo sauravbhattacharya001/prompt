@@ -103,11 +103,11 @@ namespace Prompt
         private static readonly Regex EmailPattern = new(
             @"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         private static readonly Regex PhonePattern = new(
-            @"(?<!\d)(\+?1[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}(?!\d)", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+            @"(?<!\d)(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}(?!\d)", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         private static readonly Regex SsnPattern = new(
             @"\b\d{3}-\d{2}-\d{4}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         private static readonly Regex CreditCardPattern = new(
-            @"\b(?:\d[ -]*?){13,16}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+            @"\b\d(?:[ -]?\d){12,15}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         private static readonly Regex IpAddressPattern = new(
             @"\b(?:\d{1,3}\.){3}\d{1,3}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
@@ -313,24 +313,28 @@ namespace Prompt
 
         private string NeutralizeInjectionPatterns(string text, SanitizeResult result)
         {
-            var lower = text.ToLowerInvariant();
             var count = 0;
-            var sb = new StringBuilder(text);
 
             foreach (var phrase in InjectionPhrases)
             {
+                // Rebuild lowercase view only when text changes, not per-search.
+                var lower = text.ToLowerInvariant();
                 var idx = lower.IndexOf(phrase, StringComparison.Ordinal);
                 while (idx >= 0)
                 {
-                    // Wrap the matched phrase in brackets to neutralize it
                     var original = text.Substring(idx, phrase.Length);
-                    sb.Replace(original, $"[blocked: {original}]", idx, phrase.Length);
+                    var replacement = $"[blocked: {original}]";
 
-                    // Recalculate for the new length
-                    text = sb.ToString();
-                    lower = text.ToLowerInvariant();
+                    // Use string concat with spans for correct offset handling
+                    // after insertions shift subsequent positions.
+                    text = string.Concat(
+                        text.AsSpan(0, idx),
+                        replacement,
+                        text.AsSpan(idx + phrase.Length));
                     count++;
-                    idx = lower.IndexOf(phrase, idx + $"[blocked: {original}]".Length, StringComparison.Ordinal);
+
+                    lower = text.ToLowerInvariant();
+                    idx = lower.IndexOf(phrase, idx + replacement.Length, StringComparison.Ordinal);
                 }
             }
 
