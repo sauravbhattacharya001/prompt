@@ -353,24 +353,21 @@ namespace Prompt
         {
             lock (_lock)
             {
-                var expired = new List<string>();
-                foreach (var kvp in _map)
+                int removed = 0;
+                var node = _order.First;
+                while (node != null)
                 {
-                    if (kvp.Value.Value.Entry.IsExpired)
-                        expired.Add(kvp.Key);
-                }
-
-                foreach (var key in expired)
-                {
-                    if (_map.TryGetValue(key, out var node))
+                    var next = node.Next;
+                    if (node.Value.Entry.IsExpired)
                     {
+                        _map.Remove(node.Value.Key);
                         _order.Remove(node);
-                        _map.Remove(key);
                         _evictions++;
+                        removed++;
                     }
+                    node = next;
                 }
-
-                return expired.Count;
+                return removed;
             }
         }
 
