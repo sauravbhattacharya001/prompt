@@ -95,6 +95,9 @@ namespace Prompt
         /// <summary>Gets the max concurrent limit.</summary>
         public int MaxConcurrentLimit { get; internal set; }
 
+        /// <summary>Gets the number of orphaned completions (RecordCompletion calls without matching TryAcquire).</summary>
+        public long OrphanedCompletions { get; internal set; }
+
         /// <summary>
         /// Gets the utilization percentage for requests (0-100).
         /// </summary>
@@ -174,6 +177,8 @@ namespace Prompt
             public long TotalTokens { get; set; }
             public long DeniedRequests { get; set; }
             public long CompletedRequests { get; set; }
+            public HashSet<long> ActiveAcquireTimestamps { get; set; } = new();
+            public long OrphanedCompletions { get; set; }
         }
 
         /// <summary>
@@ -368,6 +373,7 @@ namespace Prompt
                 if (estimatedTokens > 0)
                     state.TokenRecords.Add((now, estimatedTokens));
                 state.ConcurrentCount++;
+                state.ActiveAcquireTimestamps.Add(now);
                 state.TotalRequests++;
                 state.TotalTokens += estimatedTokens;
 
@@ -449,6 +455,33 @@ namespace Prompt
 
             lock (_lock)
             {
+                // Validate this completion is paired with a real acquire
+                bool isOrphaned;
+                if (acquireTimestamp > 0)
+                {
+                    isOrphaned = !state.ActiveAcquireTimestamps.Remove(acquireTimestamp);
+                }
+                else
+                {
+                    // Legacy callers without timestamp: accept if any active acquires exist
+                    isOrphaned = state.ConcurrentCount <= 0;
+                    if (!isOrphaned && state.ActiveAcquireTimestamps.Count > 0)
+                    {
+                        // Remove an arbitrary entry for legacy callers
+                        var enumerator = state.ActiveAcquireTimestamps.GetEnumerator();
+                        if (enumerator.MoveNext())
+                            state.ActiveAcquireTimestamps.Remove(enumerator.Current);
+                    }
+                }
+
+                if (isOrphaned)
+                {
+                    state.OrphanedCompletions++;
+                    // Still count as completed but don't decrement concurrent count
+                    state.CompletedRequests++;
+                    return;
+                }
+
                 if (state.ConcurrentCount > 0)
                     state.ConcurrentCount--;
                 state.CompletedRequests++;
@@ -527,7 +560,8 @@ namespace Prompt
                     ConcurrentRequests = state.ConcurrentCount,
                     RequestsPerMinuteLimit = state.Profile.RequestsPerMinute,
                     TokensPerMinuteLimit = state.Profile.TokensPerMinute,
-                    MaxConcurrentLimit = state.Profile.MaxConcurrent
+                    MaxConcurrentLimit = state.Profile.MaxConcurrent,
+                    OrphanedCompletions = state.OrphanedCompletions
                 };
             }
         }
@@ -594,6 +628,8 @@ namespace Prompt
                 state.RequestTimestamps.Clear();
                 state.TokenRecords.Clear();
                 state.ConcurrentCount = 0;
+                state.ActiveAcquireTimestamps.Clear();
+                state.OrphanedCompletions = 0;
                 state.TotalRequests = 0;
                 state.TotalTokens = 0;
                 state.DeniedRequests = 0;
