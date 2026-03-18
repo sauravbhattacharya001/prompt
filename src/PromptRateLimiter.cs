@@ -1,6 +1,5 @@
 namespace Prompt
 {
-    using System.Collections.Concurrent;
     using System.Text.Json;
     using System.Text.Json.Serialization;
 
@@ -164,7 +163,7 @@ namespace Prompt
     /// </remarks>
     public class PromptRateLimiter
     {
-        private readonly ConcurrentDictionary<string, ProfileState> _profiles = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, ProfileState> _profiles = new(StringComparer.OrdinalIgnoreCase);
         private readonly object _lock = new();
 
         private class ProfileState
@@ -266,7 +265,10 @@ namespace Prompt
         public bool RemoveProfile(string profileName)
         {
             if (string.IsNullOrWhiteSpace(profileName)) return false;
-            return _profiles.TryRemove(profileName, out _);
+            lock (_lock)
+            {
+                return _profiles.Remove(profileName);
+            }
         }
 
         /// <summary>
@@ -275,7 +277,10 @@ namespace Prompt
         /// <returns>List of profile names.</returns>
         public IReadOnlyList<string> GetProfileNames()
         {
-            return _profiles.Keys.ToList().AsReadOnly();
+            lock (_lock)
+            {
+                return _profiles.Keys.ToList().AsReadOnly();
+            }
         }
 
         /// <summary>
@@ -286,7 +291,10 @@ namespace Prompt
         public RateLimitProfile? GetProfile(string profileName)
         {
             if (string.IsNullOrWhiteSpace(profileName)) return null;
-            return _profiles.TryGetValue(profileName, out var state) ? state.Profile : null;
+            lock (_lock)
+            {
+                return _profiles.TryGetValue(profileName, out var state) ? state.Profile : null;
+            }
         }
 
         /// <summary>
@@ -301,11 +309,11 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(profileName))
                 return Denied(profileName ?? "", "Profile name is required.");
 
-            if (!_profiles.TryGetValue(profileName, out var state))
-                return Denied(profileName, $"Unknown profile: {profileName}");
-
             lock (_lock)
             {
+                if (!_profiles.TryGetValue(profileName, out var state))
+                    return Denied(profileName, $"Unknown profile: {profileName}");
+
                 var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 PruneWindow(state, now);
 
@@ -451,10 +459,10 @@ namespace Prompt
         public void RecordCompletion(string profileName, int actualTokens = 0, long acquireTimestamp = 0)
         {
             if (string.IsNullOrWhiteSpace(profileName)) return;
-            if (!_profiles.TryGetValue(profileName, out var state)) return;
 
             lock (_lock)
             {
+                if (!_profiles.TryGetValue(profileName, out var state)) return;
                 // Validate this completion is paired with a real acquire
                 bool isOrphaned;
                 if (acquireTimestamp > 0)
@@ -542,10 +550,11 @@ namespace Prompt
         public RateLimitUsage? GetUsage(string profileName)
         {
             if (string.IsNullOrWhiteSpace(profileName)) return null;
-            if (!_profiles.TryGetValue(profileName, out var state)) return null;
 
             lock (_lock)
             {
+                if (!_profiles.TryGetValue(profileName, out var state)) return null;
+
                 PruneWindow(state, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 
                 return new RateLimitUsage
@@ -572,8 +581,10 @@ namespace Prompt
         /// <returns>Dictionary of profile name to usage snapshot.</returns>
         public IReadOnlyDictionary<string, RateLimitUsage> GetAllUsage()
         {
+            List<string> names;
+            lock (_lock) { names = _profiles.Keys.ToList(); }
             var result = new Dictionary<string, RateLimitUsage>(StringComparer.OrdinalIgnoreCase);
-            foreach (var name in _profiles.Keys)
+            foreach (var name in names)
             {
                 var usage = GetUsage(name);
                 if (usage != null)
@@ -621,10 +632,11 @@ namespace Prompt
         public bool ResetUsage(string profileName)
         {
             if (string.IsNullOrWhiteSpace(profileName)) return false;
-            if (!_profiles.TryGetValue(profileName, out var state)) return false;
 
             lock (_lock)
             {
+                if (!_profiles.TryGetValue(profileName, out var state)) return false;
+
                 state.RequestTimestamps.Clear();
                 state.TokenRecords.Clear();
                 state.ConcurrentCount = 0;
@@ -643,7 +655,9 @@ namespace Prompt
         /// </summary>
         public void ResetAllUsage()
         {
-            foreach (var name in _profiles.Keys.ToList())
+            List<string> names;
+            lock (_lock) { names = _profiles.Keys.ToList(); }
+            foreach (var name in names)
                 ResetUsage(name);
         }
 
@@ -653,10 +667,14 @@ namespace Prompt
         /// <returns>JSON string of all profiles.</returns>
         public string ToJson()
         {
-            var profiles = _profiles.Values
-                .Select(s => s.Profile)
-                .OrderBy(p => p.Name)
-                .ToList();
+            List<RateLimitProfile> profiles;
+            lock (_lock)
+            {
+                profiles = _profiles.Values
+                    .Select(s => s.Profile)
+                    .OrderBy(p => p.Name)
+                    .ToList();
+            }
             return JsonSerializer.Serialize(profiles, SerializationGuards.WriteIndented);
         }
 
