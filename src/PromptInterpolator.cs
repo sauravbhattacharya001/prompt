@@ -73,6 +73,14 @@ namespace Prompt
         private string _openDelimiter = "{{";
         private string _closeDelimiter = "}}";
 
+        /// <summary>
+        /// Maximum allowed length (in characters) for any intermediate or final
+        /// interpolated value. Prevents denial-of-service via chained filters
+        /// (e.g., <c>repeat:100 | repeat:100</c>) that cause exponential string growth.
+        /// Default: 1 MB (~1,048,576 characters).
+        /// </summary>
+        public int MaxOutputLength { get; set; } = 1_048_576;
+
         // Cached compiled regex — rebuilt only when delimiters change.
         private Regex? _cachedPattern;
         private string _cachedPatternKey = "";
@@ -298,6 +306,17 @@ namespace Prompt
                 try
                 {
                     value = ApplyFilter(filterName, value, args);
+
+                    // Guard against filter chains that produce exponentially
+                    // growing output (e.g., repeat:100 | repeat:100).
+                    if (value.Length > MaxOutputLength)
+                    {
+                        value = value.Substring(0, MaxOutputLength);
+                        result.Warnings.Add(
+                            $"Filter '{filterName}' on '{varName}': output truncated " +
+                            $"to {MaxOutputLength} characters (exceeded MaxOutputLength).");
+                    }
+
                     result.AppliedFilters.Add(filterName);
                 }
                 catch (Exception ex)
@@ -334,7 +353,7 @@ namespace Prompt
                 "format_number" => FormatNumber(input, args),
                 "format_date" => FormatDate(input, args),
                 "base64_encode" => Convert.ToBase64String(Encoding.UTF8.GetBytes(input)),
-                "base64_decode" => Encoding.UTF8.GetString(Convert.FromBase64String(input)),
+                "base64_decode" => DecodeBase64Safe(input),
                 "url_encode" => Uri.EscapeDataString(input),
                 "json" => JsonSerializer.Serialize(input),
                 "wordcount" => input.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length.ToString(),
@@ -411,6 +430,11 @@ namespace Prompt
         {
             if (args.Length == 0 || !int.TryParse(args[0], out int count)) return input;
             count = Math.Clamp(count, 0, 100);
+            // Guard against excessive allocation: cap total output at 1 MB
+            // to prevent DoS when repeat is chained or input is already large.
+            const int MaxRepeatOutput = 1_048_576;
+            if (input.Length > 0 && count > MaxRepeatOutput / input.Length)
+                count = Math.Max(1, MaxRepeatOutput / input.Length);
             return string.Concat(Enumerable.Repeat(input, count));
         }
 
@@ -449,6 +473,23 @@ namespace Prompt
             slug = Regex.Replace(slug, @"[^a-z0-9\s-]", "", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             slug = Regex.Replace(slug, @"[\s-]+", "-", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             return slug.Trim('-');
+        }
+
+        /// <summary>
+        /// Decodes a Base64 string with a size guard to prevent DoS via
+        /// oversized payloads. Rejects inputs that would decode to more
+        /// than 1 MB.
+        /// </summary>
+        private static string DecodeBase64Safe(string input)
+        {
+            const int MaxDecodedBytes = 1_048_576;
+            // Base64 encodes 3 bytes per 4 chars; estimate decoded size.
+            int estimatedBytes = (input.Length / 4) * 3 + 3;
+            if (estimatedBytes > MaxDecodedBytes)
+                throw new InvalidOperationException(
+                    $"Base64 input too large: estimated {estimatedBytes} decoded bytes " +
+                    $"exceeds the {MaxDecodedBytes} byte safety limit.");
+            return Encoding.UTF8.GetString(Convert.FromBase64String(input));
         }
 
         private static string Ellipsis(string input, string[] args)
