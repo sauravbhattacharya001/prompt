@@ -13,6 +13,10 @@
 [![Publish](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/nuget-publish.yml?style=flat-square&label=Publish&logo=github)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/nuget-publish.yml)
 [![codecov](https://img.shields.io/codecov/c/github/sauravbhattacharya001/prompt?style=flat-square&logo=codecov)](https://codecov.io/gh/sauravbhattacharya001/prompt)
 ![Tests](https://img.shields.io/badge/tests-1011%20passed-brightgreen?style=flat-square)
+[![Docker](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/docker.yml?style=flat-square&label=Docker&logo=docker)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/docker.yml)
+[![Pages](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/pages.yml?style=flat-square&label=Docs&logo=github)](https://sauravbhattacharya001.github.io/prompt/)
+[![GitHub Release](https://img.shields.io/github/v/release/sauravbhattacharya001/prompt?style=flat-square&logo=github&color=blue)](https://github.com/sauravbhattacharya001/prompt/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/sauravbhattacharya001/prompt?style=flat-square&logo=git&color=orange)](https://github.com/sauravbhattacharya001/prompt/commits/main)
 
 Send prompts to Azure OpenAI and get responses — with templates, chains, safety guards, token management, version control, and a full prompt engineering toolkit. Zero boilerplate.
 
