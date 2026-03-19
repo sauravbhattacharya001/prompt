@@ -576,26 +576,37 @@ namespace Prompt
             if (setA.Count == 0 && setB.Count == 0) return 1.0;
             if (setA.Count == 0 || setB.Count == 0) return 0.0;
 
-            int intersection = setA.Intersect(setB).Count();
-            int union = setA.Union(setB).Count();
+            // Count intersection directly instead of creating new sets
+            int intersection = 0;
+            foreach (var item in setA)
+            {
+                if (setB.Contains(item))
+                    intersection++;
+            }
+            int union = setA.Count + setB.Count - intersection;
 
             return union > 0 ? (double)intersection / union : 0;
         }
 
+        private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+
         private static string NormalizeForComparison(string s)
         {
             s = s.ToLowerInvariant().Trim();
-            s = Regex.Replace(s, @"\s+", " ", RegexOptions.None, TimeSpan.FromMilliseconds(500));
+            s = WhitespaceRegex.Replace(s, " ");
             return s;
         }
 
         private static HashSet<string> GetWordNgrams(string text, int n)
         {
             var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            var ngrams = new HashSet<string>();
+            var ngrams = new HashSet<string>(words.Length);
             for (int i = 0; i <= words.Length - n; i++)
             {
-                ngrams.Add(string.Join(" ", words.Skip(i).Take(n)));
+                // Direct array indexing instead of LINQ Skip/Take
+                ngrams.Add(n == 2
+                    ? string.Concat(words[i], " ", words[i + 1])
+                    : string.Join(" ", words, i, n));
             }
             // Also add individual words for short texts
             if (words.Length < n)

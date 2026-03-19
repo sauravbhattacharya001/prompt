@@ -179,7 +179,8 @@ namespace Prompt
                 throw new ArgumentNullException(nameof(prompt));
 
             string input = model != null ? $"{model}::{prompt}" : prompt;
-            byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+            Span<byte> hash = stackalloc byte[32]; // SHA-256 = 32 bytes
+            SHA256.HashData(Encoding.UTF8.GetBytes(input), hash);
             return Convert.ToHexString(hash).ToLowerInvariant();
         }
 
