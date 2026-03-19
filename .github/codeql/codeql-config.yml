@@ -1,0 +1,17 @@
+name: "CodeQL Configuration"
+# Custom CodeQL config for the Prompt library
+
+paths-ignore:
+  - test
+  - tests
+  - "**/*Test.cs"
+  - "**/*Tests.cs"
+  - docs
+
+queries:
+  - uses: security-and-quality
+  - uses: security-extended
+
+query-filters:
+  - exclude:
+      tags contain: /test/
