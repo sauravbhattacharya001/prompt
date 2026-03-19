@@ -399,6 +399,7 @@ namespace Prompt
     public class PromptBatchProcessor
     {
         private readonly List<BatchItem> _items = new();
+        private readonly Dictionary<string, BatchItem> _itemIndex = new(StringComparer.Ordinal);
         private readonly object _lock = new();
         private Action<BatchProgress>? _progressCallback;
         private Func<string, string?>? _processFunc;
@@ -445,10 +446,14 @@ namespace Prompt
                 if (_items.Count >= MaxBatchSize)
                     throw new InvalidOperationException(
                         $"Batch size cannot exceed {MaxBatchSize} items.");
-                if (_items.Any(i => i.Id == id))
+                // Validate id before index lookup to preserve ArgumentException
+                // for null/empty ids (thrown by BatchItem constructor).
+                var item = new BatchItem(id, template, variables, tags);
+                if (_itemIndex.ContainsKey(item.Id))
                     throw new ArgumentException(
                         $"An item with ID '{id}' already exists in the batch.", nameof(id));
-                _items.Add(new BatchItem(id, template, variables, tags));
+                _items.Add(item);
+                _itemIndex[item.Id] = item;
             }
             return this;
         }
@@ -548,7 +553,11 @@ namespace Prompt
         /// </summary>
         public void Clear()
         {
-            lock (_lock) _items.Clear();
+            lock (_lock)
+            {
+                _items.Clear();
+                _itemIndex.Clear();
+            }
         }
 
         /// <summary>
@@ -624,7 +633,7 @@ namespace Prompt
         public BatchItem? ProcessSingle(string id)
         {
             BatchItem? item;
-            lock (_lock) item = _items.FirstOrDefault(i => i.Id == id);
+            lock (_lock) _itemIndex.TryGetValue(id, out item);
             if (item == null) return null;
 
             ProcessSingleItem(item);
@@ -638,7 +647,11 @@ namespace Prompt
         /// <returns>The batch item, or null if not found.</returns>
         public BatchItem? GetItem(string id)
         {
-            lock (_lock) return _items.FirstOrDefault(i => i.Id == id);
+            lock (_lock)
+            {
+                _itemIndex.TryGetValue(id, out var item);
+                return item;
+            }
         }
 
         /// <summary>
