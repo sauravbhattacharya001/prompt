@@ -283,6 +283,7 @@ namespace Prompt
         /// <summary>Save router config to a JSON file.</summary>
         public async Task SaveToFileAsync(string path)
         {
+            path = SerializationGuards.ValidateFilePath(path, nameof(path));
             var json = ToJson();
             await File.WriteAllTextAsync(path, json);
         }
@@ -290,6 +291,7 @@ namespace Prompt
         /// <summary>Load router config from a JSON file.</summary>
         public static async Task<PromptRouter> LoadFromFileAsync(string path, PromptLibrary? library = null)
         {
+            path = SerializationGuards.ValidateFilePath(path, nameof(path));
             var json = await File.ReadAllTextAsync(path);
             return FromJson(json, library);
         }

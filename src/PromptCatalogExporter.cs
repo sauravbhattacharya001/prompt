@@ -222,6 +222,7 @@ namespace Prompt
         /// <param name="darkMode">Whether to use dark theme.</param>
         public void SaveHtml(string path, string? title = null, bool darkMode = false)
         {
+            path = SerializationGuards.ValidateFilePath(path, nameof(path));
             File.WriteAllText(path, ToHtml(title, darkMode), Encoding.UTF8);
         }
 
@@ -231,6 +232,7 @@ namespace Prompt
         /// <param name="path">Output file path.</param>
         public void SaveCsv(string path)
         {
+            path = SerializationGuards.ValidateFilePath(path, nameof(path));
             File.WriteAllText(path, ToCsv(), Encoding.UTF8);
         }
 
@@ -241,6 +243,7 @@ namespace Prompt
         /// <param name="indented">Whether to indent the JSON.</param>
         public void SaveJson(string path, bool indented = false)
         {
+            path = SerializationGuards.ValidateFilePath(path, nameof(path));
             File.WriteAllText(path, ToJson(indented), Encoding.UTF8);
         }
 

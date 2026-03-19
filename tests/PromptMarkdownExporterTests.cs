@@ -262,7 +262,7 @@ namespace Prompt.Tests
         [Fact]
         public async Task ImportFromFileAsync_NullPath_Throws()
         {
-            await Assert.ThrowsAsync<ArgumentNullException>(
+            await Assert.ThrowsAsync<ArgumentException>(
                 () => PromptMarkdownExporter.ImportFromFileAsync(null!));
         }
 

@@ -579,6 +579,7 @@ namespace Prompt
         /// <param name="path">The file path to write to.</param>
         public async Task SaveToFileAsync(string path)
         {
+            path = SerializationGuards.ValidateFilePath(path, nameof(path));
             var json = ToJson();
             await File.WriteAllTextAsync(path, json);
         }
@@ -590,6 +591,7 @@ namespace Prompt
         /// <returns>A new <see cref="PromptTestSuite"/> populated from the file.</returns>
         public static async Task<PromptTestSuite> LoadFromFileAsync(string path)
         {
+            path = SerializationGuards.ValidateFilePath(path, nameof(path));
             SerializationGuards.ThrowIfFileTooLarge(path);
             var json = await File.ReadAllTextAsync(path);
             return FromJson(json);

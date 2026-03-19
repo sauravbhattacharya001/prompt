@@ -555,8 +555,7 @@ namespace Prompt
         public async Task SaveToFileAsync(string filePath, bool indented = true,
             CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(filePath))
-                throw new ArgumentException("File path cannot be empty.", nameof(filePath));
+            filePath = SerializationGuards.ValidateFilePath(filePath);
 
             string json = ToJson(indented);
             await File.WriteAllTextAsync(filePath, json, Encoding.UTF8, cancellationToken);
@@ -571,8 +570,7 @@ namespace Prompt
         public static async Task<PromptCache> LoadFromFileAsync(string filePath,
             CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(filePath))
-                throw new ArgumentException("File path cannot be empty.", nameof(filePath));
+            filePath = SerializationGuards.ValidateFilePath(filePath);
 
             string json = await File.ReadAllTextAsync(filePath, Encoding.UTF8, cancellationToken);
             return FromJson(json);

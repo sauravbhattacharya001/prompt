@@ -621,16 +621,14 @@ namespace Prompt
         /// <summary>Save to a JSON file.</summary>
         public async Task SaveToFileAsync(string path)
         {
-            if (string.IsNullOrEmpty(path))
-                throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+            path = SerializationGuards.ValidateFilePath(path, nameof(path));
             await File.WriteAllTextAsync(path, ToJson());
         }
 
         /// <summary>Load from a JSON file.</summary>
         public static async Task<FewShotBuilder> LoadFromFileAsync(string path)
         {
-            if (string.IsNullOrEmpty(path))
-                throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+            path = SerializationGuards.ValidateFilePath(path, nameof(path));
             string json = await File.ReadAllTextAsync(path);
             return FromJson(json);
         }

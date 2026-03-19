@@ -343,8 +343,7 @@ namespace Prompt
         /// </summary>
         public async Task SaveAsync(string filePath, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(filePath))
-                throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
+            filePath = SerializationGuards.ValidateFilePath(filePath);
 
             var json = ExportToJson();
             await File.WriteAllTextAsync(filePath, json, cancellationToken);
@@ -355,8 +354,7 @@ namespace Prompt
         /// </summary>
         public async Task LoadAsync(string filePath, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(filePath))
-                throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
+            filePath = SerializationGuards.ValidateFilePath(filePath);
 
             if (!File.Exists(filePath))
                 throw new FileNotFoundException($"History file not found: {filePath}", filePath);

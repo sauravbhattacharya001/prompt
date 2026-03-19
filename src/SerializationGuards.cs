@@ -164,5 +164,51 @@ namespace Prompt
                     $"exceeding the maximum allowed size of " +
                     $"{MaxJsonPayloadBytes / (1024 * 1024)} MB.");
         }
+
+        /// <summary>
+        /// Resolves and validates a file path for safe I/O operations.
+        /// Normalizes the path via <see cref="Path.GetFullPath(string)"/>,
+        /// rejects paths containing directory traversal sequences (e.g., ".."),
+        /// and rejects device paths (e.g., \\.\, \\?\) on Windows.
+        /// </summary>
+        /// <param name="filePath">The file path to validate.</param>
+        /// <param name="paramName">Parameter name for exceptions (default: "filePath").</param>
+        /// <returns>The resolved full path.</returns>
+        /// <exception cref="ArgumentException">
+        /// Thrown when <paramref name="filePath"/> is null or whitespace.
+        /// </exception>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown when the path contains traversal sequences or device prefixes.
+        /// </exception>
+        internal static string ValidateFilePath(string filePath, string paramName = "filePath")
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException(
+                    "File path cannot be null or empty.", paramName);
+
+            // Reject raw traversal sequences before normalization so that
+            // crafted inputs like "foo/../../etc/passwd" are caught even
+            // if Path.GetFullPath would resolve them to a "safe" location.
+            if (filePath.Contains(".." + Path.DirectorySeparatorChar) ||
+                filePath.Contains(".." + Path.AltDirectorySeparatorChar) ||
+                filePath.EndsWith(".."))
+            {
+                throw new InvalidOperationException(
+                    $"File path '{filePath}' contains directory traversal sequences. " +
+                    "Path traversal is not allowed.");
+            }
+
+            var fullPath = Path.GetFullPath(filePath);
+
+            // On Windows, reject device paths (\\.\, \\?\) which can bypass
+            // filesystem security and access raw devices or reserved names.
+            if (fullPath.StartsWith(@"\\.\") || fullPath.StartsWith(@"\\?\"))
+            {
+                throw new InvalidOperationException(
+                    $"File path '{filePath}' resolves to a device path, which is not allowed.");
+            }
+
+            return fullPath;
+        }
     }
 }

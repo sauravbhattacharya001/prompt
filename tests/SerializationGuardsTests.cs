@@ -321,4 +321,34 @@ public class SerializationGuardsTests : IDisposable
     {
         public TestLevel Level { get; set; }
     }
+
+    // ── ValidateFilePath Tests ─────────────────────────────
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ValidateFilePath_NullOrEmpty_Throws(string? path)
+    {
+        Assert.Throws<ArgumentException>(() =>
+            SerializationGuards.ValidateFilePath(path!));
+    }
+
+    [Theory]
+    [InlineData("foo/../../etc/passwd")]
+    [InlineData("..\\windows\\system32\\config")]
+    [InlineData("some/path/..")]
+    public void ValidateFilePath_TraversalSequences_Throws(string path)
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            SerializationGuards.ValidateFilePath(path));
+    }
+
+    [Fact]
+    public void ValidateFilePath_ValidPath_ReturnsFullPath()
+    {
+        var result = SerializationGuards.ValidateFilePath("test.json");
+        Assert.True(Path.IsPathRooted(result));
+        Assert.EndsWith("test.json", result);
+    }
 }

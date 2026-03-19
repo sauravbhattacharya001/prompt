@@ -444,8 +444,7 @@ namespace Prompt
         /// </summary>
         public async Task SaveAsync(string filePath, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(filePath))
-                throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
+            filePath = SerializationGuards.ValidateFilePath(filePath);
 
             string json = ToJson(true);
             await File.WriteAllTextAsync(filePath, json, cancellationToken);
@@ -456,10 +455,7 @@ namespace Prompt
         /// </summary>
         public static async Task<PromptSnapshotManager> LoadAsync(string filePath, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(filePath))
-                throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
-
-            filePath = Path.GetFullPath(filePath);
+            filePath = SerializationGuards.ValidateFilePath(filePath);
 
             if (!File.Exists(filePath))
                 throw new FileNotFoundException($"Snapshot file not found: {filePath}", filePath);

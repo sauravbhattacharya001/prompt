@@ -176,6 +176,7 @@ namespace Prompt
         {
             if (filePath == null)
                 throw new ArgumentNullException(nameof(filePath));
+            filePath = SerializationGuards.ValidateFilePath(filePath);
 
             var markdown = Export(library, title, includeMetadata);
             await File.WriteAllTextAsync(filePath, markdown);
@@ -347,8 +348,7 @@ namespace Prompt
         /// </exception>
         public static async Task<PromptLibrary> ImportFromFileAsync(string filePath)
         {
-            if (filePath == null)
-                throw new ArgumentNullException(nameof(filePath));
+            filePath = SerializationGuards.ValidateFilePath(filePath);
             if (!File.Exists(filePath))
                 throw new FileNotFoundException(
                     $"Markdown file not found: {filePath}", filePath);

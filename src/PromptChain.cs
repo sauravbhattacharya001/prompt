@@ -564,9 +564,7 @@ namespace Prompt
             bool indented = true,
             CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(filePath))
-                throw new ArgumentException(
-                    "File path cannot be null or empty.", nameof(filePath));
+            filePath = SerializationGuards.ValidateFilePath(filePath);
 
             string json = ToJson(indented);
             await File.WriteAllTextAsync(filePath, json, cancellationToken);
@@ -583,11 +581,7 @@ namespace Prompt
             string filePath,
             CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(filePath))
-                throw new ArgumentException(
-                    "File path cannot be null or empty.", nameof(filePath));
-
-            filePath = Path.GetFullPath(filePath);
+            filePath = SerializationGuards.ValidateFilePath(filePath);
 
             if (!File.Exists(filePath))
                 throw new FileNotFoundException(
