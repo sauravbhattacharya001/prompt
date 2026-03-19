@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   build-and-test:
@@ -45,24 +46,52 @@ jobs:
             /p:ThresholdType=line \
             /p:ThresholdStat=total
 
+      - name: Generate HTML coverage report
+        if: always()
+        run: |
+          dotnet tool install -g dotnet-reportgenerator-globaltool || true
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          if [ -f tests/coverage/coverage.cobertura.xml ]; then
+            reportgenerator \
+              -reports:tests/coverage/coverage.cobertura.xml \
+              -targetdir:tests/coverage/html \
+              -reporttypes:"Html;MarkdownSummaryGithub;Badges" \
+              -title:"Prompt Coverage Report"
+          fi
+
       - name: Generate coverage summary
         if: always()
         run: |
           if [ -f tests/coverage/coverage.cobertura.xml ]; then
             LINE_RATE=$(grep -oP 'line-rate="\K[^"]+' tests/coverage/coverage.cobertura.xml | head -1)
+            BRANCH_RATE=$(grep -oP 'branch-rate="\K[^"]+' tests/coverage/coverage.cobertura.xml | head -1)
             if [ -n "$LINE_RATE" ]; then
-              PCT=$(echo "$LINE_RATE * 100" | bc -l | xargs printf "%.1f")
+              LINE_PCT=$(echo "$LINE_RATE * 100" | bc -l | xargs printf "%.1f")
+              BRANCH_PCT=$(echo "${BRANCH_RATE:-0} * 100" | bc -l | xargs printf "%.1f")
               {
-                echo "## Coverage Summary"
+                echo "## 📊 Coverage Summary"
                 echo ""
                 echo "| Metric | Value |"
                 echo "|--------|-------|"
-                echo "| Line coverage | ${PCT}% |"
+                echo "| Line coverage | ${LINE_PCT}% |"
+                echo "| Branch coverage | ${BRANCH_PCT}% |"
                 echo "| Threshold | 50% (line) |"
                 echo ""
               } >> "$GITHUB_STEP_SUMMARY"
+              # Append ReportGenerator markdown if available
+              if [ -f tests/coverage/html/SummaryGithub.md ]; then
+                cat tests/coverage/html/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+              fi
             fi
           fi
+
+      - name: Add PR coverage comment
+        if: github.event_name == 'pull_request' && always()
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage
+          path: tests/coverage/html/SummaryGithub.md
+        continue-on-error: true
 
       - name: Upload coverage to Codecov
         if: github.event_name == 'push'
@@ -84,4 +113,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: coverage-report
-          path: tests/coverage/
+          path: |
+            tests/coverage/
+            tests/coverage/html/
