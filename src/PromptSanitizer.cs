@@ -107,7 +107,7 @@ namespace Prompt
         private static readonly Regex SsnPattern = new(
             @"\b\d{3}-\d{2}-\d{4}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         private static readonly Regex CreditCardPattern = new(
-            @"\b(?:\d[ -]*?){13,16}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+            @"\b\d(?:[ -]?\d){12,15}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         private static readonly Regex IpAddressPattern = new(
             @"\b(?:\d{1,3}\.){3}\d{1,3}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
