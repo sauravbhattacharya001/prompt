@@ -106,8 +106,11 @@ namespace Prompt
             @"(?<!\d)(\+?1[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}(?!\d)", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         private static readonly Regex SsnPattern = new(
             @"\b\d{3}-\d{2}-\d{4}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        // Fixed: the previous pattern \b(?:\d[ -]*?){13,16}\b had catastrophic
+        // backtracking (ReDoS) due to a lazy quantifier nested inside a repetition
+        // group. See: https://github.com/sauravbhattacharya001/prompt/issues/106
         private static readonly Regex CreditCardPattern = new(
-            @"\b(?:\d[ -]*?){13,16}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+            @"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{1,4}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         private static readonly Regex IpAddressPattern = new(
             @"\b(?:\d{1,3}\.){3}\d{1,3}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
