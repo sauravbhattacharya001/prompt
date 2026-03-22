@@ -278,95 +278,16 @@ namespace Prompt
         /// </summary>
         public RetryResult Execute(Func<int, (bool success, string resultOrError)> operation)
         {
-            var result = new RetryResult();
-            var startTime = DateTime.UtcNow;
-            var maxRetries = _config.MaxRetries;
-
-            _totalExecutions++;
-
-            if (IsCircuitOpen())
-            {
-                result.CircuitBreakerTripped = true;
-                result.FinalError = "Circuit breaker is open — too many recent failures.";
-                result.TotalElapsed = DateTime.UtcNow - startTime;
-                _totalCircuitBreaks++;
-                AddToHistory(result);
-                return result;
-            }
-
-            for (int attempt = 0; attempt <= maxRetries; attempt++)
-            {
-                var attemptRecord = new RetryAttempt
+            // Wrap the synchronous operation as an async delegate and run
+            // the shared retry loop.  Thread.Sleep is used for backoff via
+            // the synchronous delay callback overload of ExecuteRetryLoop.
+            return ExecuteRetryLoop(
+                async (attempt, _) =>
                 {
-                    AttemptNumber = attempt,
-                    Timestamp = DateTime.UtcNow
-                };
-
-                if (attempt > 0)
-                {
-                    var lastAttempt = result.Attempts.Last();
-                    var delay = CalculateDelay(attempt, lastAttempt.Category);
-                    attemptRecord.Delay = delay;
-
-                    if (_config.TotalTimeout.HasValue &&
-                        (DateTime.UtcNow - startTime + delay) > _config.TotalTimeout.Value)
-                    {
-                        result.FinalError = "Total timeout exceeded.";
-                        break;
-                    }
-
-                    // Actually wait for the computed backoff delay before retrying
-                    if (delay > TimeSpan.Zero)
-                        Thread.Sleep(delay);
-                }
-
-                try
-                {
-                    var (success, resultOrError) = operation(attempt);
-
-                    if (success)
-                    {
-                        attemptRecord.Succeeded = true;
-                        result.Succeeded = true;
-                        result.Result = resultOrError;
-                        result.Attempts.Add(attemptRecord);
-                        _totalRetries += attempt;
-                        _totalSuccesses++;
-                        RecordSuccess();
-                        break;
-                    }
-                    else
-                    {
-                        var category = ClassifyError(resultOrError);
-                        attemptRecord.Category = category;
-                        attemptRecord.ErrorMessage = resultOrError;
-                        result.Attempts.Add(attemptRecord);
-                        result.FinalError = resultOrError;
-
-                        if (HandleFailedAttempt(result, category, resultOrError))
-                            break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    var category = ClassifyError(ex.Message);
-                    attemptRecord.Category = category;
-                    attemptRecord.ErrorMessage = ex.Message;
-                    result.Attempts.Add(attemptRecord);
-                    result.FinalError = ex.Message;
-
-                    if (HandleFailedAttempt(result, category, ex.Message))
-                        break;
-                }
-            }
-
-            // Count retries for failed executions (successful ones counted above)
-            if (!result.Succeeded && result.RetryCount > 0)
-                _totalRetries += result.RetryCount;
-
-            result.TotalElapsed = DateTime.UtcNow - startTime;
-            AddToHistory(result);
-            return result;
+                    return operation(attempt);
+                },
+                delay => Thread.Sleep(delay),
+                CancellationToken.None);
         }
 
         /// <summary>
@@ -377,23 +298,26 @@ namespace Prompt
             Func<int, CancellationToken, Task<(bool success, string resultOrError)>> operation,
             CancellationToken cancellationToken = default)
         {
-            var result = new RetryResult();
+            return await ExecuteRetryLoopAsync(operation, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Core retry loop shared by both sync and async entry points.
+        /// Accepts a synchronous delay action so the sync path can use
+        /// Thread.Sleep while the async path awaits Task.Delay.
+        /// </summary>
+        private RetryResult ExecuteRetryLoop(
+            Func<int, CancellationToken, Task<(bool success, string resultOrError)>> operation,
+            Action<TimeSpan> delayAction,
+            CancellationToken cancellationToken)
+        {
+            var result = InitRetryResult();
+            if (result != null) return result;
+
+            result = new RetryResult();
             var startTime = DateTime.UtcNow;
-            var maxRetries = _config.MaxRetries;
 
-            _totalExecutions++;
-
-            if (IsCircuitOpen())
-            {
-                result.CircuitBreakerTripped = true;
-                result.FinalError = "Circuit breaker is open — too many recent failures.";
-                result.TotalElapsed = DateTime.UtcNow - startTime;
-                _totalCircuitBreaks++;
-                AddToHistory(result);
-                return result;
-            }
-
-            for (int attempt = 0; attempt <= maxRetries; attempt++)
+            for (int attempt = 0; attempt <= _config.MaxRetries; attempt++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -405,62 +329,199 @@ namespace Prompt
 
                 if (attempt > 0)
                 {
-                    var lastAttempt = result.Attempts.Last();
-                    var delay = CalculateDelay(attempt, lastAttempt.Category);
-                    attemptRecord.Delay = delay;
-
-                    if (_config.TotalTimeout.HasValue &&
-                        (DateTime.UtcNow - startTime + delay) > _config.TotalTimeout.Value)
+                    var shouldBreak = ApplyBackoffDelay(result, attemptRecord, startTime, delay =>
                     {
-                        result.FinalError = "Total timeout exceeded.";
-                        break;
-                    }
+                        delayAction(delay);
+                        return Task.CompletedTask;
+                    });
+                    if (shouldBreak) break;
+                }
 
-                    if (delay > TimeSpan.Zero)
-                        await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    var (success, resultOrError) = operation(attempt, cancellationToken).GetAwaiter().GetResult();
+                    if (ProcessAttemptOutcome(result, attemptRecord, attempt, success, resultOrError))
+                        break;
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    if (ProcessAttemptException(result, attemptRecord, ex))
+                        break;
+                }
+            }
+
+            return FinalizeResult(result, startTime);
+        }
+
+        /// <summary>
+        /// Async core retry loop using Task.Delay for backoff.
+        /// </summary>
+        private async Task<RetryResult> ExecuteRetryLoopAsync(
+            Func<int, CancellationToken, Task<(bool success, string resultOrError)>> operation,
+            CancellationToken cancellationToken)
+        {
+            var earlyResult = InitRetryResult();
+            if (earlyResult != null) return earlyResult;
+
+            var result = new RetryResult();
+            var startTime = DateTime.UtcNow;
+
+            for (int attempt = 0; attempt <= _config.MaxRetries; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var attemptRecord = new RetryAttempt
+                {
+                    AttemptNumber = attempt,
+                    Timestamp = DateTime.UtcNow
+                };
+
+                if (attempt > 0)
+                {
+                    var shouldBreak = await ApplyBackoffDelayAsync(result, attemptRecord, startTime, cancellationToken);
+                    if (shouldBreak) break;
                 }
 
                 try
                 {
                     var (success, resultOrError) = await operation(attempt, cancellationToken).ConfigureAwait(false);
-
-                    if (success)
-                    {
-                        attemptRecord.Succeeded = true;
-                        result.Succeeded = true;
-                        result.Result = resultOrError;
-                        result.Attempts.Add(attemptRecord);
-                        _totalRetries += attempt;
-                        _totalSuccesses++;
-                        RecordSuccess();
+                    if (ProcessAttemptOutcome(result, attemptRecord, attempt, success, resultOrError))
                         break;
-                    }
-                    else
-                    {
-                        var category = ClassifyError(resultOrError);
-                        attemptRecord.Category = category;
-                        attemptRecord.ErrorMessage = resultOrError;
-                        result.Attempts.Add(attemptRecord);
-                        result.FinalError = resultOrError;
-
-                        if (HandleFailedAttempt(result, category, resultOrError))
-                            break;
-                    }
                 }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex)
                 {
-                    var category = ClassifyError(ex.Message);
-                    attemptRecord.Category = category;
-                    attemptRecord.ErrorMessage = ex.Message;
-                    result.Attempts.Add(attemptRecord);
-                    result.FinalError = ex.Message;
-
-                    if (HandleFailedAttempt(result, category, ex.Message))
+                    if (ProcessAttemptException(result, attemptRecord, ex))
                         break;
                 }
             }
 
+            return FinalizeResult(result, startTime);
+        }
+
+        /// <summary>
+        /// Checks the circuit breaker and increments the execution counter.
+        /// Returns a short-circuit RetryResult if the circuit is open, or null to proceed.
+        /// </summary>
+        private RetryResult? InitRetryResult()
+        {
+            _totalExecutions++;
+
+            if (IsCircuitOpen())
+            {
+                var result = new RetryResult
+                {
+                    CircuitBreakerTripped = true,
+                    FinalError = "Circuit breaker is open — too many recent failures.",
+                    TotalElapsed = TimeSpan.Zero
+                };
+                _totalCircuitBreaks++;
+                AddToHistory(result);
+                return result;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Computes the backoff delay, checks the total timeout, and invokes
+        /// the provided delay function. Returns true if the loop should break.
+        /// </summary>
+        private bool ApplyBackoffDelay(
+            RetryResult result,
+            RetryAttempt attemptRecord,
+            DateTime startTime,
+            Func<TimeSpan, Task> delayFunc)
+        {
+            var lastAttempt = result.Attempts.Last();
+            var delay = CalculateDelay(attemptRecord.AttemptNumber, lastAttempt.Category);
+            attemptRecord.Delay = delay;
+
+            if (_config.TotalTimeout.HasValue &&
+                (DateTime.UtcNow - startTime + delay) > _config.TotalTimeout.Value)
+            {
+                result.FinalError = "Total timeout exceeded.";
+                return true;
+            }
+
+            if (delay > TimeSpan.Zero)
+                delayFunc(delay).GetAwaiter().GetResult();
+
+            return false;
+        }
+
+        /// <summary>Async variant of backoff delay that awaits Task.Delay.</summary>
+        private async Task<bool> ApplyBackoffDelayAsync(
+            RetryResult result,
+            RetryAttempt attemptRecord,
+            DateTime startTime,
+            CancellationToken cancellationToken)
+        {
+            var lastAttempt = result.Attempts.Last();
+            var delay = CalculateDelay(attemptRecord.AttemptNumber, lastAttempt.Category);
+            attemptRecord.Delay = delay;
+
+            if (_config.TotalTimeout.HasValue &&
+                (DateTime.UtcNow - startTime + delay) > _config.TotalTimeout.Value)
+            {
+                result.FinalError = "Total timeout exceeded.";
+                return true;
+            }
+
+            if (delay > TimeSpan.Zero)
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+
+            return false;
+        }
+
+        /// <summary>
+        /// Processes the outcome of a single attempt. Returns true if the loop should break.
+        /// </summary>
+        private bool ProcessAttemptOutcome(
+            RetryResult result,
+            RetryAttempt attemptRecord,
+            int attempt,
+            bool success,
+            string resultOrError)
+        {
+            if (success)
+            {
+                attemptRecord.Succeeded = true;
+                result.Succeeded = true;
+                result.Result = resultOrError;
+                result.Attempts.Add(attemptRecord);
+                _totalRetries += attempt;
+                _totalSuccesses++;
+                RecordSuccess();
+                return true;
+            }
+
+            var category = ClassifyError(resultOrError);
+            attemptRecord.Category = category;
+            attemptRecord.ErrorMessage = resultOrError;
+            result.Attempts.Add(attemptRecord);
+            result.FinalError = resultOrError;
+            return HandleFailedAttempt(result, category, resultOrError);
+        }
+
+        /// <summary>
+        /// Processes an exception thrown during an attempt. Returns true if the loop should break.
+        /// </summary>
+        private bool ProcessAttemptException(RetryResult result, RetryAttempt attemptRecord, Exception ex)
+        {
+            var category = ClassifyError(ex.Message);
+            attemptRecord.Category = category;
+            attemptRecord.ErrorMessage = ex.Message;
+            result.Attempts.Add(attemptRecord);
+            result.FinalError = ex.Message;
+            return HandleFailedAttempt(result, category, ex.Message);
+        }
+
+        /// <summary>
+        /// Finalizes the retry result with elapsed time and history tracking.
+        /// </summary>
+        private RetryResult FinalizeResult(RetryResult result, DateTime startTime)
+        {
             if (!result.Succeeded && result.RetryCount > 0)
                 _totalRetries += result.RetryCount;
 
