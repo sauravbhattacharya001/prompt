@@ -623,6 +623,7 @@ namespace Prompt
         {
             if (string.IsNullOrEmpty(path))
                 throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+            path = Path.GetFullPath(path);
             await File.WriteAllTextAsync(path, ToJson());
         }
 
@@ -631,6 +632,10 @@ namespace Prompt
         {
             if (string.IsNullOrEmpty(path))
                 throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+            path = Path.GetFullPath(path);
+            if (!File.Exists(path))
+                throw new FileNotFoundException($"File not found: {path}", path);
+            SerializationGuards.ThrowIfFileTooLarge(path);
             string json = await File.ReadAllTextAsync(path);
             return FromJson(json);
         }

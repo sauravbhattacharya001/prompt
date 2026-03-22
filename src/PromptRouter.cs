@@ -283,6 +283,9 @@ namespace Prompt
         /// <summary>Save router config to a JSON file.</summary>
         public async Task SaveToFileAsync(string path)
         {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+            path = Path.GetFullPath(path);
             var json = ToJson();
             await File.WriteAllTextAsync(path, json);
         }
@@ -290,6 +293,12 @@ namespace Prompt
         /// <summary>Load router config from a JSON file.</summary>
         public static async Task<PromptRouter> LoadFromFileAsync(string path, PromptLibrary? library = null)
         {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+            path = Path.GetFullPath(path);
+            if (!File.Exists(path))
+                throw new FileNotFoundException($"Router file not found: {path}", path);
+            SerializationGuards.ThrowIfFileTooLarge(path);
             var json = await File.ReadAllTextAsync(path);
             return FromJson(json, library);
         }

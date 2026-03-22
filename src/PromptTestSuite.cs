@@ -579,6 +579,9 @@ namespace Prompt
         /// <param name="path">The file path to write to.</param>
         public async Task SaveToFileAsync(string path)
         {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+            path = Path.GetFullPath(path);
             var json = ToJson();
             await File.WriteAllTextAsync(path, json);
         }
@@ -590,6 +593,11 @@ namespace Prompt
         /// <returns>A new <see cref="PromptTestSuite"/> populated from the file.</returns>
         public static async Task<PromptTestSuite> LoadFromFileAsync(string path)
         {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+            path = Path.GetFullPath(path);
+            if (!File.Exists(path))
+                throw new FileNotFoundException($"Test suite file not found: {path}", path);
             SerializationGuards.ThrowIfFileTooLarge(path);
             var json = await File.ReadAllTextAsync(path);
             return FromJson(json);

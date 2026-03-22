@@ -688,6 +688,7 @@ namespace Prompt
                 throw new ArgumentException(
                     "File path cannot be null or empty.", nameof(filePath));
 
+            filePath = Path.GetFullPath(filePath);
             string json = SaveToJson(indented);
             await File.WriteAllTextAsync(filePath, json, cancellationToken);
         }

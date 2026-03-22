@@ -346,6 +346,7 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
 
+            filePath = Path.GetFullPath(filePath);
             var json = ExportToJson();
             await File.WriteAllTextAsync(filePath, json, cancellationToken);
         }
@@ -358,8 +359,10 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
 
+            filePath = Path.GetFullPath(filePath);
             if (!File.Exists(filePath))
                 throw new FileNotFoundException($"History file not found: {filePath}", filePath);
+            SerializationGuards.ThrowIfFileTooLarge(filePath);
 
             var json = await File.ReadAllTextAsync(filePath, cancellationToken);
             SerializationGuards.ThrowIfPayloadTooLarge(json);
