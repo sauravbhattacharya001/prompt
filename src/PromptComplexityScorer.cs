@@ -232,37 +232,33 @@ namespace Prompt
             };
         }
 
-        private ComplexityDimension ScoreNestingDepth(string prompt)
+        /// <summary>
+        /// Shared scoring helper for dimensions that follow a simple
+        /// "count regex matches → scale → cap at 10" pattern.
+        /// Eliminates repeated boilerplate across dimension scorers.
+        /// </summary>
+        private static ComplexityDimension ScoreByPattern(
+            Regex pattern, string prompt, string name, double weight,
+            double multiplier, string unit)
         {
-            int count = CountMatches(NestingPattern, prompt);
-            double score = Math.Min(10, count * 1.8);
-
+            int count = CountMatches(pattern, prompt);
+            double score = Math.Round(Math.Min(10, count * multiplier), 1);
             return new ComplexityDimension
             {
-                Name = "Nesting Depth",
-                Score = Math.Round(score, 1),
-                Weight = 1.2,
-                Explanation = $"Found {count} conditional/branching constructs.",
-                Evidence = NestingPattern.Matches(prompt).Cast<Match>()
+                Name = name,
+                Score = score,
+                Weight = weight,
+                Explanation = $"Found {count} {unit}.",
+                Evidence = pattern.Matches(prompt).Cast<Match>()
                     .Take(5).Select(m => m.Value.Trim()).ToList()
             };
         }
 
-        private ComplexityDimension ScoreVariableLoad(string prompt)
-        {
-            int count = CountMatches(VariablePattern, prompt);
-            double score = Math.Min(10, count * 2.0);
+        private ComplexityDimension ScoreNestingDepth(string prompt) =>
+            ScoreByPattern(NestingPattern, prompt, "Nesting Depth", 1.2, 1.8, "conditional/branching constructs");
 
-            return new ComplexityDimension
-            {
-                Name = "Variable Load",
-                Score = Math.Round(score, 1),
-                Weight = 0.8,
-                Explanation = $"Found {count} template variable(s)/placeholder(s).",
-                Evidence = VariablePattern.Matches(prompt).Cast<Match>()
-                    .Take(5).Select(m => m.Value).ToList()
-            };
-        }
+        private ComplexityDimension ScoreVariableLoad(string prompt) =>
+            ScoreByPattern(VariablePattern, prompt, "Variable Load", 0.8, 2.0, "template variable(s)/placeholder(s)");
 
         private ComplexityDimension ScoreAmbiguity(string prompt, int tokens)
         {
@@ -297,53 +293,14 @@ namespace Prompt
             };
         }
 
-        private ComplexityDimension ScoreOutputConstraints(string prompt)
-        {
-            int count = CountMatches(OutputFormatPattern, prompt);
-            double score = Math.Min(10, count * 2.5);
+        private ComplexityDimension ScoreOutputConstraints(string prompt) =>
+            ScoreByPattern(OutputFormatPattern, prompt, "Output Constraints", 0.8, 2.5, "output format requirement(s)");
 
-            return new ComplexityDimension
-            {
-                Name = "Output Constraints",
-                Score = Math.Round(score, 1),
-                Weight = 0.8,
-                Explanation = $"Found {count} output format requirement(s).",
-                Evidence = OutputFormatPattern.Matches(prompt).Cast<Match>()
-                    .Take(5).Select(m => m.Value.Trim()).ToList()
-            };
-        }
+        private ComplexityDimension ScoreReasoningDepth(string prompt) =>
+            ScoreByPattern(ReasoningPattern, prompt, "Reasoning Depth", 1.5, 2.5, "reasoning/analysis requirement(s)");
 
-        private ComplexityDimension ScoreReasoningDepth(string prompt)
-        {
-            int count = CountMatches(ReasoningPattern, prompt);
-            double score = Math.Min(10, count * 2.5);
-
-            return new ComplexityDimension
-            {
-                Name = "Reasoning Depth",
-                Score = Math.Round(score, 1),
-                Weight = 1.5,
-                Explanation = $"Found {count} reasoning/analysis requirement(s).",
-                Evidence = ReasoningPattern.Matches(prompt).Cast<Match>()
-                    .Take(5).Select(m => m.Value.Trim()).ToList()
-            };
-        }
-
-        private ComplexityDimension ScoreContextDependency(string prompt)
-        {
-            int count = CountMatches(ContextDependencyPattern, prompt);
-            double score = Math.Min(10, count * 2.0);
-
-            return new ComplexityDimension
-            {
-                Name = "Context Dependency",
-                Score = Math.Round(score, 1),
-                Weight = 0.7,
-                Explanation = $"Found {count} external context reference(s).",
-                Evidence = ContextDependencyPattern.Matches(prompt).Cast<Match>()
-                    .Take(5).Select(m => m.Value.Trim()).ToList()
-            };
-        }
+        private ComplexityDimension ScoreContextDependency(string prompt) =>
+            ScoreByPattern(ContextDependencyPattern, prompt, "Context Dependency", 0.7, 2.0, "external context reference(s)");
 
         private static List<string> IdentifyRiskFactors(List<ComplexityDimension> dims, string prompt, int tokens)
         {
