@@ -160,6 +160,21 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void FormatDateFilter_DisallowedFormat_FallsBackToDefault()
+        {
+            // Issue #109: arbitrary format strings like "zzzz" could leak server timezone info
+            var result = _interpolator.Interpolate("{{date | format_date:zzzz}}", new Dictionary<string, object> { ["date"] = "2026-03-08T15:00:00" });
+            Assert.Equal("2026-03-08", result.Output);
+        }
+
+        [Fact]
+        public void FormatDateFilter_AllowedAlternateFormat()
+        {
+            var result = _interpolator.Interpolate("{{date | format_date:MM/dd/yyyy}}", new Dictionary<string, object> { ["date"] = "2026-03-08T15:00:00" });
+            Assert.Equal("03/08/2026", result.Output);
+        }
+
+        [Fact]
         public void Base64RoundTrip()
         {
             var vars = new Dictionary<string, object> { ["text"] = "Hello!" };

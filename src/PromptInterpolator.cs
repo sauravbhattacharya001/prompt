@@ -453,11 +453,29 @@ namespace Prompt
             return n.ToString($"N{decimals}", CultureInfo.InvariantCulture);
         }
 
+        /// <summary>
+        /// Allowed date format strings. Restricts format_date to a known-safe
+        /// set to prevent information leakage (timezone, high-precision timing)
+        /// when templates are user-controlled. See issue #109.
+        /// </summary>
+        private static readonly HashSet<string> AllowedDateFormats = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "yyyy-MM-dd", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-ddTHH:mm:ss",
+            "MM/dd/yyyy", "dd/MM/yyyy", "dd-MM-yyyy",
+            "MM/dd/yyyy HH:mm:ss", "dd/MM/yyyy HH:mm:ss",
+            "HH:mm:ss", "HH:mm",
+            "yyyy", "MMMM dd, yyyy", "MMM dd, yyyy",
+            "MMMM yyyy", "MMM yyyy",
+            "o", "s", "u",
+        };
+
         private static string FormatDate(string input, string[] args)
         {
             if (!DateTime.TryParse(input, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime dt))
                 return input;
             string fmt = args.Length > 0 ? args[0] : "yyyy-MM-dd";
+            if (!AllowedDateFormats.Contains(fmt))
+                fmt = "yyyy-MM-dd";
             return dt.ToString(fmt, CultureInfo.InvariantCulture);
         }
 
