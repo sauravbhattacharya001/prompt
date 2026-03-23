@@ -198,17 +198,9 @@ namespace Prompt
         /// <summary>Lists all available filter names (built-in + custom).</summary>
         public List<string> ListFilters()
         {
-            var builtIn = new List<string>
-            {
-                "upper", "lower", "trim", "capitalize", "title", "reverse",
-                "truncate", "pad_left", "pad_right", "default", "replace",
-                "repeat", "prefix", "suffix", "pluralize",
-                "format_number", "format_date", "base64_encode", "base64_decode",
-                "url_encode", "json", "wordcount", "charcount", "initials",
-                "slug", "ellipsis"
-            };
-            builtIn.AddRange(_customFilters.Keys);
-            return builtIn;
+            var filters = new List<string>(BuiltInFilters);
+            filters.AddRange(_customFilters.Keys);
+            return filters;
         }
 
         /// <summary>Validates a template, returning any issues found.</summary>
