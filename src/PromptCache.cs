@@ -178,9 +178,17 @@ namespace Prompt
             if (prompt == null)
                 throw new ArgumentNullException(nameof(prompt));
 
-            string input = model != null ? $"{model}::{prompt}" : prompt;
-            Span<byte> hash = stackalloc byte[32]; // SHA-256 = 32 bytes
-            SHA256.HashData(Encoding.UTF8.GetBytes(input), hash);
+            // Use IncrementalHash to avoid allocating a concatenated
+            // "{model}::{prompt}" string, which doubles memory for large prompts.
+            using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            if (model != null)
+            {
+                hasher.AppendData(Encoding.UTF8.GetBytes(model));
+                hasher.AppendData("::"u8);
+            }
+            hasher.AppendData(Encoding.UTF8.GetBytes(prompt));
+            Span<byte> hash = stackalloc byte[32];
+            hasher.TryGetHashAndReset(hash, out _);
             return Convert.ToHexString(hash).ToLowerInvariant();
         }
 
