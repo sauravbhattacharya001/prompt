@@ -6,3 +6,9 @@
 **/*.user
 **/*.suo
 **/TestResults/
+.git/
+.github/
+docs/
+*.md
+!README.md
+!LICENSE

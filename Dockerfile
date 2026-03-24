@@ -1,24 +1,35 @@
-# Build stage — restore, build, pack
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+# Build stage — restore and build
+FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
 WORKDIR /src
 
-# Copy project file first for layer caching
+# Copy project files first for layer caching
 COPY src/Prompt.csproj src/
-RUN dotnet restore src/Prompt.csproj
+COPY tests/Prompt.Tests.csproj tests/
+COPY Prompt.sln .
+RUN dotnet restore
 
-# Copy everything else
+# Copy everything else and build
 COPY . .
+RUN dotnet build -c Release --no-restore
 
-# Build in Release mode
-RUN dotnet build src/Prompt.csproj -c Release --no-restore
+# Test stage — run unit tests (fail the build on test failure)
+FROM build AS test
+RUN dotnet test tests/Prompt.Tests.csproj -c Release --no-build --logger "console;verbosity=minimal"
 
-# Pack NuGet package
+# Pack stage — produce NuGet package
+FROM build AS pack
 RUN dotnet pack src/Prompt.csproj -c Release --no-build -o /packages
 
-# Output stage — slim image with just the NuGet package
+# Output stage — minimal image with just the artifact
 FROM mcr.microsoft.com/dotnet/runtime-deps:8.0-alpine AS output
+RUN addgroup -S app && adduser -S app -G app
 WORKDIR /packages
-COPY --from=build /packages/*.nupkg .
+COPY --from=pack /packages/*.nupkg .
+RUN chown -R app:app /packages
+USER app
 
-# Default command: list the packaged artifacts
+LABEL org.opencontainers.image.source="https://github.com/sauravbhattacharya001/prompt"
+LABEL org.opencontainers.image.description="Prompt — .NET library for LLM prompt engineering"
+LABEL org.opencontainers.image.licenses="MIT"
+
 CMD ["ls", "-la", "/packages"]
