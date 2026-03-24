@@ -453,11 +453,22 @@ namespace Prompt
             return n.ToString($"N{decimals}", CultureInfo.InvariantCulture);
         }
 
+        private static readonly HashSet<string> AllowedDateFormats = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "yyyy-MM-dd", "yyyy-MM-dd HH:mm:ss", "MM/dd/yyyy",
+            "dd/MM/yyyy", "HH:mm:ss", "yyyy", "MMMM dd, yyyy",
+            "MMM dd, yyyy", "dd MMM yyyy", "yyyy-MM-ddTHH:mm:ss",
+            "o", "s", "u", "r", "R", "d", "D", "f", "F", "g", "G",
+            "t", "T", "M", "Y"
+        };
+
         private static string FormatDate(string input, string[] args)
         {
             if (!DateTime.TryParse(input, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime dt))
                 return input;
             string fmt = args.Length > 0 ? args[0] : "yyyy-MM-dd";
+            if (!AllowedDateFormats.Contains(fmt))
+                fmt = "yyyy-MM-dd";
             return dt.ToString(fmt, CultureInfo.InvariantCulture);
         }
 
