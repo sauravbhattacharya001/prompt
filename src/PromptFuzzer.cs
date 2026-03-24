@@ -1,503 +1,430 @@
 namespace Prompt
 {
-    using System.Text.Json;
-    using System.Text.Json.Serialization;
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Text;
     using System.Text.RegularExpressions;
 
     /// <summary>
-    /// Specifies which fuzzing strategies to apply when generating prompt variations.
-    /// Strategies can be combined using bitwise OR.
+    /// The type of mutation to apply to a prompt.
     /// </summary>
-    [Flags]
-    public enum FuzzStrategy
+    public enum FuzzMutation
     {
-        /// <summary>No fuzzing applied.</summary>
-        None = 0,
-
-        /// <summary>Replace words with common synonyms.</summary>
-        SynonymSwap = 1,
-
-        /// <summary>Introduce realistic typos (transposition, duplication, omission).</summary>
-        TypoInjection = 2,
-
-        /// <summary>Randomize letter casing (upper, lower, title).</summary>
-        CaseChange = 4,
-
-        /// <summary>Remove words from the prompt.</summary>
-        WordDrop = 8,
-
-        /// <summary>Swap the order of adjacent words.</summary>
-        WordShuffle = 16,
-
-        /// <summary>Add filler words or whitespace noise.</summary>
-        NoiseInjection = 32,
-
-        /// <summary>Truncate the prompt at various points.</summary>
-        Truncation = 64,
-
-        /// <summary>Apply all strategies.</summary>
-        All = SynonymSwap | TypoInjection | CaseChange | WordDrop | WordShuffle | NoiseInjection | Truncation
+        /// <summary>Introduce random character-level typos.</summary>
+        Typo,
+        /// <summary>Randomly change the case of words.</summary>
+        CaseFlip,
+        /// <summary>Drop random words from the prompt.</summary>
+        WordDrop,
+        /// <summary>Shuffle the order of words in sentences.</summary>
+        WordShuffle,
+        /// <summary>Truncate the prompt at a random point.</summary>
+        Truncate,
+        /// <summary>Duplicate random words.</summary>
+        WordDuplicate,
+        /// <summary>Insert random whitespace or punctuation noise.</summary>
+        Noise,
+        /// <summary>Swap adjacent words.</summary>
+        AdjacentSwap
     }
 
     /// <summary>
-    /// Represents a single fuzzed variant of a prompt, including the
-    /// mutation applied and a description of the change.
+    /// Configuration for a fuzzing run.
     /// </summary>
-    public class FuzzedPrompt
+    public class FuzzOptions
     {
-        /// <summary>Gets the fuzzed prompt text.</summary>
-        [JsonPropertyName("text")]
+        /// <summary>Number of variants to generate. Default: 10.</summary>
+        public int Count { get; set; } = 10;
+
+        /// <summary>
+        /// Mutation intensity from 0.0 (no change) to 1.0 (maximum chaos).
+        /// Default: 0.3.
+        /// </summary>
+        public double Intensity { get; set; } = 0.3;
+
+        /// <summary>
+        /// Specific mutations to apply. If empty, all mutation types are used.
+        /// </summary>
+        public List<FuzzMutation> Mutations { get; set; } = new();
+
+        /// <summary>
+        /// Random seed for reproducible fuzzing. Null for random.
+        /// </summary>
+        public int? Seed { get; set; }
+    }
+
+    /// <summary>
+    /// A single fuzzed variant of a prompt.
+    /// </summary>
+    public class FuzzVariant
+    {
+        /// <summary>The mutated prompt text.</summary>
         public string Text { get; internal set; } = "";
 
-        /// <summary>Gets the strategy that produced this variant.</summary>
-        [JsonPropertyName("strategy")]
-        public string Strategy { get; internal set; } = "";
+        /// <summary>Which mutations were applied.</summary>
+        public IReadOnlyList<FuzzMutation> AppliedMutations { get; internal set; }
+            = Array.Empty<FuzzMutation>();
 
-        /// <summary>Gets a human-readable description of what changed.</summary>
-        [JsonPropertyName("description")]
-        public string Description { get; internal set; } = "";
+        /// <summary>
+        /// Edit distance (Levenshtein) from the original prompt.
+        /// </summary>
+        public int EditDistance { get; internal set; }
 
-        /// <summary>Gets the similarity to the original (0.0–1.0).</summary>
-        [JsonPropertyName("similarity")]
-        public double Similarity { get; internal set; }
+        /// <summary>
+        /// Similarity to original as a percentage (0–100).
+        /// </summary>
+        public double SimilarityPercent { get; internal set; }
     }
 
     /// <summary>
-    /// Result of a fuzzing operation containing the original prompt
-    /// and all generated variants.
+    /// Result of a fuzzing session.
     /// </summary>
     public class FuzzResult
     {
-        /// <summary>Gets the original prompt text.</summary>
-        [JsonPropertyName("original")]
+        /// <summary>The original prompt.</summary>
         public string Original { get; internal set; } = "";
 
-        /// <summary>Gets the generated fuzzed variants.</summary>
-        [JsonPropertyName("variants")]
-        public IReadOnlyList<FuzzedPrompt> Variants { get; internal set; }
-            = Array.Empty<FuzzedPrompt>();
+        /// <summary>Generated variants.</summary>
+        public IReadOnlyList<FuzzVariant> Variants { get; internal set; }
+            = Array.Empty<FuzzVariant>();
 
-        /// <summary>Gets the strategies that were applied.</summary>
-        [JsonPropertyName("strategiesApplied")]
-        public IReadOnlyList<string> StrategiesApplied { get; internal set; }
-            = Array.Empty<string>();
+        /// <summary>Average similarity across all variants (0–100).</summary>
+        public double AverageSimilarity { get; internal set; }
 
-        /// <summary>
-        /// Serializes the fuzz result to JSON.
-        /// </summary>
-        public string ToJson(bool indented = true)
-        {
-            return JsonSerializer.Serialize(this, SerializationGuards.WriteOptions(indented));
-        }
+        /// <summary>The variant most different from the original.</summary>
+        public FuzzVariant? MostDivergent { get; internal set; }
     }
 
     /// <summary>
-    /// Generates prompt variations for robustness testing. Applies controlled
-    /// mutations (synonym swaps, typos, case changes, word drops, shuffles,
-    /// noise, truncation) to test whether a prompt produces consistent results
-    /// across minor perturbations.
+    /// Generates random perturbations of prompts to test robustness.
+    /// Useful for evaluating whether an LLM produces consistent results
+    /// when prompts contain typos, missing words, or formatting changes.
     /// </summary>
     /// <remarks>
-    /// <para>Example usage:</para>
+    /// <para>
+    /// Example usage:
     /// <code>
-    /// // Generate 5 variants using all strategies
-    /// var result = PromptFuzzer.Fuzz("Explain quantum computing in simple terms", count: 5);
-    /// foreach (var v in result.Variants)
-    ///     Console.WriteLine($"[{v.Strategy}] {v.Text}");
+    /// // Quick fuzz — 10 variants at moderate intensity
+    /// var variants = PromptFuzzer.Fuzz("Summarize the following article in 3 bullet points.");
+    /// foreach (var v in variants.Variants)
+    ///     Console.WriteLine($"[{v.SimilarityPercent:F0}%] {v.Text}");
     ///
-    /// // Use specific strategies only
-    /// var typos = PromptFuzzer.Fuzz("List the top 10 languages",
-    ///     strategies: FuzzStrategy.TypoInjection | FuzzStrategy.CaseChange);
-    ///
-    /// // Fuzz a template's rendered output
-    /// var template = new PromptTemplate("Summarize {{topic}} for {{audience}}");
-    /// string rendered = template.Render(new() { ["topic"] = "AI safety", ["audience"] = "beginners" });
-    /// var fuzzed = PromptFuzzer.Fuzz(rendered, count: 3);
+    /// // Targeted fuzz — only typos and word drops, reproducible
+    /// var result = PromptFuzzer.Fuzz("Translate to French:", new FuzzOptions
+    /// {
+    ///     Count = 5,
+    ///     Intensity = 0.2,
+    ///     Mutations = { FuzzMutation.Typo, FuzzMutation.WordDrop },
+    ///     Seed = 42
+    /// });
+    /// Console.WriteLine($"Avg similarity: {result.AverageSimilarity:F1}%");
     /// </code>
+    /// </para>
     /// </remarks>
     public static class PromptFuzzer
     {
-        private static readonly Random Rng = new();
+        private static readonly char[] TypoChars =
+            "abcdefghijklmnopqrstuvwxyz0123456789".ToCharArray();
 
-        private static readonly Regex WordBoundary = new(@"\b(\w+)\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        private static readonly Regex WordPattern = new(
+            @"\S+", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
-        // Common synonym pairs for fuzzing
-        private static readonly Dictionary<string, string[]> Synonyms = new(StringComparer.OrdinalIgnoreCase)
-        {
-            ["explain"] = new[] { "describe", "clarify", "elaborate on", "detail" },
-            ["list"] = new[] { "enumerate", "name", "provide", "give" },
-            ["describe"] = new[] { "explain", "outline", "detail", "depict" },
-            ["create"] = new[] { "generate", "produce", "make", "build" },
-            ["show"] = new[] { "display", "present", "demonstrate", "reveal" },
-            ["find"] = new[] { "locate", "identify", "discover", "search for" },
-            ["use"] = new[] { "utilize", "employ", "apply", "leverage" },
-            ["help"] = new[] { "assist", "aid", "support", "guide" },
-            ["write"] = new[] { "compose", "draft", "author", "produce" },
-            ["make"] = new[] { "create", "build", "construct", "develop" },
-            ["good"] = new[] { "excellent", "great", "effective", "quality" },
-            ["bad"] = new[] { "poor", "ineffective", "subpar", "inadequate" },
-            ["big"] = new[] { "large", "substantial", "significant", "major" },
-            ["small"] = new[] { "minor", "tiny", "compact", "brief" },
-            ["important"] = new[] { "critical", "crucial", "essential", "key" },
-            ["simple"] = new[] { "basic", "straightforward", "easy", "plain" },
-            ["complex"] = new[] { "complicated", "intricate", "sophisticated", "involved" },
-            ["provide"] = new[] { "give", "supply", "offer", "furnish" },
-            ["analyze"] = new[] { "examine", "evaluate", "assess", "review" },
-            ["compare"] = new[] { "contrast", "differentiate", "distinguish", "weigh" },
-            ["summarize"] = new[] { "recap", "condense", "outline", "brief" },
-            ["include"] = new[] { "contain", "incorporate", "encompass", "cover" },
-        };
-
-        private static readonly string[] FillerWords = { "basically", "actually", "really", "just", "please", "kindly" };
+        private static readonly string[] NoiseChars =
+            { "  ", "\t", ".", ",", ";", "!", "?", "-", "_", "~" };
 
         /// <summary>
-        /// Generates fuzzed variants of a prompt for robustness testing.
+        /// Generates fuzzed variants of a prompt using default options.
         /// </summary>
-        /// <param name="prompt">The original prompt to fuzz.</param>
-        /// <param name="count">Number of variants to generate (1–50). Default: 5.</param>
-        /// <param name="strategies">Which fuzzing strategies to apply. Default: All.</param>
-        /// <param name="seed">Optional random seed for reproducible results.</param>
-        /// <returns>A <see cref="FuzzResult"/> containing the original and all variants.</returns>
-        /// <exception cref="ArgumentException">Thrown when prompt is null/empty.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown when count is out of range.</exception>
-        public static FuzzResult Fuzz(string prompt, int count = 5,
-            FuzzStrategy strategies = FuzzStrategy.All, int? seed = null)
+        /// <param name="prompt">The prompt to fuzz.</param>
+        /// <returns>A <see cref="FuzzResult"/> containing all variants.</returns>
+        public static FuzzResult Fuzz(string prompt)
+            => Fuzz(prompt, new FuzzOptions());
+
+        /// <summary>
+        /// Generates fuzzed variants of a prompt with the specified options.
+        /// </summary>
+        /// <param name="prompt">The prompt to fuzz.</param>
+        /// <param name="options">Fuzzing configuration.</param>
+        /// <returns>A <see cref="FuzzResult"/> containing all variants and stats.</returns>
+        /// <exception cref="ArgumentException">
+        /// Thrown when <paramref name="prompt"/> is null or empty.
+        /// </exception>
+        public static FuzzResult Fuzz(string prompt, FuzzOptions options)
         {
             if (string.IsNullOrWhiteSpace(prompt))
-                throw new ArgumentException("Prompt cannot be null or empty.", nameof(prompt));
-            if (count < 1 || count > 50)
-                throw new ArgumentOutOfRangeException(nameof(count), count,
-                    "Count must be between 1 and 50.");
+                throw new ArgumentException(
+                    "Prompt cannot be null or empty.", nameof(prompt));
 
-            var rng = seed.HasValue ? new Random(seed.Value) : Rng;
+            var rng = options.Seed.HasValue
+                ? new Random(options.Seed.Value)
+                : new Random();
 
-            // Collect active strategies
-            var activeStrategies = new List<FuzzStrategy>();
-            foreach (FuzzStrategy s in Enum.GetValues(typeof(FuzzStrategy)))
+            var mutations = options.Mutations.Count > 0
+                ? options.Mutations
+                : Enum.GetValues<FuzzMutation>().ToList();
+
+            double intensity = Math.Clamp(options.Intensity, 0.0, 1.0);
+            var variants = new List<FuzzVariant>();
+
+            for (int i = 0; i < options.Count; i++)
             {
-                if (s != FuzzStrategy.None && s != FuzzStrategy.All && strategies.HasFlag(s))
-                    activeStrategies.Add(s);
-            }
+                string mutated = prompt;
+                var applied = new List<FuzzMutation>();
 
-            if (activeStrategies.Count == 0)
-            {
-                return new FuzzResult
+                // Pick 1-3 mutations per variant
+                int mutationCount = rng.Next(1, Math.Min(4, mutations.Count + 1));
+                var chosen = mutations.OrderBy(_ => rng.Next())
+                    .Take(mutationCount).ToList();
+
+                foreach (var mutation in chosen)
                 {
-                    Original = prompt,
-                    Variants = Array.Empty<FuzzedPrompt>(),
-                    StrategiesApplied = Array.Empty<string>()
-                };
-            }
-
-            var variants = new List<FuzzedPrompt>();
-            var usedTexts = new HashSet<string> { prompt };
-
-            int attempts = 0;
-            int maxAttempts = count * 5;
-
-            while (variants.Count < count && attempts < maxAttempts)
-            {
-                attempts++;
-                var strategy = activeStrategies[rng.Next(activeStrategies.Count)];
-                var fuzzed = ApplyStrategy(prompt, strategy, rng);
-
-                if (fuzzed != null && !usedTexts.Contains(fuzzed.Text))
-                {
-                    fuzzed.Similarity = CalculateSimilarity(prompt, fuzzed.Text);
-                    variants.Add(fuzzed);
-                    usedTexts.Add(fuzzed.Text);
+                    string before = mutated;
+                    mutated = ApplyMutation(mutated, mutation, intensity, rng);
+                    if (mutated != before)
+                        applied.Add(mutation);
                 }
+
+                int editDist = LevenshteinDistance(prompt, mutated);
+                int maxLen = Math.Max(prompt.Length, mutated.Length);
+                double similarity = maxLen > 0
+                    ? Math.Round((1.0 - (double)editDist / maxLen) * 100, 1)
+                    : 100.0;
+
+                variants.Add(new FuzzVariant
+                {
+                    Text = mutated,
+                    AppliedMutations = applied,
+                    EditDistance = editDist,
+                    SimilarityPercent = similarity
+                });
             }
+
+            double avgSim = variants.Count > 0
+                ? Math.Round(variants.Average(v => v.SimilarityPercent), 1)
+                : 100.0;
+
+            var mostDivergent = variants
+                .OrderBy(v => v.SimilarityPercent)
+                .FirstOrDefault();
 
             return new FuzzResult
             {
                 Original = prompt,
                 Variants = variants,
-                StrategiesApplied = activeStrategies.Select(s => s.ToString()).ToList()
+                AverageSimilarity = avgSim,
+                MostDivergent = mostDivergent
             };
         }
 
         /// <summary>
-        /// Generates a single fuzzed variant using a specific strategy.
+        /// Generates a single fuzzed variant with a specific mutation type.
+        /// Useful for targeted testing.
         /// </summary>
-        /// <param name="prompt">The prompt to fuzz.</param>
-        /// <param name="strategy">The specific strategy to apply (must be a single strategy, not a combination).</param>
-        /// <param name="seed">Optional random seed.</param>
-        /// <returns>A single <see cref="FuzzedPrompt"/>, or null if the strategy couldn't be applied.</returns>
-        public static FuzzedPrompt? FuzzOne(string prompt, FuzzStrategy strategy, int? seed = null)
+        public static string FuzzSingle(
+            string prompt, FuzzMutation mutation,
+            double intensity = 0.3, int? seed = null)
         {
             if (string.IsNullOrWhiteSpace(prompt))
-                throw new ArgumentException("Prompt cannot be null or empty.", nameof(prompt));
+                throw new ArgumentException(
+                    "Prompt cannot be null or empty.", nameof(prompt));
 
-            var rng = seed.HasValue ? new Random(seed.Value) : Rng;
-            var result = ApplyStrategy(prompt, strategy, rng);
-            if (result != null)
-                result.Similarity = CalculateSimilarity(prompt, result.Text);
-            return result;
+            var rng = seed.HasValue ? new Random(seed.Value) : new Random();
+            return ApplyMutation(prompt, mutation,
+                Math.Clamp(intensity, 0.0, 1.0), rng);
         }
 
-        /// <summary>
-        /// Returns all available strategy names.
-        /// </summary>
-        public static IReadOnlyList<string> GetStrategyNames()
-        {
-            return Enum.GetValues(typeof(FuzzStrategy))
-                .Cast<FuzzStrategy>()
-                .Where(s => s != FuzzStrategy.None && s != FuzzStrategy.All)
-                .Select(s => s.ToString())
-                .ToList();
-        }
+        // ── Mutation implementations ───────────────────
 
-        // ──────────────── Strategy Implementations ────────────────
-
-        private static FuzzedPrompt? ApplyStrategy(string prompt, FuzzStrategy strategy, Random rng)
+        private static string ApplyMutation(
+            string text, FuzzMutation mutation, double intensity, Random rng)
         {
-            return strategy switch
+            return mutation switch
             {
-                FuzzStrategy.SynonymSwap => ApplySynonymSwap(prompt, rng),
-                FuzzStrategy.TypoInjection => ApplyTypoInjection(prompt, rng),
-                FuzzStrategy.CaseChange => ApplyCaseChange(prompt, rng),
-                FuzzStrategy.WordDrop => ApplyWordDrop(prompt, rng),
-                FuzzStrategy.WordShuffle => ApplyWordShuffle(prompt, rng),
-                FuzzStrategy.NoiseInjection => ApplyNoiseInjection(prompt, rng),
-                FuzzStrategy.Truncation => ApplyTruncation(prompt, rng),
-                _ => null
+                FuzzMutation.Typo => ApplyTypos(text, intensity, rng),
+                FuzzMutation.CaseFlip => ApplyCaseFlip(text, intensity, rng),
+                FuzzMutation.WordDrop => ApplyWordDrop(text, intensity, rng),
+                FuzzMutation.WordShuffle => ApplyWordShuffle(text, intensity, rng),
+                FuzzMutation.Truncate => ApplyTruncate(text, intensity, rng),
+                FuzzMutation.WordDuplicate => ApplyWordDuplicate(text, intensity, rng),
+                FuzzMutation.Noise => ApplyNoise(text, intensity, rng),
+                FuzzMutation.AdjacentSwap => ApplyAdjacentSwap(text, intensity, rng),
+                _ => text
             };
         }
 
-        private static FuzzedPrompt? ApplySynonymSwap(string prompt, Random rng)
+        private static string ApplyTypos(string text, double intensity, Random rng)
         {
-            var words = WordBoundary.Matches(prompt);
-            var swappable = new List<Match>();
-
-            foreach (Match m in words)
+            var chars = text.ToCharArray();
+            int mutations = Math.Max(1, (int)(chars.Length * intensity * 0.1));
+            for (int i = 0; i < mutations; i++)
             {
-                if (Synonyms.ContainsKey(m.Value))
-                    swappable.Add(m);
-            }
-
-            if (swappable.Count == 0)
-                return null;
-
-            var target = swappable[rng.Next(swappable.Count)];
-            var synonyms = Synonyms[target.Value];
-            var replacement = synonyms[rng.Next(synonyms.Length)];
-
-            // Preserve original casing
-            if (char.IsUpper(target.Value[0]) && char.IsLower(replacement[0]))
-                replacement = char.ToUpper(replacement[0]) + replacement.Substring(1);
-
-            string result = prompt.Substring(0, target.Index) + replacement +
-                prompt.Substring(target.Index + target.Length);
-
-            return new FuzzedPrompt
-            {
-                Text = result,
-                Strategy = "SynonymSwap",
-                Description = $"Replaced '{target.Value}' with '{replacement}'"
-            };
-        }
-
-        private static FuzzedPrompt? ApplyTypoInjection(string prompt, Random rng)
-        {
-            var words = WordBoundary.Matches(prompt);
-            var eligible = words.Cast<Match>().Where(m => m.Value.Length >= 3).ToList();
-
-            if (eligible.Count == 0)
-                return null;
-
-            var target = eligible[rng.Next(eligible.Count)];
-            string word = target.Value;
-            string typo;
-            string desc;
-
-            int typoType = rng.Next(3);
-            switch (typoType)
-            {
-                case 0: // Transposition
-                    int pos = rng.Next(word.Length - 1);
-                    char[] chars = word.ToCharArray();
-                    (chars[pos], chars[pos + 1]) = (chars[pos + 1], chars[pos]);
-                    typo = new string(chars);
-                    desc = $"Transposed letters in '{word}' → '{typo}'";
-                    break;
-                case 1: // Character duplication
-                    int dupPos = rng.Next(word.Length);
-                    typo = word.Insert(dupPos, word[dupPos].ToString());
-                    desc = $"Duplicated letter in '{word}' → '{typo}'";
-                    break;
-                default: // Character omission
-                    int omitPos = rng.Next(1, word.Length); // skip first char
-                    typo = word.Remove(omitPos, 1);
-                    desc = $"Omitted letter in '{word}' → '{typo}'";
-                    break;
-            }
-
-            string result = prompt.Substring(0, target.Index) + typo +
-                prompt.Substring(target.Index + target.Length);
-
-            return new FuzzedPrompt
-            {
-                Text = result,
-                Strategy = "TypoInjection",
-                Description = desc
-            };
-        }
-
-        private static FuzzedPrompt? ApplyCaseChange(string prompt, Random rng)
-        {
-            int mode = rng.Next(3);
-            string result;
-            string desc;
-
-            switch (mode)
-            {
-                case 0:
-                    result = prompt.ToUpperInvariant();
-                    desc = "Converted entire prompt to UPPERCASE";
-                    break;
-                case 1:
-                    result = prompt.ToLowerInvariant();
-                    desc = "Converted entire prompt to lowercase";
-                    break;
-                default: // Random word casing
-                    result = WordBoundary.Replace(prompt, m =>
-                        rng.Next(2) == 0 ? m.Value.ToUpperInvariant() : m.Value.ToLowerInvariant());
-                    desc = "Applied random casing to individual words";
-                    break;
-            }
-
-            if (result == prompt)
-                return null;
-
-            return new FuzzedPrompt
-            {
-                Text = result,
-                Strategy = "CaseChange",
-                Description = desc
-            };
-        }
-
-        private static FuzzedPrompt? ApplyWordDrop(string prompt, Random rng)
-        {
-            var words = prompt.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (words.Length < 3)
-                return null;
-
-            int dropIndex = rng.Next(words.Length);
-            string dropped = words[dropIndex];
-            var remaining = words.Where((_, i) => i != dropIndex).ToArray();
-            string result = string.Join(' ', remaining);
-
-            return new FuzzedPrompt
-            {
-                Text = result,
-                Strategy = "WordDrop",
-                Description = $"Dropped word '{dropped}' at position {dropIndex}"
-            };
-        }
-
-        private static FuzzedPrompt? ApplyWordShuffle(string prompt, Random rng)
-        {
-            var words = prompt.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (words.Length < 3)
-                return null;
-
-            int i = rng.Next(words.Length - 1);
-            (words[i], words[i + 1]) = (words[i + 1], words[i]);
-            string result = string.Join(' ', words);
-
-            if (result == prompt)
-                return null;
-
-            return new FuzzedPrompt
-            {
-                Text = result,
-                Strategy = "WordShuffle",
-                Description = $"Swapped words at positions {i} and {i + 1} ('{words[i + 1]}' ↔ '{words[i]}')"
-            };
-        }
-
-        private static FuzzedPrompt? ApplyNoiseInjection(string prompt, Random rng)
-        {
-            var words = prompt.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
-            if (words.Count < 2)
-                return null;
-
-            string filler = FillerWords[rng.Next(FillerWords.Length)];
-            int insertPos = rng.Next(1, words.Count);
-            words.Insert(insertPos, filler);
-            string result = string.Join(' ', words);
-
-            return new FuzzedPrompt
-            {
-                Text = result,
-                Strategy = "NoiseInjection",
-                Description = $"Inserted filler word '{filler}' at position {insertPos}"
-            };
-        }
-
-        private static FuzzedPrompt? ApplyTruncation(string prompt, Random rng)
-        {
-            var words = prompt.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (words.Length < 4)
-                return null;
-
-            // Keep 50–80% of the prompt
-            int keepCount = (int)(words.Length * (0.5 + rng.NextDouble() * 0.3));
-            keepCount = Math.Max(2, Math.Min(keepCount, words.Length - 1));
-
-            string result = string.Join(' ', words.Take(keepCount));
-
-            return new FuzzedPrompt
-            {
-                Text = result,
-                Strategy = "Truncation",
-                Description = $"Truncated to {keepCount}/{words.Length} words ({(keepCount * 100 / words.Length)}%)"
-            };
-        }
-
-        // ──────────────── Similarity ────────────────
-
-        /// <summary>
-        /// Calculates a simple character-level similarity ratio (0.0–1.0)
-        /// between two strings using the Sørensen–Dice coefficient on bigrams.
-        /// </summary>
-        internal static double CalculateSimilarity(string a, string b)
-        {
-            if (a == b) return 1.0;
-            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return 0.0;
-
-            var bigramsA = GetBigrams(a.ToLowerInvariant());
-            var bigramsB = GetBigrams(b.ToLowerInvariant());
-
-            if (bigramsA.Count == 0 && bigramsB.Count == 0) return 1.0;
-            if (bigramsA.Count == 0 || bigramsB.Count == 0) return 0.0;
-
-            int intersection = 0;
-            var copy = new Dictionary<string, int>(bigramsB);
-            foreach (var bigram in bigramsA)
-            {
-                if (copy.TryGetValue(bigram.Key, out int count) && count > 0)
+                int pos = rng.Next(chars.Length);
+                if (char.IsLetter(chars[pos]))
                 {
-                    intersection += Math.Min(bigram.Value, count);
-                    copy[bigram.Key] = count - Math.Min(bigram.Value, count);
+                    int op = rng.Next(3);
+                    if (op == 0) // substitute
+                        chars[pos] = TypoChars[rng.Next(TypoChars.Length)];
+                    else if (op == 1 && chars.Length > 1) // delete
+                    {
+                        var list = chars.ToList();
+                        list.RemoveAt(pos);
+                        return ApplyTypos(new string(list.ToArray()), 0, rng);
+                    }
+                    else // duplicate
+                        return new string(chars).Insert(pos, chars[pos].ToString());
                 }
             }
-
-            return (2.0 * intersection) / (bigramsA.Values.Sum() + bigramsB.Values.Sum());
+            return new string(chars);
         }
 
-        private static Dictionary<string, int> GetBigrams(string text)
+        private static string ApplyCaseFlip(string text, double intensity, Random rng)
         {
-            var bigrams = new Dictionary<string, int>();
-            for (int i = 0; i < text.Length - 1; i++)
+            var words = WordPattern.Matches(text);
+            int flips = Math.Max(1, (int)(words.Count * intensity * 0.4));
+            var sb = new StringBuilder(text);
+
+            var indices = Enumerable.Range(0, words.Count)
+                .OrderBy(_ => rng.Next()).Take(flips);
+
+            foreach (int idx in indices)
             {
-                string bigram = text.Substring(i, 2);
-                bigrams.TryGetValue(bigram, out int count);
-                bigrams[bigram] = count + 1;
+                var m = words[idx];
+                int op = rng.Next(3);
+                string replacement = op switch
+                {
+                    0 => m.Value.ToUpper(),
+                    1 => m.Value.ToLower(),
+                    _ => InvertCase(m.Value)
+                };
+                // Apply in-place (offsets stay valid if same length)
+                for (int i = 0; i < m.Length; i++)
+                    sb[m.Index + i] = replacement[i];
             }
-            return bigrams;
+            return sb.ToString();
+        }
+
+        private static string InvertCase(string word)
+        {
+            var sb = new StringBuilder(word.Length);
+            foreach (char c in word)
+                sb.Append(char.IsUpper(c) ? char.ToLower(c) : char.ToUpper(c));
+            return sb.ToString();
+        }
+
+        private static string ApplyWordDrop(string text, double intensity, Random rng)
+        {
+            var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length <= 1) return text;
+
+            int drops = Math.Max(1, (int)(words.Length * intensity * 0.3));
+            var dropSet = new HashSet<int>(
+                Enumerable.Range(0, words.Length)
+                    .OrderBy(_ => rng.Next())
+                    .Take(Math.Min(drops, words.Length - 1)));
+
+            return string.Join(' ',
+                words.Where((_, i) => !dropSet.Contains(i)));
+        }
+
+        private static string ApplyWordShuffle(string text, double intensity, Random rng)
+        {
+            // Split into sentences, shuffle words within each
+            var sentences = text.Split(new[] { ". ", "! ", "? " },
+                StringSplitOptions.None);
+            var result = new List<string>();
+
+            foreach (var sentence in sentences)
+            {
+                var words = sentence.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                int shuffles = Math.Max(1, (int)(words.Length * intensity * 0.3));
+                for (int i = 0; i < shuffles; i++)
+                {
+                    int a = rng.Next(words.Length);
+                    int b = rng.Next(words.Length);
+                    (words[a], words[b]) = (words[b], words[a]);
+                }
+                result.Add(string.Join(' ', words));
+            }
+            return string.Join(". ", result);
+        }
+
+        private static string ApplyTruncate(string text, double intensity, Random rng)
+        {
+            // Keep between 50% and (100% - intensity*40%) of the text
+            double keepRatio = 1.0 - (intensity * (0.2 + rng.NextDouble() * 0.2));
+            int keepLen = Math.Max(1, (int)(text.Length * keepRatio));
+            return text.Substring(0, keepLen);
+        }
+
+        private static string ApplyWordDuplicate(string text, double intensity, Random rng)
+        {
+            var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+            if (words.Count == 0) return text;
+
+            int dups = Math.Max(1, (int)(words.Count * intensity * 0.2));
+            for (int i = 0; i < dups; i++)
+            {
+                int pos = rng.Next(words.Count);
+                words.Insert(pos + 1, words[pos]);
+            }
+            return string.Join(' ', words);
+        }
+
+        private static string ApplyNoise(string text, double intensity, Random rng)
+        {
+            var sb = new StringBuilder(text);
+            int insertions = Math.Max(1, (int)(text.Length * intensity * 0.05));
+            for (int i = 0; i < insertions; i++)
+            {
+                int pos = rng.Next(sb.Length);
+                string noise = NoiseChars[rng.Next(NoiseChars.Length)];
+                sb.Insert(pos, noise);
+            }
+            return sb.ToString();
+        }
+
+        private static string ApplyAdjacentSwap(string text, double intensity, Random rng)
+        {
+            var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length <= 1) return text;
+
+            int swaps = Math.Max(1, (int)(words.Length * intensity * 0.2));
+            for (int i = 0; i < swaps; i++)
+            {
+                int pos = rng.Next(words.Length - 1);
+                (words[pos], words[pos + 1]) = (words[pos + 1], words[pos]);
+            }
+            return string.Join(' ', words);
+        }
+
+        // ── Levenshtein distance ───────────────────
+
+        private static int LevenshteinDistance(string a, string b)
+        {
+            if (a.Length == 0) return b.Length;
+            if (b.Length == 0) return a.Length;
+
+            // Use two-row optimization for memory efficiency
+            var prev = new int[b.Length + 1];
+            var curr = new int[b.Length + 1];
+
+            for (int j = 0; j <= b.Length; j++)
+                prev[j] = j;
+
+            for (int i = 1; i <= a.Length; i++)
+            {
+                curr[0] = i;
+                for (int j = 1; j <= b.Length; j++)
+                {
+                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                    curr[j] = Math.Min(
+                        Math.Min(curr[j - 1] + 1, prev[j] + 1),
+                        prev[j - 1] + cost);
+                }
+                (prev, curr) = (curr, prev);
+            }
+            return prev[b.Length];
         }
     }
 }
