@@ -222,6 +222,7 @@ namespace Prompt
         /// <param name="darkMode">Whether to use dark theme.</param>
         public void SaveHtml(string path, string? title = null, bool darkMode = false)
         {
+            ValidateFilePath(path);
             File.WriteAllText(path, ToHtml(title, darkMode), Encoding.UTF8);
         }
 
@@ -231,6 +232,7 @@ namespace Prompt
         /// <param name="path">Output file path.</param>
         public void SaveCsv(string path)
         {
+            ValidateFilePath(path);
             File.WriteAllText(path, ToCsv(), Encoding.UTF8);
         }
 
@@ -241,6 +243,7 @@ namespace Prompt
         /// <param name="indented">Whether to indent the JSON.</param>
         public void SaveJson(string path, bool indented = false)
         {
+            ValidateFilePath(path);
             File.WriteAllText(path, ToJson(indented), Encoding.UTF8);
         }
 
@@ -345,6 +348,15 @@ h1 {{ font-size: 2rem; margin-bottom: 0.25rem; }}
   filter.addEventListener('change', applyFilter);
 })();
 ");
+        }
+        /// <summary>
+        /// Validates a file path: ensures it is not null/empty and resolves
+        /// to a fully qualified path to prevent path traversal ambiguity.
+        /// </summary>
+        private static void ValidateFilePath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("File path cannot be null or empty.", nameof(path));
         }
     }
 }
