@@ -313,67 +313,82 @@ namespace Prompt
 
         private string NeutralizeInjectionPatterns(string text, SanitizeResult result)
         {
+            // Collect all injection match positions on the original text first,
+            // then apply replacements in a single reverse pass.  This avoids the
+            // previous O(n·m) pattern of rebuilding both `text` and `lower` after
+            // every single replacement inside the inner loop.
+            var matches = new List<(int Index, int Length, string Original)>();
             var lower = text.ToLowerInvariant();
-            var count = 0;
-            var sb = new StringBuilder(text);
 
             foreach (var phrase in InjectionPhrases)
             {
                 var idx = lower.IndexOf(phrase, StringComparison.Ordinal);
                 while (idx >= 0)
                 {
-                    // Wrap the matched phrase in brackets to neutralize it
-                    var original = text.Substring(idx, phrase.Length);
-                    sb.Replace(original, $"[blocked: {original}]", idx, phrase.Length);
-
-                    // Recalculate for the new length
-                    text = sb.ToString();
-                    lower = text.ToLowerInvariant();
-                    count++;
-                    idx = lower.IndexOf(phrase, idx + $"[blocked: {original}]".Length, StringComparison.Ordinal);
+                    matches.Add((idx, phrase.Length, text.Substring(idx, phrase.Length)));
+                    idx = lower.IndexOf(phrase, idx + phrase.Length, StringComparison.Ordinal);
                 }
             }
 
-            if (count > 0)
+            if (matches.Count == 0)
+                return text;
+
+            // Sort descending by index so replacements don't shift earlier positions.
+            matches.Sort((a, b) => b.Index.CompareTo(a.Index));
+
+            // Remove overlapping matches (keep the one that starts earliest = last in sorted order).
+            var deduped = new List<(int Index, int Length, string Original)> { matches[0] };
+            for (int i = 1; i < matches.Count; i++)
             {
-                result.InjectionPatternsNeutralized = count;
-                result.Actions.Add(new SanitizeAction
-                {
-                    Type = "neutralize_injection",
-                    Description = $"Neutralized {count} injection pattern(s)"
-                });
+                var prev = deduped[^1]; // previously kept (higher index)
+                var curr = matches[i];  // current (lower or equal index)
+                // curr starts before prev ends → overlap; keep curr (earlier start).
+                if (curr.Index + curr.Length > prev.Index)
+                    deduped[^1] = curr;
+                else
+                    deduped.Add(curr);
             }
-            return text;
+
+            var sb = new StringBuilder(text);
+            foreach (var (idx, len, original) in deduped)
+            {
+                sb.Remove(idx, len);
+                sb.Insert(idx, $"[blocked: {original}]");
+            }
+
+            result.InjectionPatternsNeutralized = deduped.Count;
+            result.Actions.Add(new SanitizeAction
+            {
+                Type = "neutralize_injection",
+                Description = $"Neutralized {deduped.Count} injection pattern(s)"
+            });
+
+            return sb.ToString();
         }
 
         private string RedactPiiPatterns(string text, string placeholder, SanitizeResult result)
         {
-            var types = new List<string>();
+            // Each regex pair (pattern, type name).  Process each once via Replace
+            // (which returns the original string unchanged on no match), avoiding
+            // the previous double-pass of IsMatch + Replace.
+            var piiPatterns = new (Regex Pattern, string TypeName)[]
+            {
+                (SsnPattern, "ssn"),
+                (CreditCardPattern, "credit_card"),
+                (EmailPattern, "email"),
+                (PhonePattern, "phone"),
+                (IpAddressPattern, "ip_address"),
+            };
 
-            if (SsnPattern.IsMatch(text))
+            var types = new List<string>();
+            foreach (var (pattern, typeName) in piiPatterns)
             {
-                text = SsnPattern.Replace(text, placeholder);
-                types.Add("ssn");
-            }
-            if (CreditCardPattern.IsMatch(text))
-            {
-                text = CreditCardPattern.Replace(text, placeholder);
-                types.Add("credit_card");
-            }
-            if (EmailPattern.IsMatch(text))
-            {
-                text = EmailPattern.Replace(text, placeholder);
-                types.Add("email");
-            }
-            if (PhonePattern.IsMatch(text))
-            {
-                text = PhonePattern.Replace(text, placeholder);
-                types.Add("phone");
-            }
-            if (IpAddressPattern.IsMatch(text))
-            {
-                text = IpAddressPattern.Replace(text, placeholder);
-                types.Add("ip_address");
+                var replaced = pattern.Replace(text, placeholder);
+                if (!ReferenceEquals(replaced, text))
+                {
+                    text = replaced;
+                    types.Add(typeName);
+                }
             }
 
             if (types.Count > 0)
