@@ -192,6 +192,25 @@ namespace Prompt.Tests
             Assert.Contains("credit_card", result.RedactedPiiTypes);
         }
 
+        [Fact]
+        public void RedactsPii_CreditCardWithSpaces()
+        {
+            var opts = new SanitizeOptions { RedactPii = true };
+            var result = _sanitizer.Sanitize("Card: 4111 1111 1111 1111", opts);
+            Assert.Contains("credit_card", result.RedactedPiiTypes);
+        }
+
+        [Fact]
+        public void CreditCardPattern_DoesNotReDoS()
+        {
+            // This input previously caused catastrophic backtracking with the old regex
+            var opts = new SanitizeOptions { RedactPii = true };
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            _sanitizer.Sanitize("1234 5678 9012 3456 7890 1234 5678 9012 xyz", opts);
+            sw.Stop();
+            Assert.True(sw.ElapsedMilliseconds < 100, $"CreditCard regex took {sw.ElapsedMilliseconds}ms — possible ReDoS");
+        }
+
         // ── PII Redaction — Phone ──────────────────────────────────────────
 
         [Fact]
