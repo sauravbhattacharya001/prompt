@@ -313,24 +313,23 @@ namespace Prompt
 
         private string NeutralizeInjectionPatterns(string text, SanitizeResult result)
         {
-            var lower = text.ToLowerInvariant();
             var count = 0;
-            var sb = new StringBuilder(text);
 
             foreach (var phrase in InjectionPhrases)
             {
-                var idx = lower.IndexOf(phrase, StringComparison.Ordinal);
-                while (idx >= 0)
+                // Case-insensitive search and replace, preserving original casing
+                // in the "[blocked: ...]" wrapper.
+                int searchStart = 0;
+                while (searchStart < text.Length)
                 {
-                    // Wrap the matched phrase in brackets to neutralize it
-                    var original = text.Substring(idx, phrase.Length);
-                    sb.Replace(original, $"[blocked: {original}]", idx, phrase.Length);
+                    var idx = text.IndexOf(phrase, searchStart, StringComparison.OrdinalIgnoreCase);
+                    if (idx < 0) break;
 
-                    // Recalculate for the new length
-                    text = sb.ToString();
-                    lower = text.ToLowerInvariant();
+                    var original = text.Substring(idx, phrase.Length);
+                    var replacement = $"[blocked: {original}]";
+                    text = string.Concat(text.AsSpan(0, idx), replacement, text.AsSpan(idx + phrase.Length));
                     count++;
-                    idx = lower.IndexOf(phrase, idx + $"[blocked: {original}]".Length, StringComparison.Ordinal);
+                    searchStart = idx + replacement.Length;
                 }
             }
 
