@@ -1,328 +1,319 @@
 namespace Prompt
 {
+    using System.Text.Json;
+    using System.Text.Json.Serialization;
     using System.Text.RegularExpressions;
 
     /// <summary>
-    /// Result of minifying a prompt with <see cref="PromptMinifier"/>.
-    /// </summary>
-    public class MinifyResult
-    {
-        /// <summary>Gets the original prompt text.</summary>
-        public string Original { get; internal set; } = "";
-
-        /// <summary>Gets the minified prompt text.</summary>
-        public string Minified { get; internal set; } = "";
-
-        /// <summary>Gets the estimated token count of the original prompt.</summary>
-        public int OriginalTokens { get; internal set; }
-
-        /// <summary>Gets the estimated token count of the minified prompt.</summary>
-        public int MinifiedTokens { get; internal set; }
-
-        /// <summary>Gets the number of tokens saved.</summary>
-        public int TokensSaved => OriginalTokens - MinifiedTokens;
-
-        /// <summary>Gets the percentage of tokens saved (0–100).</summary>
-        public double SavingsPercent => OriginalTokens > 0
-            ? Math.Round((double)TokensSaved / OriginalTokens * 100, 1)
-            : 0;
-
-        /// <summary>Gets the list of transformations applied.</summary>
-        public IReadOnlyList<string> Transformations { get; internal set; }
-            = Array.Empty<string>();
-    }
-
-    /// <summary>
-    /// Minification level controlling how aggressively prompts are compressed.
+    /// Controls how aggressively the minifier compresses prompt text.
     /// </summary>
     public enum MinifyLevel
     {
-        /// <summary>
-        /// Light: remove filler words, normalize whitespace, compress
-        /// obvious redundancy. Safe for all prompts.
-        /// </summary>
+        /// <summary>Light: collapse repeated blank lines, trim trailing whitespace.</summary>
         Light,
-
-        /// <summary>
-        /// Medium: all Light transforms plus abbreviate common phrases,
-        /// remove politeness markers, condense instructions.
-        /// </summary>
+        /// <summary>Medium: Light + strip markdown comments, normalise whitespace runs.</summary>
         Medium,
-
-        /// <summary>
-        /// Aggressive: all Medium transforms plus telegraph-style
-        /// compression, remove articles/prepositions where safe,
-        /// shorten common words.
-        /// </summary>
+        /// <summary>Aggressive: Medium + remove decorative punctuation, shorten separators, collapse lists.</summary>
         Aggressive
     }
 
     /// <summary>
-    /// Compresses prompts to reduce token usage while preserving semantic
-    /// meaning. Useful for staying within context windows or reducing API
-    /// costs without changing what you're asking.
+    /// Configuration options for the prompt minifier.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Example usage:
-    /// <code>
-    /// // Quick minify
-    /// string compact = PromptMinifier.Minify(
-    ///     "Please help me to write a detailed summary of the following text");
-    /// // → "Write detailed summary of following text"
-    ///
-    /// // With stats
-    /// var result = PromptMinifier.MinifyWithStats(longPrompt, MinifyLevel.Medium);
-    /// Console.WriteLine($"Saved {result.TokensSaved} tokens ({result.SavingsPercent}%)");
-    /// Console.WriteLine(result.Minified);
-    /// </code>
-    /// </para>
-    /// </remarks>
-    public static class PromptMinifier
+    public class MinifyOptions
     {
-        // ── Pre-compiled cleanup patterns ──────────────────
+        /// <summary>Compression level.</summary>
+        [JsonPropertyName("level")]
+        public MinifyLevel Level { get; init; } = MinifyLevel.Medium;
 
-        private static readonly Regex MultiSpaceCleanup = new(
-            @" {2,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        /// <summary>Strip HTML-style comments (&lt;!-- … --&gt;).</summary>
+        [JsonPropertyName("stripHtmlComments")]
+        public bool StripHtmlComments { get; init; } = true;
 
-        private static readonly Regex LeadingSpaceCleanup = new(
-            @"(?m)^ +", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        /// <summary>Strip lines that are only markdown horizontal rules (---, ***, ___).</summary>
+        [JsonPropertyName("stripHorizontalRules")]
+        public bool StripHorizontalRules { get; init; } = true;
 
-        // ──────────────── Filler Patterns (Light) ────────────────
+        /// <summary>Collapse runs of 3+ blank lines down to a single blank line.</summary>
+        [JsonPropertyName("collapseBlankLines")]
+        public bool CollapseBlankLines { get; init; } = true;
 
-        private static readonly (Regex Pattern, string Replacement, string Description)[] LightRules =
-        {
-            // Filler phrases
-            (new Regex(@"\b(please\s+)?(help\s+me\s+to|help\s+me)\s+", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "", "Remove 'help me to'"),
+        /// <summary>Normalise bullet markers to a single dash (-).</summary>
+        [JsonPropertyName("normaliseBullets")]
+        public bool NormaliseBullets { get; init; } = false;
 
-            (new Regex(@"\b(I\s+would\s+like\s+(you\s+to|to)|I\s+want\s+you\s+to|I\s+need\s+you\s+to)\s+",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "", "Remove 'I would like you to'"),
+        /// <summary>Remove trailing whitespace on every line.</summary>
+        [JsonPropertyName("trimTrailing")]
+        public bool TrimTrailing { get; init; } = true;
 
-            (new Regex(@"\b(could\s+you\s+(please\s+)?|can\s+you\s+(please\s+)?|would\s+you\s+(please\s+)?)",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "", "Remove 'could you please'"),
+        /// <summary>Remove leading blank lines from the prompt.</summary>
+        [JsonPropertyName("trimLeadingBlanks")]
+        public bool TrimLeadingBlanks { get; init; } = true;
 
-            (new Regex(@"\bplease\s+", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "", "Remove 'please'"),
+        /// <summary>Remove trailing blank lines from the prompt.</summary>
+        [JsonPropertyName("trimTrailingBlanks")]
+        public bool TrimTrailingBlanks { get; init; } = true;
 
-            (new Regex(@"\b(basically|essentially|actually|obviously|clearly|simply|just|really|very|quite|rather)\s+",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "", "Remove hedge/filler words"),
+        /// <summary>Preserve code fences (``` blocks) from minification.</summary>
+        [JsonPropertyName("preserveCodeBlocks")]
+        public bool PreserveCodeBlocks { get; init; } = true;
 
-            // Redundant phrases
-            (new Regex(@"\bin\s+order\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "to", "Simplify 'in order to' → 'to'"),
+        /// <summary>Maximum consecutive blank lines allowed (0 = remove all).</summary>
+        [JsonPropertyName("maxConsecutiveBlanks")]
+        public int MaxConsecutiveBlanks { get; init; } = 1;
+    }
 
-            (new Regex(@"\bdue\s+to\s+the\s+fact\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "because", "Simplify 'due to the fact that' → 'because'"),
+    /// <summary>
+    /// Result of a minification operation, including before/after metrics.
+    /// </summary>
+    public class MinifyResult
+    {
+        /// <summary>The minified prompt text.</summary>
+        [JsonPropertyName("text")]
+        public string Text { get; init; } = "";
 
-            (new Regex(@"\bat\s+this\s+point\s+in\s+time\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "now", "Simplify 'at this point in time' → 'now'"),
+        /// <summary>Original character count.</summary>
+        [JsonPropertyName("originalChars")]
+        public int OriginalChars { get; init; }
 
-            (new Regex(@"\bin\s+the\s+event\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "if", "Simplify 'in the event that' → 'if'"),
+        /// <summary>Minified character count.</summary>
+        [JsonPropertyName("minifiedChars")]
+        public int MinifiedChars { get; init; }
 
-            (new Regex(@"\bfor\s+the\s+purpose\s+of\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "for", "Simplify 'for the purpose of' → 'for'"),
+        /// <summary>Original line count.</summary>
+        [JsonPropertyName("originalLines")]
+        public int OriginalLines { get; init; }
 
-            (new Regex(@"\bwith\s+regard\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "about", "Simplify 'with regard to' → 'about'"),
+        /// <summary>Minified line count.</summary>
+        [JsonPropertyName("minifiedLines")]
+        public int MinifiedLines { get; init; }
 
-            (new Regex(@"\bin\s+terms\s+of\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "regarding", "Simplify 'in terms of' → 'regarding'"),
+        /// <summary>Percentage of characters saved (0-100).</summary>
+        [JsonPropertyName("savingsPercent")]
+        public double SavingsPercent { get; init; }
 
-            (new Regex(@"\bhas\s+the\s+ability\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "can", "Simplify 'has the ability to' → 'can'"),
+        /// <summary>Estimated token reduction (rough: chars / 4).</summary>
+        [JsonPropertyName("estimatedTokensSaved")]
+        public int EstimatedTokensSaved { get; init; }
+    }
 
-            (new Regex(@"\bit\s+is\s+important\s+to\s+note\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "Note:", "Simplify 'it is important to note that' → 'Note:'"),
-
-            // Whitespace normalization
-            (new Regex(@"[ \t]{2,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                " ", "Normalize multiple spaces"),
-
-            (new Regex(@"\n{3,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "\n\n", "Normalize multiple blank lines"),
-        };
-
-        // ──────────────── Medium Patterns ────────────────
-
-        private static readonly (Regex Pattern, string Replacement, string Description)[] MediumRules =
-        {
-            // Politeness
-            (new Regex(@"\b(thank\s+you|thanks)\s*(in\s+advance|for\s+your\s+help|so\s+much)?[.!]?\s*",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "", "Remove thank-you phrases"),
-
-            (new Regex(@"\bI\s+appreciate\s+(your|any)\s+\w+[.!]?\s*",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "", "Remove appreciation phrases"),
-
-            // Verbose instruction patterns
-            (new Regex(@"\bmake\s+sure\s+(to|that)\s+", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "ensure ", "Condense 'make sure to' → 'ensure'"),
-
-            (new Regex(@"\btake\s+into\s+(account|consideration)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "consider", "Condense 'take into account' → 'consider'"),
-
-            (new Regex(@"\bprovide\s+(me\s+with|an?\s+)", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "give ", "Condense 'provide me with' → 'give'"),
-
-            (new Regex(@"\bin\s+a\s+way\s+that\s+is\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "that is", "Condense 'in a way that is'"),
-
-            (new Regex(@"\b(it\s+is|it's)\s+(important|necessary|essential|crucial|critical)\s+(to|that)\s+",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "Must ", "Condense 'it is important to' → 'Must'"),
-
-            (new Regex(@"\bas\s+much\s+as\s+possible\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "maximally", "Condense 'as much as possible' → 'maximally'"),
-
-            (new Regex(@"\ba\s+large\s+number\s+of\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "many", "Condense 'a large number of' → 'many'"),
-
-            (new Regex(@"\ba\s+small\s+number\s+of\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "few", "Condense 'a small number of' → 'few'"),
-        };
-
-        // ──────────────── Aggressive Patterns ────────────────
-
-        private static readonly (Regex Pattern, string Replacement, string Description)[] AggressiveRules =
-        {
-            // Remove articles where meaning is preserved
-            (new Regex(@"\b(the|a|an)\s+(?=\w)", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "", "Remove articles"),
-
-            // Shorten common words
-            (new Regex(@"\binformation\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "info", "Shorten 'information' → 'info'"),
-
-            (new Regex(@"\bapplication\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "app", "Shorten 'application' → 'app'"),
-
-            (new Regex(@"\bconfiguration\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "config", "Shorten 'configuration' → 'config'"),
-
-            (new Regex(@"\bdocumentation\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "docs", "Shorten 'documentation' → 'docs'"),
-
-            (new Regex(@"\bimplementation\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "impl", "Shorten 'implementation' → 'impl'"),
-
-            (new Regex(@"\benvironment\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "env", "Shorten 'environment' → 'env'"),
-
-            (new Regex(@"\brepository\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "repo", "Shorten 'repository' → 'repo'"),
-
-            (new Regex(@"\bfunction(ality)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "func", "Shorten 'functionality' → 'func'"),
-
-            (new Regex(@"\bfor\s+example\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "e.g.", "Shorten 'for example' → 'e.g.'"),
-
-            (new Regex(@"\bthat\s+is\s+to\s+say\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "i.e.", "Shorten 'that is to say' → 'i.e.'"),
-
-            // Remove filler prepositions in lists
-            (new Regex(@"\b(and|or)\s+also\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-                "and", "Remove redundant 'also' after conjunctions"),
-        };
+    /// <summary>
+    /// Minifies prompt text by removing unnecessary whitespace, comments, and decorative
+    /// formatting to reduce token usage while preserving semantic meaning.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// var minifier = new PromptMinifier();
+    /// var result = minifier.Minify(longPrompt);
+    /// Console.WriteLine($"Saved {result.SavingsPercent:F1}% ({result.EstimatedTokensSaved} tokens)");
+    /// Console.WriteLine(result.Text);
+    ///
+    /// // With aggressive settings:
+    /// var result2 = minifier.Minify(longPrompt, new MinifyOptions { Level = MinifyLevel.Aggressive });
+    /// </code>
+    /// </example>
+    public class PromptMinifier
+    {
+        private static readonly Regex HtmlCommentPattern = new(@"<!--[\s\S]*?-->", RegexOptions.Compiled);
+        private static readonly Regex HorizontalRulePattern = new(@"^[\s]*([-*_])\s*\1\s*\1[\s\-\*_]*$", RegexOptions.Compiled);
+        private static readonly Regex MultipleBlankLines = new(@"(\r?\n){3,}", RegexOptions.Compiled);
+        private static readonly Regex TrailingWhitespace = new(@"[ \t]+$", RegexOptions.Multiline | RegexOptions.Compiled);
+        private static readonly Regex BulletPattern = new(@"^(\s*)[*+]\s", RegexOptions.Multiline | RegexOptions.Compiled);
+        private static readonly Regex CodeFencePattern = new(@"^```", RegexOptions.Compiled);
+        private static readonly Regex DecorativePunctuation = new(@"([!?.])\1{2,}", RegexOptions.Compiled);
+        private static readonly Regex MultipleSpaces = new(@"[ \t]{2,}", RegexOptions.Compiled);
+        private static readonly Regex EmptyHeading = new(@"^(#{1,6})\s*$", RegexOptions.Multiline | RegexOptions.Compiled);
 
         /// <summary>
-        /// Minifies a prompt, returning the compressed text.
+        /// Minifies the given prompt text with default options (Medium level).
         /// </summary>
-        /// <param name="prompt">The prompt to minify.</param>
-        /// <param name="level">
-        /// How aggressively to compress. Default: <see cref="MinifyLevel.Medium"/>.
-        /// </param>
-        /// <returns>The minified prompt string.</returns>
-        /// <exception cref="ArgumentException">
-        /// Thrown when <paramref name="prompt"/> is null or empty.
-        /// </exception>
-        public static string Minify(string prompt, MinifyLevel level = MinifyLevel.Medium)
-        {
-            return MinifyWithStats(prompt, level).Minified;
-        }
+        public MinifyResult Minify(string prompt) => Minify(prompt, new MinifyOptions());
 
         /// <summary>
-        /// Minifies a prompt and returns detailed statistics about the
-        /// compression including token savings and transformations applied.
+        /// Minifies the given prompt text with the specified options.
         /// </summary>
-        /// <param name="prompt">The prompt to minify.</param>
-        /// <param name="level">
-        /// How aggressively to compress. Default: <see cref="MinifyLevel.Medium"/>.
-        /// </param>
-        /// <returns>
-        /// A <see cref="MinifyResult"/> with the minified text, token counts,
-        /// savings, and list of transformations applied.
-        /// </returns>
-        /// <exception cref="ArgumentException">
-        /// Thrown when <paramref name="prompt"/> is null or empty.
-        /// </exception>
-        public static MinifyResult MinifyWithStats(
-            string prompt, MinifyLevel level = MinifyLevel.Medium)
+        public MinifyResult Minify(string prompt, MinifyOptions options)
         {
-            if (string.IsNullOrWhiteSpace(prompt))
-                throw new ArgumentException(
-                    "Prompt cannot be null or empty.", nameof(prompt));
+            if (string.IsNullOrEmpty(prompt))
+            {
+                return new MinifyResult
+                {
+                    Text = prompt ?? "",
+                    OriginalChars = 0,
+                    MinifiedChars = 0,
+                    OriginalLines = 0,
+                    MinifiedLines = 0,
+                    SavingsPercent = 0,
+                    EstimatedTokensSaved = 0
+                };
+            }
 
-            int originalTokens = PromptGuard.EstimateTokens(prompt);
-            var transformations = new List<string>();
+            int originalChars = prompt.Length;
+            int originalLines = prompt.Split('\n').Length;
+
             string result = prompt;
 
-            // Always apply Light rules
-            result = ApplyRules(result, LightRules, transformations);
+            if (options.PreserveCodeBlocks)
+            {
+                result = MinifyWithCodeBlockPreservation(result, options);
+            }
+            else
+            {
+                result = ApplyMinification(result, options);
+            }
 
-            // Medium and above
-            if (level >= MinifyLevel.Medium)
-                result = ApplyRules(result, MediumRules, transformations);
-
-            // Aggressive
-            if (level >= MinifyLevel.Aggressive)
-                result = ApplyRules(result, AggressiveRules, transformations);
-
-            // Final cleanup
-            result = result.Trim();
-            // Fix double spaces left by removals
-            result = MultiSpaceCleanup.Replace(result, " ");
-            // Fix leading spaces on lines
-            result = LeadingSpaceCleanup.Replace(result, "");
-            // Capitalize first letter if it got lowercased
-            if (result.Length > 0 && char.IsLower(result[0]))
-                result = char.ToUpper(result[0]) + result.Substring(1);
-
-            int minifiedTokens = PromptGuard.EstimateTokens(result);
+            int minifiedChars = result.Length;
+            int minifiedLines = result.Split('\n').Length;
+            int charsSaved = originalChars - minifiedChars;
 
             return new MinifyResult
             {
-                Original = prompt,
-                Minified = result,
-                OriginalTokens = originalTokens,
-                MinifiedTokens = minifiedTokens,
-                Transformations = transformations
+                Text = result,
+                OriginalChars = originalChars,
+                MinifiedChars = minifiedChars,
+                OriginalLines = originalLines,
+                MinifiedLines = minifiedLines,
+                SavingsPercent = originalChars > 0 ? Math.Round((double)charsSaved / originalChars * 100, 1) : 0,
+                EstimatedTokensSaved = charsSaved / 4
             };
         }
 
         /// <summary>
-        /// Applies a set of regex rules to the text, tracking which
-        /// transformations actually matched.
+        /// Quick convenience method: minify and return just the text.
         /// </summary>
-        private static string ApplyRules(
-            string text,
-            (Regex Pattern, string Replacement, string Description)[] rules,
-            List<string> transformations)
+        public string MinifyText(string prompt, MinifyLevel level = MinifyLevel.Medium)
         {
-            foreach (var (pattern, replacement, description) in rules)
+            return Minify(prompt, new MinifyOptions { Level = level }).Text;
+        }
+
+        /// <summary>
+        /// Estimates how many tokens would be saved by minification without performing it.
+        /// </summary>
+        public int EstimateSavings(string prompt, MinifyLevel level = MinifyLevel.Medium)
+        {
+            var result = Minify(prompt, new MinifyOptions { Level = level });
+            return result.EstimatedTokensSaved;
+        }
+
+        /// <summary>
+        /// Returns a JSON report of the minification analysis.
+        /// </summary>
+        public string Report(string prompt, MinifyOptions? options = null)
+        {
+            var result = Minify(prompt, options ?? new MinifyOptions());
+            return JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+        }
+
+        private string MinifyWithCodeBlockPreservation(string text, MinifyOptions options)
+        {
+            var lines = text.Split('\n');
+            var segments = new List<(string content, bool isCode)>();
+            var current = new List<string>();
+            bool inCode = false;
+
+            foreach (var line in lines)
             {
-                string before = text;
-                text = pattern.Replace(text, replacement);
-                if (text != before)
-                    transformations.Add(description);
+                if (CodeFencePattern.IsMatch(line.TrimEnd()))
+                {
+                    if (inCode)
+                    {
+                        // End of code block - save code as-is
+                        current.Add(line);
+                        segments.Add((string.Join("\n", current), true));
+                        current = new List<string>();
+                        inCode = false;
+                    }
+                    else
+                    {
+                        // Start of code block - minify what we have so far
+                        if (current.Count > 0)
+                        {
+                            segments.Add((string.Join("\n", current), false));
+                            current = new List<string>();
+                        }
+                        current.Add(line);
+                        inCode = true;
+                    }
+                }
+                else
+                {
+                    current.Add(line);
+                }
             }
-            return text;
+
+            if (current.Count > 0)
+            {
+                segments.Add((string.Join("\n", current), inCode));
+            }
+
+            var processed = segments.Select(s => s.isCode ? s.content : ApplyMinification(s.content, options));
+            return string.Join("\n", processed);
+        }
+
+        private string ApplyMinification(string text, MinifyOptions options)
+        {
+            var result = text;
+
+            // Strip HTML comments
+            if (options.StripHtmlComments)
+            {
+                result = HtmlCommentPattern.Replace(result, "");
+            }
+
+            // Strip horizontal rules
+            if (options.StripHorizontalRules)
+            {
+                result = string.Join("\n",
+                    result.Split('\n').Where(l => !HorizontalRulePattern.IsMatch(l)));
+            }
+
+            // Trim trailing whitespace per line
+            if (options.TrimTrailing)
+            {
+                result = TrailingWhitespace.Replace(result, "");
+            }
+
+            // Normalise bullets
+            if (options.NormaliseBullets || options.Level >= MinifyLevel.Aggressive)
+            {
+                result = BulletPattern.Replace(result, "$1- ");
+            }
+
+            // Medium+: remove empty headings
+            if (options.Level >= MinifyLevel.Medium)
+            {
+                result = EmptyHeading.Replace(result, "");
+            }
+
+            // Aggressive: collapse decorative punctuation
+            if (options.Level >= MinifyLevel.Aggressive)
+            {
+                result = DecorativePunctuation.Replace(result, "$1");
+                // Collapse multiple inline spaces to one
+                result = MultipleSpaces.Replace(result, " ");
+            }
+
+            // Collapse blank lines
+            if (options.CollapseBlankLines)
+            {
+                int max = Math.Max(0, options.MaxConsecutiveBlanks);
+                string replacement = string.Concat(Enumerable.Repeat("\n", max + 1));
+                // Keep collapsing until stable
+                string pattern = @"(\r?\n){" + (max + 2) + ",}";
+                result = Regex.Replace(result, pattern, replacement);
+            }
+
+            // Trim leading/trailing blank lines
+            if (options.TrimLeadingBlanks)
+            {
+                result = result.TrimStart('\r', '\n');
+            }
+            if (options.TrimTrailingBlanks)
+            {
+                result = result.TrimEnd('\r', '\n', ' ', '\t');
+            }
+
+            return result;
         }
     }
 }
