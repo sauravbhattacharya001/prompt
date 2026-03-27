@@ -453,11 +453,44 @@ namespace Prompt
             return n.ToString($"N{decimals}", CultureInfo.InvariantCulture);
         }
 
+        /// <summary>
+        /// Allowed date format strings. Untrusted format specifiers (e.g. "zzzz",
+        /// "fffff") could leak server timezone or timing information, so we
+        /// restrict to a safe allowlist. See GitHub issue #109.
+        /// </summary>
+        private static readonly HashSet<string> AllowedDateFormats =
+            new(StringComparer.OrdinalIgnoreCase)
+            {
+                "yyyy-MM-dd",
+                "yyyy-MM-dd HH:mm:ss",
+                "MM/dd/yyyy",
+                "dd/MM/yyyy",
+                "HH:mm:ss",
+                "yyyy",
+                "MMMM dd, yyyy",
+                "MMM dd, yyyy",
+                "dd MMM yyyy",
+                "yyyy-MM-ddTHH:mm:ss",
+                "o",   // round-trip
+                "s",   // sortable
+                "u",   // universal sortable
+                "d",   // short date
+                "D",   // long date
+                "t",   // short time
+                "T",   // long time
+                "f",   // full date/time (short time)
+                "F",   // full date/time (long time)
+                "g",   // general (short time)
+                "G",   // general (long time)
+            };
+
         private static string FormatDate(string input, string[] args)
         {
             if (!DateTime.TryParse(input, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime dt))
                 return input;
             string fmt = args.Length > 0 ? args[0] : "yyyy-MM-dd";
+            if (!AllowedDateFormats.Contains(fmt))
+                fmt = "yyyy-MM-dd";
             return dt.ToString(fmt, CultureInfo.InvariantCulture);
         }
 
