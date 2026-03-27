@@ -1,421 +1,336 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Prompt
 {
     /// <summary>
-    /// Result of sanitizing a prompt through <see cref="PromptSanitizer"/>.
-    /// </summary>
-    public class SanitizeResult
-    {
-        /// <summary>Gets the original input text.</summary>
-        public string Original { get; internal set; } = "";
-
-        /// <summary>Gets the sanitized output text.</summary>
-        public string Sanitized { get; internal set; } = "";
-
-        /// <summary>Gets the list of transformations that were applied.</summary>
-        public List<SanitizeAction> Actions { get; internal set; } = new();
-
-        /// <summary>Gets whether any changes were made.</summary>
-        public bool WasModified => Actions.Count > 0;
-
-        /// <summary>Gets detected PII types that were redacted (if PII redaction was enabled).</summary>
-        public List<string> RedactedPiiTypes { get; internal set; } = new();
-
-        /// <summary>Gets the number of injection patterns that were neutralized.</summary>
-        public int InjectionPatternsNeutralized { get; internal set; }
-    }
-
-    /// <summary>
-    /// Describes a single sanitization action that was applied.
+    /// Represents an action taken during sanitization.
     /// </summary>
     public class SanitizeAction
     {
-        /// <summary>Gets the type of action.</summary>
-        public string Type { get; internal set; } = "";
+        /// <summary>Gets the type of action (e.g. "strip_invisible", "escape_tokens").</summary>
+        public string Type { get; init; } = "";
 
-        /// <summary>Gets a human-readable description of what was done.</summary>
-        public string Description { get; internal set; } = "";
+        /// <summary>Gets a human-readable description of the action.</summary>
+        public string Description { get; init; } = "";
     }
 
     /// <summary>
-    /// Configuration options for <see cref="PromptSanitizer"/>.
+    /// Result of sanitizing a prompt.
+    /// </summary>
+    public class SanitizeResult
+    {
+        /// <summary>Gets the original prompt text.</summary>
+        public string Original { get; init; } = "";
+
+        /// <summary>Gets the sanitized prompt text.</summary>
+        public string Sanitized { get; init; } = "";
+
+        /// <summary>Gets whether the prompt was modified during sanitization.</summary>
+        public bool WasModified => Original != Sanitized;
+
+        /// <summary>Gets the list of actions performed.</summary>
+        public IReadOnlyList<SanitizeAction> Actions { get; init; } = Array.Empty<SanitizeAction>();
+
+        /// <summary>Gets the number of injection patterns neutralized.</summary>
+        public int InjectionPatternsNeutralized { get; init; }
+
+        /// <summary>Gets the set of PII types that were redacted.</summary>
+        public IReadOnlyList<string> RedactedPiiTypes { get; init; } = Array.Empty<string>();
+    }
+
+    /// <summary>
+    /// Options controlling sanitization behavior.
     /// </summary>
     public class SanitizeOptions
     {
-        /// <summary>Normalize excessive whitespace (collapse runs, trim lines). Default: true.</summary>
+        /// <summary>Whether to normalize whitespace (collapse runs of spaces/tabs). Default: true.</summary>
         public bool NormalizeWhitespace { get; set; } = true;
 
-        /// <summary>Remove or neutralize common prompt injection patterns. Default: true.</summary>
+        /// <summary>Whether to neutralize prompt injection patterns. Default: true.</summary>
         public bool NeutralizeInjections { get; set; } = true;
 
-        /// <summary>Redact detected PII (emails, phone numbers, SSNs, credit cards). Default: false.</summary>
-        public bool RedactPii { get; set; }
-
-        /// <summary>The placeholder used for redacted PII. Default: "[REDACTED]".</summary>
-        public string PiiPlaceholder { get; set; } = "[REDACTED]";
-
-        /// <summary>Strip invisible/zero-width Unicode characters. Default: true.</summary>
+        /// <summary>Whether to strip invisible Unicode characters. Default: true.</summary>
         public bool StripInvisibleChars { get; set; } = true;
 
-        /// <summary>Escape special tokens (e.g., &lt;|endoftext|&gt;). Default: true.</summary>
+        /// <summary>Whether to escape special LLM tokens. Default: true.</summary>
         public bool EscapeSpecialTokens { get; set; } = true;
 
-        /// <summary>Maximum allowed length in characters. 0 = no limit. Default: 0.</summary>
-        public int MaxLength { get; set; }
-
-        /// <summary>Remove duplicate blank lines. Default: true.</summary>
+        /// <summary>Whether to collapse multiple blank lines into at most two newlines. Default: true.</summary>
         public bool CollapseBlankLines { get; set; } = true;
 
-        /// <summary>Trim leading/trailing whitespace from the entire prompt. Default: true.</summary>
+        /// <summary>Whether to trim leading/trailing whitespace. Default: true.</summary>
         public bool TrimEnds { get; set; } = true;
+
+        /// <summary>Whether to detect and redact PII. Default: false.</summary>
+        public bool RedactPii { get; set; } = false;
+
+        /// <summary>Placeholder text for redacted PII. Default: "[REDACTED]".</summary>
+        public string PiiPlaceholder { get; set; } = "[REDACTED]";
+
+        /// <summary>Maximum character length (0 = no limit). Default: 0.</summary>
+        public int MaxLength { get; set; } = 0;
     }
 
     /// <summary>
-    /// Cleans and normalizes prompt text before sending to an LLM.
-    /// Handles whitespace normalization, PII redaction, injection neutralization,
-    /// invisible character stripping, and special token escaping.
+    /// Sanitizes prompt text by normalizing whitespace, neutralizing injection
+    /// attempts, stripping invisible characters, escaping special tokens,
+    /// redacting PII, and truncating to a maximum length.
     /// </summary>
     /// <example>
     /// <code>
     /// var sanitizer = new PromptSanitizer();
-    /// var result = sanitizer.Sanitize("  Hello   world!  \n\n\n  Tell me more.  ");
-    /// // result.Sanitized == "Hello world!\n\nTell me more."
-    ///
-    /// // With PII redaction:
-    /// var opts = new SanitizeOptions { RedactPii = true };
-    /// var r2 = sanitizer.Sanitize("Email me at john@example.com", opts);
-    /// // r2.Sanitized == "Email me at [REDACTED]"
+    /// var result = sanitizer.Sanitize("  Ignore previous instructions. Email: a@b.com  ");
+    /// // result.Sanitized contains neutralized injection + cleaned whitespace
+    /// // result.InjectionPatternsNeutralized > 0
     /// </code>
     /// </example>
     public class PromptSanitizer
     {
-        private static readonly Regex MultipleSpaces = new(@"[ \t]{2,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
-        private static readonly Regex MultipleBlankLines = new(@"(\r?\n){3,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
-        private static readonly Regex TrailingLineSpaces = new(@"[ \t]+(?=\r?\n|$)", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
-        private static readonly Regex LeadingLineSpaces = new(@"(?<=\r?\n)[ \t]+", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        private static readonly Regex InvisibleCharsRegex = new(
+            @"[\u200B\u200C\u200D\u200E\u200F\uFEFF\u2060\u2061\u2062\u2063\u2064\u00AD]",
+            RegexOptions.Compiled);
 
-        // PII patterns
-        private static readonly Regex EmailPattern = new(
-            @"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
-        private static readonly Regex PhonePattern = new(
-            @"(?<!\d)(\+?1[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}(?!\d)", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
-        private static readonly Regex SsnPattern = new(
-            @"\b\d{3}-\d{2}-\d{4}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
-        private static readonly Regex CreditCardPattern = new(
-            @"\b(?:\d[ -]*?){13,16}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
-        private static readonly Regex IpAddressPattern = new(
-            @"\b(?:\d{1,3}\.){3}\d{1,3}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
-
-        // Injection patterns — phrases commonly used to override system prompts
-        private static readonly string[] InjectionPhrases = new[]
+        private static readonly (string Label, Regex Pattern)[] InjectionPatterns = new[]
         {
-            "ignore previous instructions",
-            "ignore all previous",
-            "disregard above",
-            "disregard previous",
-            "forget your instructions",
-            "forget all previous",
-            "ignore your system prompt",
-            "override your instructions",
-            "new instructions:",
-            "system prompt override",
-            "you are now",
-            "pretend you are",
-            "act as if you have no restrictions",
-            "jailbreak",
-            "DAN mode",
-            "developer mode enabled",
+            ("ignore_previous", new Regex(@"ignore\s+(?:all\s+)?previous\s+instructions", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+            ("forget_instructions", new Regex(@"forget\s+(?:all\s+)?(?:your\s+)?instructions", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+            ("disregard_above", new Regex(@"disregard\s+(?:the\s+)?above", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+            ("jailbreak", new Regex(@"(?:enable\s+)?jailbreak\s+mode", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+            ("new_instructions", new Regex(@"(?:new|my)\s+instructions\s*:", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+            ("developer_mode", new Regex(@"developer\s+mode\s+enabled", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+            ("you_are_now", new Regex(@"you\s+are\s+now\s+a\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+            ("system_prompt_override", new Regex(@"system\s+prompt\s+override", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+            ("override_instructions", new Regex(@"override\s+(?:your\s+)?instructions", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
         };
 
-        // Special tokens used by various LLM tokenizers
-        private static readonly string[] SpecialTokens = new[]
+        private static readonly (string Type, Regex Pattern)[] PiiPatterns = new[]
         {
-            "<|endoftext|>",
-            "<|im_start|>",
-            "<|im_end|>",
-            "<|system|>",
-            "<|user|>",
-            "<|assistant|>",
-            "<|pad|>",
-            "<s>",
-            "</s>",
-            "[INST]",
-            "[/INST]",
-            "<<SYS>>",
-            "<</SYS>>",
+            ("email", new Regex(@"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", RegexOptions.Compiled)),
+            ("ssn", new Regex(@"\b\d{3}-\d{2}-\d{4}\b", RegexOptions.Compiled)),
+            ("credit_card", new Regex(@"\b(?:\d{4}[\s\-]?){3}\d{4}\b", RegexOptions.Compiled)),
+            ("phone", new Regex(@"(?:\+?1[\s\-.]?)?\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}\b", RegexOptions.Compiled)),
+            ("ip_address", new Regex(@"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b", RegexOptions.Compiled)),
         };
 
-        // Zero-width and invisible Unicode characters
-        private static readonly Regex InvisibleChars = new(
-            @"[\u200B\u200C\u200D\u200E\u200F\u202A-\u202E\u2060\u2061\u2062\u2063\u2064\uFEFF\u00AD\u034F\u061C\u180E]",
-            RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        private static readonly Regex SpecialTokenRegex = new(
+            @"<\|(?:endoftext|im_start|im_end|pad|sep)\|>|<s>|</s>|\[INST\]|\[/INST\]|<<SYS>>|<</SYS>>",
+            RegexOptions.Compiled);
+
+        private static readonly Regex MultiSpaceRegex = new(@"[^\S\n]+", RegexOptions.Compiled);
+        private static readonly Regex MultiBlankLineRegex = new(@"\n{3,}", RegexOptions.Compiled);
 
         /// <summary>
-        /// Sanitize a prompt using default options.
+        /// Sanitize a prompt with default options.
         /// </summary>
-        /// <param name="prompt">The prompt text to sanitize.</param>
-        /// <returns>A <see cref="SanitizeResult"/> with the cleaned text and action log.</returns>
         public SanitizeResult Sanitize(string prompt)
-            => Sanitize(prompt, new SanitizeOptions());
+        {
+            return Sanitize(prompt, new SanitizeOptions());
+        }
 
         /// <summary>
-        /// Sanitize a prompt using the specified options.
+        /// Sanitize a prompt with the specified options.
         /// </summary>
-        /// <param name="prompt">The prompt text to sanitize.</param>
-        /// <param name="options">Configuration for which sanitization steps to apply.</param>
-        /// <returns>A <see cref="SanitizeResult"/> with the cleaned text and action log.</returns>
-        /// <exception cref="ArgumentNullException">Thrown when prompt or options is null.</exception>
         public SanitizeResult Sanitize(string prompt, SanitizeOptions options)
         {
             if (prompt == null) throw new ArgumentNullException(nameof(prompt));
             if (options == null) throw new ArgumentNullException(nameof(options));
 
-            var result = new SanitizeResult { Original = prompt };
+            var original = prompt;
             var text = prompt;
+            var actions = new List<SanitizeAction>();
+            int injectionCount = 0;
+            var redactedPiiTypes = new HashSet<string>();
 
+            // 1. Strip invisible characters
             if (options.StripInvisibleChars)
-                text = StripInvisible(text, result);
+            {
+                var matches = InvisibleCharsRegex.Matches(text);
+                if (matches.Count > 0)
+                {
+                    text = InvisibleCharsRegex.Replace(text, "");
+                    actions.Add(new SanitizeAction
+                    {
+                        Type = "strip_invisible",
+                        Description = $"Removed {matches.Count} invisible character(s)"
+                    });
+                }
+            }
 
+            // 2. Escape special tokens
             if (options.EscapeSpecialTokens)
-                text = EscapeTokens(text, result);
+            {
+                var matches = SpecialTokenRegex.Matches(text);
+                if (matches.Count > 0)
+                {
+                    text = SpecialTokenRegex.Replace(text, m => $"[escaped:{m.Value.Trim('<', '>', '|', '[', ']', '/')}]");
+                    actions.Add(new SanitizeAction
+                    {
+                        Type = "escape_tokens",
+                        Description = $"Escaped {matches.Count} special token(s)"
+                    });
+                }
+            }
 
+            // 3. Neutralize injection patterns
             if (options.NeutralizeInjections)
-                text = NeutralizeInjectionPatterns(text, result);
+            {
+                foreach (var (label, pattern) in InjectionPatterns)
+                {
+                    var matches = pattern.Matches(text);
+                    if (matches.Count > 0)
+                    {
+                        injectionCount += matches.Count;
+                        text = pattern.Replace(text, m => $"[blocked:{label}]");
+                    }
+                }
+                if (injectionCount > 0)
+                {
+                    actions.Add(new SanitizeAction
+                    {
+                        Type = "neutralize_injections",
+                        Description = $"Neutralized {injectionCount} injection pattern(s)"
+                    });
+                }
+            }
 
+            // 4. Redact PII
             if (options.RedactPii)
-                text = RedactPiiPatterns(text, options.PiiPlaceholder, result);
+            {
+                foreach (var (type, pattern) in PiiPatterns)
+                {
+                    if (pattern.IsMatch(text))
+                    {
+                        redactedPiiTypes.Add(type);
+                        text = pattern.Replace(text, options.PiiPlaceholder);
+                    }
+                }
+                if (redactedPiiTypes.Count > 0)
+                {
+                    actions.Add(new SanitizeAction
+                    {
+                        Type = "redact_pii",
+                        Description = $"Redacted {redactedPiiTypes.Count} PII type(s): {string.Join(", ", redactedPiiTypes)}"
+                    });
+                }
+            }
 
+            // 5. Normalize whitespace (spaces/tabs → single space, per line, trim each line)
             if (options.NormalizeWhitespace)
-                text = NormalizeWs(text, result);
+            {
+                var before = text;
+                text = MultiSpaceRegex.Replace(text, " ");
+                // Trim each line individually
+                text = string.Join("\n", text.Split('\n').Select(line => line.Trim()));
+                if (text != before)
+                {
+                    actions.Add(new SanitizeAction
+                    {
+                        Type = "normalize_whitespace",
+                        Description = "Normalized whitespace"
+                    });
+                }
+            }
 
+            // 6. Collapse blank lines
             if (options.CollapseBlankLines)
-                text = CollapseBlankLn(text, result);
+            {
+                var before = text;
+                text = MultiBlankLineRegex.Replace(text, "\n\n");
+                if (text != before)
+                {
+                    actions.Add(new SanitizeAction
+                    {
+                        Type = "collapse_blank_lines",
+                        Description = "Collapsed multiple blank lines"
+                    });
+                }
+            }
 
+            // 7. Trim ends
             if (options.TrimEnds)
             {
-                var trimmed = text.Trim();
-                if (trimmed != text)
+                var before = text;
+                text = text.Trim();
+                if (text != before)
                 {
-                    result.Actions.Add(new SanitizeAction
+                    actions.Add(new SanitizeAction
                     {
                         Type = "trim",
                         Description = "Trimmed leading/trailing whitespace"
                     });
-                    text = trimmed;
                 }
             }
 
+            // 8. Truncate
             if (options.MaxLength > 0 && text.Length > options.MaxLength)
             {
-                text = text[..options.MaxLength];
-                result.Actions.Add(new SanitizeAction
+                text = text.Substring(0, options.MaxLength);
+                actions.Add(new SanitizeAction
                 {
                     Type = "truncate",
                     Description = $"Truncated to {options.MaxLength} characters"
                 });
             }
 
-            result.Sanitized = text;
-            return result;
+            return new SanitizeResult
+            {
+                Original = original,
+                Sanitized = text,
+                Actions = actions,
+                InjectionPatternsNeutralized = injectionCount,
+                RedactedPiiTypes = redactedPiiTypes.ToList()
+            };
         }
 
         /// <summary>
-        /// Quick sanitize that returns just the cleaned string.
+        /// Quick-clean a prompt and return just the sanitized string.
         /// </summary>
         public string Clean(string prompt)
-            => Sanitize(prompt).Sanitized;
+        {
+            return Sanitize(prompt).Sanitized;
+        }
 
         /// <summary>
-        /// Quick sanitize with options that returns just the cleaned string.
+        /// Quick-clean a prompt with options and return just the sanitized string.
         /// </summary>
         public string Clean(string prompt, SanitizeOptions options)
-            => Sanitize(prompt, options).Sanitized;
-
-        /// <summary>
-        /// Check if a prompt contains potential injection patterns without modifying it.
-        /// </summary>
-        /// <param name="prompt">The prompt to check.</param>
-        /// <returns>A list of detected injection phrases.</returns>
-        public List<string> DetectInjections(string prompt)
         {
-            if (string.IsNullOrEmpty(prompt)) return new List<string>();
-            var lower = prompt.ToLowerInvariant();
-            return InjectionPhrases
-                .Where(p => lower.Contains(p, StringComparison.Ordinal))
-                .ToList();
+            return Sanitize(prompt, options).Sanitized;
         }
 
         /// <summary>
-        /// Check if a prompt contains detectable PII patterns.
+        /// Detect injection patterns in a prompt without modifying it.
         /// </summary>
-        /// <param name="prompt">The prompt to check.</param>
-        /// <returns>A list of PII type names found (e.g., "email", "phone").</returns>
-        public List<string> DetectPii(string prompt)
+        /// <returns>List of matched injection pattern labels.</returns>
+        public IReadOnlyList<string> DetectInjections(string prompt)
         {
-            if (string.IsNullOrEmpty(prompt)) return new List<string>();
+            if (string.IsNullOrEmpty(prompt)) return Array.Empty<string>();
+            var results = new List<string>();
+            foreach (var (label, pattern) in InjectionPatterns)
+            {
+                foreach (Match m in pattern.Matches(prompt))
+                    results.Add(label);
+            }
+            return results;
+        }
+
+        /// <summary>
+        /// Detect PII types present in a prompt without modifying it.
+        /// </summary>
+        /// <returns>Set of PII type names found.</returns>
+        public IReadOnlyList<string> DetectPii(string prompt)
+        {
+            if (string.IsNullOrEmpty(prompt)) return Array.Empty<string>();
             var types = new List<string>();
-            if (EmailPattern.IsMatch(prompt)) types.Add("email");
-            if (SsnPattern.IsMatch(prompt)) types.Add("ssn");
-            if (CreditCardPattern.IsMatch(prompt)) types.Add("credit_card");
-            if (PhonePattern.IsMatch(prompt)) types.Add("phone");
-            if (IpAddressPattern.IsMatch(prompt)) types.Add("ip_address");
+            foreach (var (type, pattern) in PiiPatterns)
+            {
+                if (pattern.IsMatch(prompt))
+                    types.Add(type);
+            }
             return types;
-        }
-
-        private string StripInvisible(string text, SanitizeResult result)
-        {
-            var cleaned = InvisibleChars.Replace(text, "");
-            if (cleaned != text)
-            {
-                var count = text.Length - cleaned.Length;
-                result.Actions.Add(new SanitizeAction
-                {
-                    Type = "strip_invisible",
-                    Description = $"Removed {count} invisible/zero-width character(s)"
-                });
-            }
-            return cleaned;
-        }
-
-        private string EscapeTokens(string text, SanitizeResult result)
-        {
-            var escaped = 0;
-            foreach (var token in SpecialTokens)
-            {
-                var idx = text.IndexOf(token, StringComparison.OrdinalIgnoreCase);
-                while (idx >= 0)
-                {
-                    // Extract the actual matched substring (preserving original case)
-                    var matched = text.Substring(idx, token.Length);
-                    var replacement = matched.Replace("<", "＜").Replace(">", "＞")
-                                             .Replace("[", "［").Replace("]", "］");
-                    text = string.Concat(text.AsSpan(0, idx), replacement, text.AsSpan(idx + token.Length));
-                    escaped++;
-                    // Continue searching after the replacement
-                    idx = text.IndexOf(token, idx + replacement.Length, StringComparison.OrdinalIgnoreCase);
-                }
-            }
-            if (escaped > 0)
-            {
-                result.Actions.Add(new SanitizeAction
-                {
-                    Type = "escape_tokens",
-                    Description = $"Escaped {escaped} special token occurrence(s)"
-                });
-            }
-            return text;
-        }
-
-        private string NeutralizeInjectionPatterns(string text, SanitizeResult result)
-        {
-            var lower = text.ToLowerInvariant();
-            var count = 0;
-            var sb = new StringBuilder(text);
-
-            foreach (var phrase in InjectionPhrases)
-            {
-                var idx = lower.IndexOf(phrase, StringComparison.Ordinal);
-                while (idx >= 0)
-                {
-                    // Wrap the matched phrase in brackets to neutralize it
-                    var original = text.Substring(idx, phrase.Length);
-                    sb.Replace(original, $"[blocked: {original}]", idx, phrase.Length);
-
-                    // Recalculate for the new length
-                    text = sb.ToString();
-                    lower = text.ToLowerInvariant();
-                    count++;
-                    idx = lower.IndexOf(phrase, idx + $"[blocked: {original}]".Length, StringComparison.Ordinal);
-                }
-            }
-
-            if (count > 0)
-            {
-                result.InjectionPatternsNeutralized = count;
-                result.Actions.Add(new SanitizeAction
-                {
-                    Type = "neutralize_injection",
-                    Description = $"Neutralized {count} injection pattern(s)"
-                });
-            }
-            return text;
-        }
-
-        private string RedactPiiPatterns(string text, string placeholder, SanitizeResult result)
-        {
-            var types = new List<string>();
-
-            if (SsnPattern.IsMatch(text))
-            {
-                text = SsnPattern.Replace(text, placeholder);
-                types.Add("ssn");
-            }
-            if (CreditCardPattern.IsMatch(text))
-            {
-                text = CreditCardPattern.Replace(text, placeholder);
-                types.Add("credit_card");
-            }
-            if (EmailPattern.IsMatch(text))
-            {
-                text = EmailPattern.Replace(text, placeholder);
-                types.Add("email");
-            }
-            if (PhonePattern.IsMatch(text))
-            {
-                text = PhonePattern.Replace(text, placeholder);
-                types.Add("phone");
-            }
-            if (IpAddressPattern.IsMatch(text))
-            {
-                text = IpAddressPattern.Replace(text, placeholder);
-                types.Add("ip_address");
-            }
-
-            if (types.Count > 0)
-            {
-                result.RedactedPiiTypes = types;
-                result.Actions.Add(new SanitizeAction
-                {
-                    Type = "redact_pii",
-                    Description = $"Redacted PII: {string.Join(", ", types)}"
-                });
-            }
-            return text;
-        }
-
-        private string NormalizeWs(string text, SanitizeResult result)
-        {
-            var cleaned = TrailingLineSpaces.Replace(text, "");
-            cleaned = LeadingLineSpaces.Replace(cleaned, "");
-            cleaned = MultipleSpaces.Replace(cleaned, " ");
-            if (cleaned != text)
-            {
-                result.Actions.Add(new SanitizeAction
-                {
-                    Type = "normalize_whitespace",
-                    Description = "Normalized excessive whitespace"
-                });
-            }
-            return cleaned;
-        }
-
-        private string CollapseBlankLn(string text, SanitizeResult result)
-        {
-            var cleaned = MultipleBlankLines.Replace(text, "\n\n");
-            if (cleaned != text)
-            {
-                result.Actions.Add(new SanitizeAction
-                {
-                    Type = "collapse_blank_lines",
-                    Description = "Collapsed excessive blank lines"
-                });
-            }
-            return cleaned;
         }
     }
 }
