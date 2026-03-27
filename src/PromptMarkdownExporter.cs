@@ -177,6 +177,7 @@ namespace Prompt
             if (filePath == null)
                 throw new ArgumentNullException(nameof(filePath));
 
+            filePath = Path.GetFullPath(filePath);
             var markdown = Export(library, title, includeMetadata);
             await File.WriteAllTextAsync(filePath, markdown);
         }
@@ -349,10 +350,12 @@ namespace Prompt
         {
             if (filePath == null)
                 throw new ArgumentNullException(nameof(filePath));
+            filePath = Path.GetFullPath(filePath);
             if (!File.Exists(filePath))
                 throw new FileNotFoundException(
                     $"Markdown file not found: {filePath}", filePath);
 
+            SerializationGuards.ThrowIfFileTooLarge(filePath);
             var markdown = await File.ReadAllTextAsync(filePath);
             return Import(markdown);
         }

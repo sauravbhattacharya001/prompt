@@ -558,6 +558,7 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentException("File path cannot be empty.", nameof(filePath));
 
+            filePath = Path.GetFullPath(filePath);
             string json = ToJson(indented);
             await File.WriteAllTextAsync(filePath, json, Encoding.UTF8, cancellationToken);
         }
@@ -574,6 +575,8 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentException("File path cannot be empty.", nameof(filePath));
 
+            filePath = Path.GetFullPath(filePath);
+            SerializationGuards.ThrowIfFileTooLarge(filePath);
             string json = await File.ReadAllTextAsync(filePath, Encoding.UTF8, cancellationToken);
             return FromJson(json);
         }
