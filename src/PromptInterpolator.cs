@@ -476,11 +476,20 @@ namespace Prompt
             return string.Concat(words.Select(w => char.ToUpper(w[0])));
         }
 
+        /// <summary>
+        /// Pre-compiled regexes for <see cref="Slugify"/> to avoid repeated
+        /// parsing and compilation on every call.
+        /// </summary>
+        private static readonly Regex SlugStripRegex =
+            new(@"[^a-z0-9\s-]", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        private static readonly Regex SlugCollapseRegex =
+            new(@"[\s-]+", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+
         private static string Slugify(string input)
         {
             var slug = input.ToLowerInvariant().Trim();
-            slug = Regex.Replace(slug, @"[^a-z0-9\s-]", "", RegexOptions.None, TimeSpan.FromMilliseconds(500));
-            slug = Regex.Replace(slug, @"[\s-]+", "-", RegexOptions.None, TimeSpan.FromMilliseconds(500));
+            slug = SlugStripRegex.Replace(slug, "");
+            slug = SlugCollapseRegex.Replace(slug, "-");
             return slug.Trim('-');
         }
 
