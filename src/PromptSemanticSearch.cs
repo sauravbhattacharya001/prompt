@@ -314,6 +314,60 @@ namespace Prompt
                 ? ExpandQueryWithSynonyms(queryTerms)
                 : queryTerms.ToDictionary(t => t, _ => 1.0);
 
+            // Pre-compute prefix and fuzzy expansions once against the global
+            // vocabulary instead of recalculating per document. This reduces
+            // fuzzy matching from O(queryTerms × docs × vocabPerDoc) to
+            // O(queryTerms × globalVocab + queryTerms × docs).
+            var prefixExpansions = new Dictionary<string, string?>();   // term → best prefix match in global vocab
+            var fuzzyExpansions = new Dictionary<string, (string term, double penalty)?>();  // term → best fuzzy match
+
+            var globalVocab = _documentFrequency.Keys;
+
+            foreach (var termKvp in expandedTerms)
+            {
+                var term = termKvp.Key;
+
+                // Pre-compute best prefix match
+                if (term.Length >= 3)
+                {
+                    string? bestPrefix = null;
+                    // We just need to know which indexed terms are prefix matches;
+                    // actual BM25 score varies per doc, so store the term itself
+                    foreach (var indexedTerm in globalVocab)
+                    {
+                        if (indexedTerm.StartsWith(term, StringComparison.Ordinal) && indexedTerm != term)
+                        {
+                            // Pick the shortest prefix expansion (most specific)
+                            if (bestPrefix == null || indexedTerm.Length < bestPrefix.Length)
+                                bestPrefix = indexedTerm;
+                        }
+                    }
+                    prefixExpansions[term] = bestPrefix;
+                }
+
+                // Pre-compute best fuzzy match
+                if (_maxEditDistance > 0 && term.Length >= 4)
+                {
+                    int bestDist = _maxEditDistance + 1;
+                    string? bestFuzzyTerm = null;
+                    foreach (var indexedTerm in globalVocab)
+                    {
+                        if (Math.Abs(indexedTerm.Length - term.Length) > _maxEditDistance)
+                            continue;
+                        int dist = LevenshteinDistance(term, indexedTerm);
+                        if (dist > 0 && dist <= _maxEditDistance && dist < bestDist)
+                        {
+                            bestDist = dist;
+                            bestFuzzyTerm = indexedTerm;
+                        }
+                    }
+                    if (bestFuzzyTerm != null)
+                        fuzzyExpansions[term] = (bestFuzzyTerm, _fuzzyScoreMultiplier / bestDist);
+                    else
+                        fuzzyExpansions[term] = null;
+                }
+            }
+
             var results = new List<SearchResult>();
 
             foreach (var kvp in _entries)
@@ -333,41 +387,16 @@ namespace Prompt
 
                     double score = ComputeTermBM25(term, tf, docLen) * termWeight;
 
-                    // Prefix matching for partial queries
-                    if (score == 0 && term.Length >= 3)
+                    // Prefix matching using pre-computed expansion
+                    if (score == 0 && prefixExpansions.TryGetValue(term, out var prefixTerm) && prefixTerm != null)
                     {
-                        double prefixScore = 0;
-                        foreach (var indexedTerm in tf.Keys)
-                        {
-                            if (indexedTerm.StartsWith(term, StringComparison.Ordinal) && indexedTerm != term)
-                            {
-                                double s = ComputeTermBM25(indexedTerm, tf, docLen) * 0.6 * termWeight;
-                                if (s > prefixScore)
-                                    prefixScore = s;
-                            }
-                        }
-                        score = prefixScore;
+                        score = ComputeTermBM25(prefixTerm, tf, docLen) * 0.6 * termWeight;
                     }
 
-                    // Fuzzy matching via Levenshtein distance
-                    if (score == 0 && _maxEditDistance > 0 && term.Length >= 4)
+                    // Fuzzy matching using pre-computed expansion
+                    if (score == 0 && fuzzyExpansions.TryGetValue(term, out var fuzzyMatch) && fuzzyMatch != null)
                     {
-                        double bestFuzzyScore = 0;
-                        foreach (var indexedTerm in tf.Keys)
-                        {
-                            if (Math.Abs(indexedTerm.Length - term.Length) > _maxEditDistance)
-                                continue;
-                            int dist = LevenshteinDistance(term, indexedTerm);
-                            if (dist > 0 && dist <= _maxEditDistance)
-                            {
-                                // Closer matches get higher multipliers
-                                double distPenalty = _fuzzyScoreMultiplier / dist;
-                                double s = ComputeTermBM25(indexedTerm, tf, docLen) * distPenalty * termWeight;
-                                if (s > bestFuzzyScore)
-                                    bestFuzzyScore = s;
-                            }
-                        }
-                        score = bestFuzzyScore;
+                        score = ComputeTermBM25(fuzzyMatch.Value.term, tf, docLen) * fuzzyMatch.Value.penalty * termWeight;
                     }
 
                     if (score > 0)
