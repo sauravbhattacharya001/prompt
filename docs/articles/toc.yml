@@ -22,6 +22,8 @@
   href: options.md
 - name: Error Handling
   href: error-handling.md
+- name: Routing & Orchestration
+  href: routing-and-orchestration.md
 - name: Production Features
   href: production-features.md
 - name: Migration Guide
