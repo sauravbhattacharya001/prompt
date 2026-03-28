@@ -399,6 +399,7 @@ namespace Prompt
     public class PromptBatchProcessor
     {
         private readonly List<BatchItem> _items = new();
+        private readonly Dictionary<string, BatchItem> _itemIndex = new(StringComparer.Ordinal);
         private readonly object _lock = new();
         private Action<BatchProgress>? _progressCallback;
         private Func<string, string?>? _processFunc;
@@ -445,10 +446,12 @@ namespace Prompt
                 if (_items.Count >= MaxBatchSize)
                     throw new InvalidOperationException(
                         $"Batch size cannot exceed {MaxBatchSize} items.");
-                if (_items.Any(i => i.Id == id))
+                if (_itemIndex.ContainsKey(id))
                     throw new ArgumentException(
                         $"An item with ID '{id}' already exists in the batch.", nameof(id));
-                _items.Add(new BatchItem(id, template, variables, tags));
+                var item = new BatchItem(id, template, variables, tags);
+                _items.Add(item);
+                _itemIndex[id] = item;
             }
             return this;
         }
@@ -548,7 +551,7 @@ namespace Prompt
         /// </summary>
         public void Clear()
         {
-            lock (_lock) _items.Clear();
+            lock (_lock) { _items.Clear(); _itemIndex.Clear(); }
         }
 
         /// <summary>
@@ -624,7 +627,7 @@ namespace Prompt
         public BatchItem? ProcessSingle(string id)
         {
             BatchItem? item;
-            lock (_lock) item = _items.FirstOrDefault(i => i.Id == id);
+            lock (_lock) _itemIndex.TryGetValue(id, out item);
             if (item == null) return null;
 
             ProcessSingleItem(item);
@@ -638,7 +641,7 @@ namespace Prompt
         /// <returns>The batch item, or null if not found.</returns>
         public BatchItem? GetItem(string id)
         {
-            lock (_lock) return _items.FirstOrDefault(i => i.Id == id);
+            lock (_lock) return _itemIndex.TryGetValue(id, out var item) ? item : null;
         }
 
         /// <summary>
@@ -660,15 +663,22 @@ namespace Prompt
         {
             lock (_lock)
             {
+                int completed = 0, succeeded = 0, failed = 0;
+                foreach (var item in _items)
+                {
+                    if (item.Status == BatchItemStatus.Succeeded)
+                    { completed++; succeeded++; }
+                    else if (item.Status == BatchItemStatus.Failed)
+                    { completed++; failed++; }
+                    else if (item.Status == BatchItemStatus.Skipped)
+                    { completed++; }
+                }
                 return new BatchProgress
                 {
                     Total = _items.Count,
-                    Completed = _items.Count(i =>
-                        i.Status != BatchItemStatus.Pending),
-                    Succeeded = _items.Count(i =>
-                        i.Status == BatchItemStatus.Succeeded),
-                    Failed = _items.Count(i =>
-                        i.Status == BatchItemStatus.Failed)
+                    Completed = completed,
+                    Succeeded = succeeded,
+                    Failed = failed
                 };
             }
         }
