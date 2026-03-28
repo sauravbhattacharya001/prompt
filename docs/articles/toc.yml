@@ -12,6 +12,8 @@
   href: advanced-features.md
 - name: Testing & Quality Assurance
   href: testing.md
+- name: Observability & Debugging
+  href: observability.md
 - name: Prompt Safety & Analysis
   href: safety.md
 - name: Security Hardening
