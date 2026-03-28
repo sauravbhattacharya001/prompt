@@ -358,7 +358,7 @@ namespace Prompt
                             FullText = accumulated.ToString(),
                             IsComplete = isComplete,
                             FinishReason = isComplete ? finishReason : null,
-                            TokensUsed = Math.Max(1, accumulated.Length / 4)
+                            TokensUsed = PromptGuard.EstimateTokens(accumulated.ToString())
                         };
                     }
                 }
@@ -372,7 +372,7 @@ namespace Prompt
                         FullText = accumulated.ToString(),
                         IsComplete = true,
                         FinishReason = "stop",
-                        TokensUsed = Math.Max(1, accumulated.Length / 4)
+                        TokensUsed = PromptGuard.EstimateTokens(accumulated.ToString())
                     };
                 }
 

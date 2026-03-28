@@ -216,7 +216,7 @@
                         FullText = accumulated.ToString(),
                         IsComplete = isComplete,
                         FinishReason = isComplete ? finishReason : null,
-                        TokensUsed = EstimateTokens(accumulated.Length)
+                        TokensUsed = PromptGuard.EstimateTokens(accumulated.ToString())
                     };
                 }
             }
@@ -230,15 +230,10 @@
                     FullText = accumulated.ToString(),
                     IsComplete = true,
                     FinishReason = "stop",
-                    TokensUsed = EstimateTokens(accumulated.Length)
+                    TokensUsed = PromptGuard.EstimateTokens(accumulated.ToString())
                 };
             }
         }
-
-        /// <summary>
-        /// Rough token estimate based on character count (~4 chars per token for English).
-        /// </summary>
-        private static int EstimateTokens(int charCount) => Math.Max(1, charCount / 4);
 
         /// <summary>
         /// Reads an environment variable with a cross-platform fallback chain:

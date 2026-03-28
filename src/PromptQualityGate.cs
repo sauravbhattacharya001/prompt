@@ -260,7 +260,7 @@ namespace Prompt
         private GateCheckResult CheckTokenEstimate(string prompt)
         {
             var result = new GateCheckResult { CheckName = "token-estimate" };
-            int estimatedTokens = (int)Math.Ceiling(prompt.Length / 4.0);
+            int estimatedTokens = PromptGuard.EstimateTokens(prompt);
 
             if (estimatedTokens > MaxTokens)
             {

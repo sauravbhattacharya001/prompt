@@ -619,7 +619,7 @@ namespace Prompt
             try
             {
                 var json = JsonSerializer.Serialize(result.Tools);
-                return json.Length / 4;
+                return PromptGuard.EstimateTokens(json);
             }
             catch
             {

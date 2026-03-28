@@ -416,8 +416,8 @@ namespace Prompt
         {
             foreach (var ex in _examples)
             {
-                var totalChars = ex.SystemPrompt.Length + ex.Input.Length + ex.Output.Length;
-                ex.EstimatedTokens = Math.Max(1, (int)Math.Ceiling(totalChars / 4.0));
+                var totalText = ex.SystemPrompt + " " + ex.Input + " " + ex.Output;
+                ex.EstimatedTokens = PromptGuard.EstimateTokens(totalText);
             }
             return this;
         }

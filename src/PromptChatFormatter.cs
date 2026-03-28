@@ -368,15 +368,14 @@ namespace Prompt
         public static int EstimateTokens(IEnumerable<ChatMessage> messages)
         {
             if (messages == null) return 0;
-            int totalChars = 0;
+            int total = 0;
             foreach (var msg in messages)
             {
-                // Role overhead: ~4 tokens per message for formatting
-                totalChars += 16; // ~4 tokens * 4 chars/token
-                totalChars += (msg.Content?.Length ?? 0);
+                // Per-message overhead: ~4 tokens for role/formatting metadata
+                total += 4;
+                total += PromptGuard.EstimateTokens(msg.Content ?? "");
             }
-            // ~4 chars per token on average for English
-            return (int)Math.Ceiling(totalChars / 4.0);
+            return total;
         }
 
         #region Private helpers
