@@ -113,8 +113,7 @@ namespace Prompt
                 return _cachedPattern;
 
             _cachedPattern = new Regex(
-                Regex.Escape(_openDelimiter) + @"\s*(.+?)\s*" + Regex.Escape(_closeDelimiter),
-                RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+                Regex.Escape(_openDelimiter) + @"\s*(.+?)\s*" + Regex.Escape(_closeDelimiter), RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
             _cachedPatternKey = key;
             return _cachedPattern;
         }

@@ -32,7 +32,7 @@ namespace Prompt
             Name = name ?? throw new ArgumentNullException(nameof(name));
             Category = category;
             Severity = severity;
-            Pattern = new Regex(pattern, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            Pattern = new Regex(pattern, RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
             Description = description ?? "";
         }
     }

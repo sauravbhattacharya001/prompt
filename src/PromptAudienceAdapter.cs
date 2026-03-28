@@ -330,7 +330,8 @@ namespace Prompt
                 foreach (var kv in jargonMap.OrderByDescending(x => x.Key.Length))
                 {
                     var pattern = @"(?<!\w)" + Regex.Escape(kv.Key) + @"(?!\w)";
-                    var regex = new Regex(pattern, RegexOptions.IgnoreCase);
+                    var regex = new Regex(pattern, RegexOptions.IgnoreCase,
+                        TimeSpan.FromMilliseconds(500));
                     if (regex.IsMatch(working))
                     {
                         detected.Add(kv.Key);

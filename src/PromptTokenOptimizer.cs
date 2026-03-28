@@ -221,29 +221,29 @@ namespace Prompt
         // Common filler patterns with their condensed forms
         private static readonly (Regex Pattern, string Replacement, string Description)[] FillerPatterns = new[]
         {
-            (new Regex(@"\bplease\s+make\s+sure\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), "ensure", "Verbose instruction phrase"),
-            (new Regex(@"\bI\s+would\s+like\s+you\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), "", "Unnecessary preamble"),
-            (new Regex(@"\bIt\s+is\s+important\s+(?:that\s+)?(?:you\s+)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), "", "Unnecessary emphasis"),
-            (new Regex(@"\bplease\s+note\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), "Note:", "Verbose note marker"),
-            (new Regex(@"\bIn\s+order\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), "To", "Verbose 'in order to'"),
-            (new Regex(@"\bDue\s+to\s+the\s+fact\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), "Because", "Verbose 'due to the fact that'"),
-            (new Regex(@"\bAt\s+this\s+point\s+in\s+time\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), "Now", "Verbose time reference"),
-            (new Regex(@"\bfor\s+the\s+purpose\s+of\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), "for", "Verbose 'for the purpose of'"),
-            (new Regex(@"\bin\s+the\s+event\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), "if", "Verbose conditional"),
-            (new Regex(@"\bwith\s+regard\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), "regarding", "Verbose 'with regard to'"),
-            (new Regex(@"\bAs\s+a\s+matter\s+of\s+fact\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), "In fact", "Verbose filler"),
-            (new Regex(@"\bIt\s+should\s+be\s+noted\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), "Note:", "Passive filler"),
-            (new Regex(@"\bYou\s+should\s+always\s+make\s+sure\s+(?:that\s+)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), "Always ", "Verbose instruction"),
-            (new Regex(@"\bI\s+need\s+you\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), "", "Unnecessary preamble"),
+            (new Regex(@"\bplease\s+make\s+sure\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))), "ensure", "Verbose instruction phrase"),
+            (new Regex(@"\bI\s+would\s+like\s+you\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))), "", "Unnecessary preamble"),
+            (new Regex(@"\bIt\s+is\s+important\s+(?:that\s+)?(?:you\s+)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))), "", "Unnecessary emphasis"),
+            (new Regex(@"\bplease\s+note\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))), "Note:", "Verbose note marker"),
+            (new Regex(@"\bIn\s+order\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))), "To", "Verbose 'in order to'"),
+            (new Regex(@"\bDue\s+to\s+the\s+fact\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))), "Because", "Verbose 'due to the fact that'"),
+            (new Regex(@"\bAt\s+this\s+point\s+in\s+time\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))), "Now", "Verbose time reference"),
+            (new Regex(@"\bfor\s+the\s+purpose\s+of\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))), "for", "Verbose 'for the purpose of'"),
+            (new Regex(@"\bin\s+the\s+event\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))), "if", "Verbose conditional"),
+            (new Regex(@"\bwith\s+regard\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))), "regarding", "Verbose 'with regard to'"),
+            (new Regex(@"\bAs\s+a\s+matter\s+of\s+fact\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))), "In fact", "Verbose filler"),
+            (new Regex(@"\bIt\s+should\s+be\s+noted\s+that\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))), "Note:", "Passive filler"),
+            (new Regex(@"\bYou\s+should\s+always\s+make\s+sure\s+(?:that\s+)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))), "Always ", "Verbose instruction"),
+            (new Regex(@"\bI\s+need\s+you\s+to\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))), "", "Unnecessary preamble"),
         };
 
         // Repeated formatting instruction patterns
         private static readonly Regex[] FormattingPatterns = new[]
         {
-            new Regex(@"\bformat\s+(?:the\s+)?(?:output|response|answer)\s+(?:as|in|using)\s+(?:JSON|json)\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-            new Regex(@"\breturn\s+(?:the\s+)?(?:result|output|response)\s+(?:as|in)\s+(?:JSON|json)\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-            new Regex(@"\buse\s+(?:bullet\s+)?(?:points|list|markdown)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
-            new Regex(@"\brespond\s+in\s+(?:JSON|json|XML|xml|markdown)\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
+            new Regex(@"\bformat\s+(?:the\s+)?(?:output|response|answer)\s+(?:as|in|using)\s+(?:JSON|json)\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))),
+            new Regex(@"\breturn\s+(?:the\s+)?(?:result|output|response)\s+(?:as|in)\s+(?:JSON|json)\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))),
+            new Regex(@"\buse\s+(?:bullet\s+)?(?:points|list|markdown)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))),
+            new Regex(@"\brespond\s+in\s+(?:JSON|json|XML|xml|markdown)\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500))),
         };
 
         /// <summary>

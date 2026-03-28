@@ -95,24 +95,24 @@ namespace Prompt
 
         private static readonly (string Label, Regex Pattern)[] InjectionPatterns = new[]
         {
-            ("ignore_previous", new Regex(@"ignore\s+(?:all\s+)?previous\s+instructions", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
-            ("forget_instructions", new Regex(@"forget\s+(?:all\s+)?(?:your\s+)?instructions", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
-            ("disregard_above", new Regex(@"disregard\s+(?:the\s+)?above", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
-            ("jailbreak", new Regex(@"(?:enable\s+)?jailbreak\s+mode", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
-            ("new_instructions", new Regex(@"(?:new|my)\s+instructions\s*:", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
-            ("developer_mode", new Regex(@"developer\s+mode\s+enabled", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
-            ("you_are_now", new Regex(@"you\s+are\s+now\s+a\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
-            ("system_prompt_override", new Regex(@"system\s+prompt\s+override", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
-            ("override_instructions", new Regex(@"override\s+(?:your\s+)?instructions", RegexOptions.IgnoreCase | RegexOptions.Compiled)),
+            ("ignore_previous", new Regex(@"ignore\s+(?:all\s+)?previous\s+instructions", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("forget_instructions", new Regex(@"forget\s+(?:all\s+)?(?:your\s+)?instructions", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("disregard_above", new Regex(@"disregard\s+(?:the\s+)?above", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("jailbreak", new Regex(@"(?:enable\s+)?jailbreak\s+mode", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("new_instructions", new Regex(@"(?:new|my)\s+instructions\s*:", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("developer_mode", new Regex(@"developer\s+mode\s+enabled", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("you_are_now", new Regex(@"you\s+are\s+now\s+a\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("system_prompt_override", new Regex(@"system\s+prompt\s+override", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("override_instructions", new Regex(@"override\s+(?:your\s+)?instructions", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
         };
 
         private static readonly (string Type, Regex Pattern)[] PiiPatterns = new[]
         {
-            ("email", new Regex(@"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", RegexOptions.Compiled)),
-            ("ssn", new Regex(@"\b\d{3}-\d{2}-\d{4}\b", RegexOptions.Compiled)),
-            ("credit_card", new Regex(@"\b(?:\d{4}[\s\-]?){3}\d{4}\b", RegexOptions.Compiled)),
-            ("phone", new Regex(@"(?:\+?1[\s\-.]?)?\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}\b", RegexOptions.Compiled)),
-            ("ip_address", new Regex(@"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b", RegexOptions.Compiled)),
+            ("email", new Regex(@"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("ssn", new Regex(@"\b\d{3}-\d{2}-\d{4}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("credit_card", new Regex(@"\b(?:\d{4}[\s\-]?){3}\d{4}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("phone", new Regex(@"(?:\+?1[\s\-.]?)?\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("ip_address", new Regex(@"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
         };
 
         private static readonly Regex SpecialTokenRegex = new(

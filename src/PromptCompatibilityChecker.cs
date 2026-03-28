@@ -379,7 +379,8 @@ namespace Prompt
                 string message, string suggestion)
             {
                 _ruleId = ruleId;
-                _regex = new Regex(pattern, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+                _regex = new Regex(pattern, RegexOptions.Compiled | RegexOptions.IgnoreCase,
+                    TimeSpan.FromMilliseconds(500));
                 _severity = severity;
                 _provider = provider;
                 _category = category;

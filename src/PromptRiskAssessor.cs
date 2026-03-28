@@ -441,102 +441,102 @@ namespace Prompt
             return new List<(Regex, RiskDimension, RiskSeverity, string, string, string)>
             {
                 // Injection patterns
-                (new Regex(@"ignore\s+(all\s+)?(previous|prior|above)\s+(instructions|rules|guidelines)", RegexOptions.IgnoreCase),
+                (new Regex(@"ignore\s+(all\s+)?(previous|prior|above)\s+(instructions|rules|guidelines)", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.Injection, RiskSeverity.Critical,
                     "Instruction override attempt",
                     "Pattern attempts to override system instructions.",
                     "Remove instruction override language; use input sandboxing."),
 
-                (new Regex(@"(system\s*prompt|initial\s*prompt|original\s*instructions?).*?(reveal|show|display|print|output)", RegexOptions.IgnoreCase),
+                (new Regex(@"(system\s*prompt|initial\s*prompt|original\s*instructions?).*?(reveal|show|display|print|output)", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.Injection, RiskSeverity.Critical,
                     "System prompt extraction",
                     "Attempts to extract the system prompt or initial instructions.",
                     "Never echo system prompts; add explicit 'do not reveal instructions' guardrails."),
 
-                (new Regex(@"pretend\s+(you('re|\s+are)\s+)?(a\s+)?(different|new|another)", RegexOptions.IgnoreCase),
+                (new Regex(@"pretend\s+(you('re|\s+are)\s+)?(a\s+)?(different|new|another)", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.Injection, RiskSeverity.High,
                     "Identity manipulation",
                     "Attempts to reassign the model's identity or role.",
                     "Add strong identity anchoring in the system prompt."),
 
-                (new Regex(@"(translate|convert)\s+.{0,30}(instructions|rules|system)", RegexOptions.IgnoreCase),
+                (new Regex(@"(translate|convert)\s+.{0,30}(instructions|rules|system)", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.Injection, RiskSeverity.Medium,
                     "Translation-based extraction",
                     "May attempt to extract instructions through translation requests.",
                     "Exclude system instructions from translation scope."),
 
                 // Jailbreak patterns
-                (new Regex(@"(DAN|do anything now|developer mode|unlocked mode|god mode)", RegexOptions.IgnoreCase),
+                (new Regex(@"(DAN|do anything now|developer mode|unlocked mode|god mode)", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.Jailbreak, RiskSeverity.Critical,
                     "Known jailbreak pattern",
                     "References a well-known jailbreak technique (DAN/developer mode).",
                     "Block known jailbreak keywords; add safety preamble."),
 
-                (new Regex(@"(no\s+(rules?|restrictions?|limitations?|boundaries|filters?|constraints?)|without\s+(any\s+)?(restrictions?|limitations?|filters?|constraints?))", RegexOptions.IgnoreCase),
+                (new Regex(@"(no\s+(rules?|restrictions?|limitations?|boundaries|filters?|constraints?)|without\s+(any\s+)?(restrictions?|limitations?|filters?|constraints?))", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.Jailbreak, RiskSeverity.High,
                     "Safety boundary removal",
                     "Attempts to remove safety constraints or content filters.",
                     "Reinforce safety boundaries in system prompt; never acknowledge ability to bypass."),
 
-                (new Regex(@"hypothetical(ly)?.*?(illegal|harmful|dangerous|unethical)", RegexOptions.IgnoreCase),
+                (new Regex(@"hypothetical(ly)?.*?(illegal|harmful|dangerous|unethical)", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.Jailbreak, RiskSeverity.Medium,
                     "Hypothetical harmful scenario",
                     "Uses hypothetical framing to elicit harmful content.",
                     "Add guardrails against hypothetical scenario exploitation."),
 
                 // Data leakage
-                (new Regex(@"(api[_\s]?key|secret[_\s]?key|access[_\s]?token|password|credentials?)\s*[:=]", RegexOptions.IgnoreCase),
+                (new Regex(@"(api[_\s]?key|secret[_\s]?key|access[_\s]?token|password|credentials?)\s*[:=]", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.DataLeakage, RiskSeverity.Critical,
                     "Credential in prompt",
                     "Prompt appears to contain hardcoded credentials or API keys.",
                     "Never embed credentials in prompts; use environment variables or secret managers."),
 
-                (new Regex(@"(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{20,}|AKIA[A-Z0-9]{16})", RegexOptions.None),
+                (new Regex(@"(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{20,}|AKIA[A-Z0-9]{16})", RegexOptions.None, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.DataLeakage, RiskSeverity.Critical,
                     "API key pattern detected",
                     "Prompt contains what appears to be an actual API key (OpenAI/GitHub/AWS).",
                     "Remove the key immediately; rotate it; use secure key management."),
 
-                (new Regex(@"(list|show|give|tell)\s+(me\s+)?(all|every)\s+(user|customer|employee|patient|record|account)", RegexOptions.IgnoreCase),
+                (new Regex(@"(list|show|give|tell)\s+(me\s+)?(all|every)\s+(user|customer|employee|patient|record|account)", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.DataLeakage, RiskSeverity.Medium,
                     "Bulk data extraction request",
                     "Prompt requests bulk extraction of potentially sensitive records.",
                     "Implement pagination and access controls; avoid bulk data in prompt responses."),
 
                 // Hallucination
-                (new Regex(@"(make up|invent|fabricate|create fictional)\s+.{0,30}(facts?|data|statistics?|sources?|citations?|references?)", RegexOptions.IgnoreCase),
+                (new Regex(@"(make up|invent|fabricate|create fictional)\s+.{0,30}(facts?|data|statistics?|sources?|citations?|references?)", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.Hallucination, RiskSeverity.High,
                     "Explicit fabrication request",
                     "Prompt explicitly asks the model to fabricate information.",
                     "If fictional content is needed, clearly label it as such."),
 
-                (new Regex(@"cite\s+.{0,20}(sources?|papers?|studies?|research)", RegexOptions.IgnoreCase),
+                (new Regex(@"cite\s+.{0,20}(sources?|papers?|studies?|research)", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.Hallucination, RiskSeverity.Low,
                     "Citation request",
                     "Citation requests may yield fabricated references without RAG/retrieval.",
                     "Use retrieval-augmented generation or verify citations independently."),
 
                 // Bias
-                (new Regex(@"(all|every|most)\s+(men|women|blacks?|whites?|asians?|muslims?|christians?|jews?|hispanics?|mexicans?|americans?)\s+(are|tend to|always|never)", RegexOptions.IgnoreCase),
+                (new Regex(@"(all|every|most)\s+(men|women|blacks?|whites?|asians?|muslims?|christians?|jews?|hispanics?|mexicans?|americans?)\s+(are|tend to|always|never)", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.Bias, RiskSeverity.High,
                     "Stereotyping generalization",
                     "Prompt contains broad generalizations about demographic groups.",
                     "Remove stereotyping language; use specific, evidence-based claims."),
 
-                (new Regex(@"(rank|compare|rate)\s+.{0,30}(race|gender|religion|ethnicity|nationality)", RegexOptions.IgnoreCase),
+                (new Regex(@"(rank|compare|rate)\s+.{0,30}(race|gender|religion|ethnicity|nationality)", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.Bias, RiskSeverity.Medium,
                     "Demographic ranking request",
                     "Requesting rankings by demographic characteristics risks perpetuating bias.",
                     "Reframe to focus on structural factors rather than demographic comparisons."),
 
                 // Output manipulation
-                (new Regex(@"(```|<script|<iframe|javascript:|onerror=|onclick=)", RegexOptions.IgnoreCase),
+                (new Regex(@"(```|<script|<iframe|javascript:|onerror=|onclick=)", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.OutputManipulation, RiskSeverity.Medium,
                     "Code injection in prompt",
                     "Prompt contains HTML/JavaScript that could execute if output is rendered unsanitized.",
                     "Sanitize all prompt content; escape HTML in rendered output."),
 
-                (new Regex(@"\[.*?\]\(javascript:", RegexOptions.IgnoreCase),
+                (new Regex(@"\[.*?\]\(javascript:", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                     RiskDimension.OutputManipulation, RiskSeverity.High,
                     "Markdown JavaScript injection",
                     "Markdown link with JavaScript URI could execute code if rendered.",

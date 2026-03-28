@@ -57,24 +57,20 @@ namespace Prompt
     public static class PromptStyleTransfer
     {
         private static readonly Regex PleasePat = new Regex(
-            @"\b(please|kindly|if you could|would you mind)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            @"\b(please|kindly|if you could|would you mind)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex FormalPat = new Regex(
-            @"\b(hereby|therefore|furthermore|consequently|henceforth|pursuant|accordingly)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            @"\b(hereby|therefore|furthermore|consequently|henceforth|pursuant|accordingly)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex CasualPat = new Regex(
-            @"\b(hey|gonna|wanna|gotta|kinda|sorta|yeah|yep|nope|cool|awesome|stuff|things)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            @"\b(hey|gonna|wanna|gotta|kinda|sorta|yeah|yep|nope|cool|awesome|stuff|things)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex TechPat = new Regex(
-            @"\b(API|SDK|JSON|XML|HTTP|async|endpoint|parameter|schema|payload|latency|throughput)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            @"\b(API|SDK|JSON|XML|HTTP|async|endpoint|parameter|schema|payload|latency|throughput)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex StepPat = new Regex(
             @"(^\s*\d+[\.\)]\s|^\s*step\s+\d+|^\s*first[,:]|^\s*then[,:]|^\s*finally[,:])",
-            RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         /// <summary>
         /// Detects the most likely communication style of the given text.
@@ -105,8 +101,7 @@ namespace Prompt
             if (words.Length < 15) scores[PromptStyle.Concise] += 4;
             if (words.Length > 80) scores[PromptStyle.Verbose] += 4;
 
-            var friendlyPat = new Regex(@"\b(thanks|thank you|appreciate|great|wonderful)\b|!\s",
-                RegexOptions.IgnoreCase);
+            var friendlyPat = new Regex(@"\b(thanks|thank you|appreciate|great|wonderful)\b|!\s", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
             scores[PromptStyle.Friendly] += friendlyPat.Matches(text).Count * 2;
 
             return scores.OrderByDescending(kv => kv.Value).First().Key;

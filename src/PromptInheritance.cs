@@ -122,13 +122,11 @@ namespace Prompt
         public const int MaxDepth = 10;
 
         private static readonly Regex BlockPattern = new Regex(
-            @"\{%\s*block\s+(\w+)\s*%\}(.*?)\{%\s*endblock\s*%\}",
-            RegexOptions.Compiled | RegexOptions.Singleline,
+            @"\{%\s*block\s+(\w+)\s*%\}(.*?)\{%\s*endblock\s*%\}", RegexOptions.Compiled | RegexOptions.Singleline,
             TimeSpan.FromMilliseconds(1000));
 
         private static readonly Regex SuperPattern = new Regex(
-            @"\{\{\s*super\s*\}\}",
-            RegexOptions.Compiled,
+            @"\{\{\s*super\s*\}\}", RegexOptions.Compiled,
             TimeSpan.FromMilliseconds(500));
 
         private readonly string _rawTemplate;
