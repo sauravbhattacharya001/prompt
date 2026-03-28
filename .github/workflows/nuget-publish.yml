@@ -36,8 +36,11 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
+      - name: Build in Release mode
+        run: dotnet build --no-restore -c Release
+
       - name: Run tests
-        run: dotnet test --no-restore -c Release --logger "trx"
+        run: dotnet test --no-build -c Release --logger "trx"
 
       - name: Determine version
         id: version
