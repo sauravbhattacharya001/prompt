@@ -5,6 +5,73 @@ All notable changes to the `prompt-llm-aoi` NuGet package will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **PromptCatalogExporter** — export prompt library to HTML, CSV, and JSON formats
+- **PromptBenchmarkSuite** — benchmark prompt variants against test scenarios
+- **PromptHealthCheck** — library-wide quality analysis and health scoring
+- **PromptChainVisualizer** — Mermaid, DOT, and ASCII flowchart generation from prompt chains
+- **PromptSnapshotManager** — point-in-time library snapshots with diff comparison and rollback
+- **PromptChangeImpactAnalyzer** — blast-radius analysis for prompt template changes
+- **PromptPromotionManager** — lifecycle stage management with approval gates, rollback, and history
+- **PromptCompatibilityChecker** — cross-provider prompt portability analysis
+- **PromptRiskAssessor** — multi-dimensional security risk analysis for prompts
+- **PromptInheritance** — block-based template inheritance with `{{super}}` support
+- **PromptCoverageAnalyzer** — library coverage analysis with health scoring
+- **PromptUsageReport** — comprehensive usage reporting with time-bucketed breakdowns and cost analysis
+- **PromptMatrix** — combinatorial template variable testing
+- **PromptPerformanceProfiler** — execution profiling with percentiles, comparison, and reports
+- **PromptChangelogGenerator** — formatted changelogs from version history with multiple output formats
+- **PromptMarkdownExporter** — export and import prompt libraries as Markdown
+- **PromptSchemaGenerator** — fluent structured output schema builder
+- **PromptQualityGate** — configurable pass/fail gate for prompt validation
+- **PromptSamplerConfig** — LLM sampling parameter builder
+- **PromptSimilarityAnalyzer** — multi-metric prompt comparison and duplicate detection
+- **PromptGoldenTester** — snapshot testing for prompt outputs
+- **PromptScorecardBuilder** — custom evaluation rubrics with weighted scoring
+- **PromptSlotFiller** — structured slot extraction and multi-turn filling
+- **PromptAnnotation** — structured inline comments and metadata for prompts
+- **PromptStyleTransfer** — heuristic prompt tone and style rewriting
+- **PromptReplayRecorder** — VCR-style prompt interaction recording and replay
+- **PromptLinter** — rule-based static analysis for LLM prompts
+- **PromptSplitter** — boundary-aware content chunking for long prompts
+- **PromptDatasetBuilder** — evaluation and fine-tuning dataset builder
+- **PromptMetadataExtractor** — structured prompt analysis for routing and analytics
+- **PromptNegotiator** — iterative prompt refinement with validation feedback loops
+- **PromptDependencyGraph** — DAG analysis for prompt pipelines
+- **PromptSignature** — strongly-typed prompt signatures (DSPy-style)
+- **PromptToolFormatter** — unified tool/function calling format across LLM providers
+- **PromptContextCompressor** — intelligent conversation context compression with 4 strategies
+- **PromptInterpolator** — pipe-based template variable transformations
+- **PromptWorkflow** — DAG-based prompt workflow engine
+- **PromptStreamParser** — real-time streaming content extraction
+- **PromptAuditLog** — immutable hash-chained execution audit trail
+- **PromptRetryPolicy** — configurable retry with backoff, circuit breaker, and error classification
+- **PromptEnsemble** — multi-response aggregation (majority vote, best-of-N, consensus)
+- **PromptOutputValidator** — LLM response validation against configurable rules
+- **PromptChatFormatter** — multi-provider chat message formatting
+- **PromptSanitizer** — prompt cleaning and normalization utility
+- **PromptComplexityScorer** — multi-dimensional prompt complexity analysis
+- **PromptExplainer** — analyze prompts for techniques, sections, and improvement suggestions
+- **PromptFallbackChain** — resilient multi-model execution with automatic fallback
+- **PromptConditional** — conditional logic for prompt templates
+- **PromptContextBuilder** — priority-based prompt context assembly with token budgeting
+- **PromptMigrationAssistant** — cross-provider prompt adaptation assistant
+
+### Fixed
+- Track acquire timestamps to prevent orphaned `RecordCompletion` from corrupting `ConcurrentCount`
+- Resolve stack overflow in `AddToHistory` and add async `ExecuteAsync`
+- Cap retry history to prevent memory leak; fix case-insensitive token escaping
+- `CachingMiddleware` thread-safety and thundering-herd fix
+
+### Changed
+- **Security:** add DoS guards to `PromptInterpolator` filters
+- **Performance:** single-pass `PurgeExpired` eliminates intermediate list allocation
+- **Performance:** optimize `PromptSimilarityAnalyzer` memory and redundant work
+- **Refactor:** unify `RetryPolicy` with `PromptRetryPolicy` to eliminate duplicate backoff/jitter logic
+- **Refactor:** remove 5 redundant `EstimateTokens` wrappers, use `PromptGuard` directly
+
 ## [3.3.0] - 2026-02-15
 
 ### Added

@@ -63,24 +63,96 @@ Send prompts to Azure OpenAI and get responses — with templates, chains, safet
 
 | Class | Description |
 |-------|-------------|
-| [`Main`](#maingettresponseasync) | Single-call Azure OpenAI completions with retries and cancellation |
 | [`Conversation`](#conversation-class) | Multi-turn message history with configurable model parameters |
-| [`PromptTemplate`](#prompttemplate-class) | Reusable `{{variable}}` templates with defaults, validation, and composition |
-| [`PromptChain`](#promptchain-class) | Multi-step LLM pipeline with variable forwarding between steps |
-| `PromptOptions` | Model parameter presets (code generation, creative writing, data extraction, summarization) |
-| `PromptLibrary` | Central template registry with CRUD, search by category/tag, merge, and 8 built-in templates |
-| `PromptGuard` | Injection detection, quality scoring, sanitization, and output format wrapping |
-| `TokenBudget` | Context window management with 3 trim strategies and 15+ model presets |
 | `FewShotBuilder` | Structured few-shot prompt construction with 5 formats and token-budget integration |
-| `PromptVersionManager` | Version history, line-level diffs, and rollback for templates |
+| [`Main`](#maingettresponseasync) | Single-call Azure OpenAI completions with retries and cancellation |
+| `PromptABTester` | A/B testing framework for comparing prompt variant performance |
+| `PromptAnalytics` | Prompt usage analytics and metrics collection |
+| `PromptAnnotation` | Structured inline comments and metadata for prompts |
+| `PromptAuditLog` | Immutable hash-chained execution audit trail |
+| `PromptBatchProcessor` | Batch execution of prompts with concurrency control |
+| `PromptBenchmarkSuite` | Benchmark prompt variants against test scenarios |
+| `PromptCache` | Response caching with configurable expiration policies |
+| `PromptCatalogExporter` | Export prompt library to HTML, CSV, and JSON formats |
+| [`PromptChain`](#promptchain-class) | Multi-step LLM pipeline with variable forwarding between steps |
+| `PromptChainVisualizer` | Mermaid, DOT, and ASCII flowchart generation from prompt chains |
+| `PromptChangeImpactAnalyzer` | Blast-radius analysis for prompt template changes |
+| `PromptChangelogGenerator` | Formatted changelogs from version history with multiple output formats |
+| `PromptChatFormatter` | Multi-provider chat message formatting |
+| `PromptCompatibilityChecker` | Cross-provider prompt portability analysis |
+| `PromptComplexityScorer` | Multi-dimensional prompt complexity analysis |
+| `PromptComplianceChecker` | Policy and regulatory compliance validation for prompts |
 | `PromptComposer` | Fluent structured prompt builder with semantic sections and 4 presets |
-| `PromptRouter` | Intent-based prompt routing with keyword/regex scoring and fallback |
-| `ResponseParser` | Extract JSON, lists, tables, key-value pairs, and code blocks from LLM responses |
-| `PromptTestSuite` | Automated prompt evaluation with 10 assertion types and pluggable response providers |
+| `PromptConditional` | Conditional logic for prompt templates |
+| `PromptContextBuilder` | Priority-based prompt context assembly with token budgeting |
+| `PromptContextCompressor` | Intelligent conversation context compression with 4 strategies |
+| `PromptCostEstimator` | Token-based cost estimation for prompt execution |
+| `PromptCoverageAnalyzer` | Library coverage analysis with health scoring |
+| `PromptDatasetBuilder` | Evaluation and fine-tuning dataset builder |
 | `PromptDebugger` | Deep structural analysis — anti-pattern detection, clarity scoring, suggested fixes |
-| `PromptResponseEvaluator` | Heuristic quality scoring across 5 dimensions (relevance, completeness, etc.) |
-| `PromptGrammarValidator` | Response format validation with 11 rule types (regex, JSON, length, structure) |
+| `PromptDependencyGraph` | DAG analysis for prompt pipelines |
+| `PromptDiff` | Line-level diff comparison between prompt versions |
+| `PromptDocGenerator` | Auto-generate documentation from prompt templates |
+| `PromptEnsemble` | Multi-response aggregation (majority vote, best-of-N, consensus) |
+| `PromptEnvironmentManager` | Environment-specific prompt configuration management |
+| `PromptExplainer` | Analyze prompts for techniques, sections, and improvement suggestions |
+| `PromptFallbackChain` | Resilient multi-model execution with automatic fallback |
+| `PromptFingerprint` | Content-based prompt fingerprinting for deduplication |
 | `PromptFuzzer` | Robustness testing — generates prompt variants via 7 mutation strategies |
+| `PromptGoldenTester` | Snapshot testing for prompt outputs |
+| `PromptGrammarValidator` | Response format validation with 11 rule types (regex, JSON, length, structure) |
+| `PromptGuard` | Injection detection, quality scoring, sanitization, and output format wrapping |
+| `PromptHealthCheck` | Library-wide quality analysis and health scoring |
+| `PromptHistory` | Prompt execution history tracking and retrieval |
+| `PromptInheritance` | Block-based template inheritance with `{{super}}` support |
+| `PromptInterpolator` | Pipe-based template variable transformations |
+| `PromptLibrary` | Central template registry with CRUD, search by category/tag, merge, and 8 built-in templates |
+| `PromptLinter` | Rule-based static analysis for LLM prompts |
+| `PromptLocalizer` | Prompt localization and translation management |
+| `PromptMarkdownExporter` | Export and import prompt libraries as Markdown |
+| `PromptMatrix` | Combinatorial template variable testing |
+| `PromptMerger` | Merge and combine multiple prompt templates |
+| `PromptMetadataExtractor` | Structured prompt analysis for routing and analytics |
+| `PromptMigrationAssistant` | Cross-provider prompt adaptation assistant |
+| `PromptMinifier` | Prompt compression and whitespace optimization |
+| `PromptNegotiator` | Iterative prompt refinement with validation feedback loops |
+| `PromptOptions` | Model parameter presets (code generation, creative writing, data extraction, summarization) |
+| `PromptOutputValidator` | LLM response validation against configurable rules |
+| `PromptPerformanceProfiler` | Execution profiling with percentiles, comparison, and reports |
+| `PromptPipeline` | Configurable prompt processing pipeline with middleware |
+| `PromptPromotionManager` | Lifecycle stage management with approval gates and rollback |
+| `PromptQualityGate` | Configurable pass/fail gate for prompt validation |
+| `PromptRateLimiter` | Request rate limiting and throttling |
+| `PromptRefactorer` | Automated prompt refactoring and optimization suggestions |
+| `PromptReplayRecorder` | VCR-style prompt interaction recording and replay |
+| `PromptResponseEvaluator` | Heuristic quality scoring across 5 dimensions (relevance, completeness, etc.) |
+| `PromptRetryPolicy` | Configurable retry with backoff, circuit breaker, and error classification |
+| `PromptRiskAssessor` | Multi-dimensional security risk analysis for prompts |
+| `PromptRouter` | Intent-based prompt routing with keyword/regex scoring and fallback |
+| `PromptSamplerConfig` | LLM sampling parameter builder |
+| `PromptSanitizer` | Prompt cleaning and normalization utility |
+| `PromptSchemaGenerator` | Fluent structured output schema builder |
+| `PromptScorecardBuilder` | Custom evaluation rubrics with weighted scoring |
+| `PromptSemanticSearch` | Semantic similarity search across prompt libraries |
+| `PromptSignature` | Strongly-typed prompt signatures (DSPy-style) |
+| `PromptSimilarityAnalyzer` | Multi-metric prompt comparison and duplicate detection |
+| `PromptSlotFiller` | Structured slot extraction and multi-turn filling |
+| `PromptSnapshotManager` | Point-in-time library snapshots with diff comparison and rollback |
+| `PromptSplitter` | Boundary-aware content chunking for long prompts |
+| `PromptStreamParser` | Real-time streaming content extraction |
+| `PromptStyleTransfer` | Heuristic prompt tone and style rewriting |
+| [`PromptTemplate`](#prompttemplate-class) | Reusable `{{variable}}` templates with defaults, validation, and composition |
+| `PromptTestSuite` | Automated prompt evaluation with 10 assertion types and pluggable response providers |
+| `PromptTokenOptimizer` | Token usage optimization and prompt compression |
+| `PromptToolFormatter` | Unified tool/function calling format across LLM providers |
+| `PromptUsageReport` | Comprehensive usage reporting with time-bucketed breakdowns and cost analysis |
+| `PromptVariantGenerator` | Automated prompt variant generation for testing |
+| `PromptVersionManager` | Version history, line-level diffs, and rollback for templates |
+| `PromptWorkflow` | DAG-based prompt workflow engine |
+| `ResponseParser` | Extract JSON, lists, tables, key-value pairs, and code blocks from LLM responses |
+| `SerializationGuards` | Input validation and safety checks for deserialization |
+| `StreamChunk` | Typed chunk model for streaming response parsing |
+| `TokenBudget` | Context window management with 3 trim strategies and 15+ model presets |
 
 ## Prerequisites
 
