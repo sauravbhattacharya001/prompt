@@ -9,21 +9,27 @@ namespace Prompt
     /// </summary>
     public class DocVariable
     {
+        /// <summary>Variable name as it appears in the template (e.g. "userName").</summary>
         [JsonPropertyName("name")]
         public string Name { get; init; } = "";
 
+        /// <summary>Whether this variable has a default value defined in the template.</summary>
         [JsonPropertyName("hasDefault")]
         public bool HasDefault { get; init; }
 
+        /// <summary>The default value, if one was provided; otherwise <c>null</c>.</summary>
         [JsonPropertyName("defaultValue")]
         public string? DefaultValue { get; init; }
 
+        /// <summary>True when the variable has no default and must be supplied at render time.</summary>
         [JsonPropertyName("required")]
         public bool Required => !HasDefault;
 
+        /// <summary>Number of times this variable appears in the prompt text.</summary>
         [JsonPropertyName("occurrences")]
         public int Occurrences { get; init; }
 
+        /// <summary>Human-readable description of the variable's purpose.</summary>
         [JsonPropertyName("description")]
         public string Description { get; set; } = "";
     }
@@ -33,18 +39,23 @@ namespace Prompt
     /// </summary>
     public class DocSection
     {
+        /// <summary>The heading text of this section (e.g. "System Instructions").</summary>
         [JsonPropertyName("heading")]
         public string Heading { get; init; } = "";
 
+        /// <summary>Heading depth (1 for #, 2 for ##, etc.). 0 means preamble/root.</summary>
         [JsonPropertyName("level")]
         public int Level { get; init; }
 
+        /// <summary>The body text of this section (excluding the heading line itself).</summary>
         [JsonPropertyName("content")]
         public string Content { get; init; } = "";
 
+        /// <summary>Number of words in this section's content.</summary>
         [JsonPropertyName("wordCount")]
         public int WordCount { get; init; }
 
+        /// <summary>Number of template variables referenced in this section.</summary>
         [JsonPropertyName("variableCount")]
         public int VariableCount { get; init; }
     }
@@ -54,24 +65,31 @@ namespace Prompt
     /// </summary>
     public class DocMetadata
     {
+        /// <summary>Prompt title extracted from @title annotation.</summary>
         [JsonPropertyName("title")]
         public string Title { get; set; } = "";
 
+        /// <summary>Short description of the prompt's purpose.</summary>
         [JsonPropertyName("description")]
         public string Description { get; set; } = "";
 
+        /// <summary>Author name extracted from @author annotation.</summary>
         [JsonPropertyName("author")]
         public string Author { get; set; } = "";
 
+        /// <summary>Semantic version string (e.g. "1.2.0").</summary>
         [JsonPropertyName("version")]
         public string Version { get; set; } = "";
 
+        /// <summary>Free-form tags for categorization and search.</summary>
         [JsonPropertyName("tags")]
         public List<string> Tags { get; set; } = new();
 
+        /// <summary>Target LLM model name (e.g. "gpt-4", "claude-3").</summary>
         [JsonPropertyName("model")]
         public string Model { get; set; } = "";
 
+        /// <summary>Logical category grouping for catalog organization.</summary>
         [JsonPropertyName("category")]
         public string Category { get; set; } = "";
     }
@@ -81,33 +99,43 @@ namespace Prompt
     /// </summary>
     public class PromptDoc
     {
+        /// <summary>Metadata annotations extracted or provided for this prompt.</summary>
         [JsonPropertyName("metadata")]
         public DocMetadata Metadata { get; init; } = new();
 
+        /// <summary>The raw prompt template text.</summary>
         [JsonPropertyName("promptText")]
         public string PromptText { get; init; } = "";
 
+        /// <summary>Variables discovered in the template, sorted by name.</summary>
         [JsonPropertyName("variables")]
         public IReadOnlyList<DocVariable> Variables { get; init; } = Array.Empty<DocVariable>();
 
+        /// <summary>Structural sections detected via markdown headings.</summary>
         [JsonPropertyName("sections")]
         public IReadOnlyList<DocSection> Sections { get; init; } = Array.Empty<DocSection>();
 
+        /// <summary>Approximate token count for the prompt (model-agnostic heuristic).</summary>
         [JsonPropertyName("estimatedTokens")]
         public int EstimatedTokens { get; init; }
 
+        /// <summary>Total word count of the prompt text.</summary>
         [JsonPropertyName("wordCount")]
         public int WordCount { get; init; }
 
+        /// <summary>Total character count of the prompt text.</summary>
         [JsonPropertyName("charCount")]
         public int CharCount { get; init; }
 
+        /// <summary>Number of lines in the prompt text.</summary>
         [JsonPropertyName("lineCount")]
         public int LineCount { get; init; }
 
+        /// <summary>Complexity rating: "simple", "moderate", "complex", or "advanced".</summary>
         [JsonPropertyName("complexity")]
         public string Complexity { get; init; } = "simple";
 
+        /// <summary>Generated C# code example showing how to render this template.</summary>
         [JsonPropertyName("usageExample")]
         public string UsageExample { get; init; } = "";
     }
@@ -117,21 +145,27 @@ namespace Prompt
     /// </summary>
     public class PromptCatalog
     {
+        /// <summary>Display title for the catalog document.</summary>
         [JsonPropertyName("title")]
         public string Title { get; init; } = "Prompt Catalog";
 
+        /// <summary>UTC timestamp when this catalog was generated.</summary>
         [JsonPropertyName("generatedAt")]
         public DateTime GeneratedAt { get; init; } = DateTime.UtcNow;
 
+        /// <summary>Individual prompt documentation entries in the catalog.</summary>
         [JsonPropertyName("prompts")]
         public IReadOnlyList<PromptDoc> Prompts { get; init; } = Array.Empty<PromptDoc>();
 
+        /// <summary>Count of distinct variable names across all prompts.</summary>
         [JsonPropertyName("totalVariables")]
         public int TotalVariables { get; init; }
 
+        /// <summary>Variable names that appear in two or more prompts.</summary>
         [JsonPropertyName("sharedVariables")]
         public IReadOnlyList<string> SharedVariables { get; init; } = Array.Empty<string>();
 
+        /// <summary>Number of prompts per category (only categories with at least one prompt).</summary>
         [JsonPropertyName("categoryBreakdown")]
         public IReadOnlyDictionary<string, int> CategoryBreakdown { get; init; }
             = new Dictionary<string, int>();
@@ -142,18 +176,23 @@ namespace Prompt
     /// </summary>
     public class DocGeneratorOptions
     {
+        /// <summary>Whether to generate C# usage examples for each prompt.</summary>
         [JsonPropertyName("includeUsageExamples")]
         public bool IncludeUsageExamples { get; set; } = true;
 
+        /// <summary>Whether to estimate token counts using a heuristic tokenizer.</summary>
         [JsonPropertyName("includeTokenEstimates")]
         public bool IncludeTokenEstimates { get; set; } = true;
 
+        /// <summary>Whether to compute a complexity rating for each prompt.</summary>
         [JsonPropertyName("includeComplexityRating")]
         public bool IncludeComplexityRating { get; set; } = true;
 
+        /// <summary>Optional human-written descriptions keyed by variable name.</summary>
         [JsonPropertyName("variableDescriptions")]
         public Dictionary<string, string> VariableDescriptions { get; set; } = new();
 
+        /// <summary>Title used for the generated catalog document.</summary>
         [JsonPropertyName("catalogTitle")]
         public string CatalogTitle { get; set; } = "Prompt Catalog";
     }
