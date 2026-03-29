@@ -46,6 +46,13 @@ namespace Prompt
         private readonly Dictionary<string, string> _defaults;
 
         /// <summary>
+        /// Pre-parsed template segments for O(n) rendering without regex.
+        /// Each segment is either a literal string (Variable == null) or a
+        /// variable placeholder (Variable holds the variable name).
+        /// </summary>
+        private readonly TemplateSegment[] _segments;
+
+        /// <summary>
         /// Creates a new prompt template.
         /// </summary>
         /// <param name="template">
@@ -70,6 +77,51 @@ namespace Prompt
             _defaults = defaults != null
                 ? new Dictionary<string, string>(defaults, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            _segments = ParseSegments(template);
+        }
+
+        /// <summary>
+        /// Represents a pre-parsed segment of the template: either literal text
+        /// or a <c>{{variable}}</c> reference.
+        /// </summary>
+        private readonly struct TemplateSegment
+        {
+            /// <summary>Literal text (always non-null).</summary>
+            public readonly string Text;
+            /// <summary>Variable name, or null for literal segments.</summary>
+            public readonly string? Variable;
+
+            public TemplateSegment(string text, string? variable)
+            {
+                Text = text;
+                Variable = variable;
+            }
+        }
+
+        /// <summary>
+        /// Parses a template string into an array of segments at construction
+        /// time so that <see cref="Render"/> can iterate without regex.
+        /// </summary>
+        private static TemplateSegment[] ParseSegments(string template)
+        {
+            var segments = new List<TemplateSegment>();
+            int lastEnd = 0;
+
+            foreach (Match match in VariablePattern.Matches(template))
+            {
+                if (match.Index > lastEnd)
+                    segments.Add(new TemplateSegment(
+                        template.Substring(lastEnd, match.Index - lastEnd), null));
+
+                segments.Add(new TemplateSegment(match.Value, match.Groups[1].Value));
+                lastEnd = match.Index + match.Length;
+            }
+
+            if (lastEnd < template.Length)
+                segments.Add(new TemplateSegment(
+                    template.Substring(lastEnd), null));
+
+            return segments.ToArray();
         }
 
         /// <summary>
@@ -90,9 +142,10 @@ namespace Prompt
         public HashSet<string> GetVariables()
         {
             var variables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (Match match in VariablePattern.Matches(_template))
+            foreach (var seg in _segments)
             {
-                variables.Add(match.Groups[1].Value);
+                if (seg.Variable != null)
+                    variables.Add(seg.Variable);
             }
             return variables;
         }
@@ -203,28 +256,38 @@ namespace Prompt
                 }
             }
 
-            var missing = new List<string>();
+            // Use pre-parsed segments for O(n) rendering without regex.
+            var sb = new System.Text.StringBuilder(_template.Length);
+            List<string>? missing = null;
 
-            string result = VariablePattern.Replace(_template, match =>
+            foreach (ref readonly var seg in _segments.AsSpan())
             {
-                string name = match.Groups[1].Value;
-                if (merged != null && merged.TryGetValue(name, out var value))
-                    return sanitize ? SanitizeVariableValue(value) : value;
+                if (seg.Variable == null)
+                {
+                    sb.Append(seg.Text);
+                }
+                else if (merged != null && merged.TryGetValue(seg.Variable, out var value))
+                {
+                    sb.Append(sanitize ? SanitizeVariableValue(value) : value);
+                }
+                else if (strict)
+                {
+                    (missing ??= new List<string>()).Add(seg.Variable);
+                }
+                else
+                {
+                    sb.Append(seg.Text); // leave {{var}} as-is in non-strict mode
+                }
+            }
 
-                if (strict)
-                    missing.Add(name);
-
-                return match.Value; // leave as-is in non-strict mode
-            });
-
-            if (missing.Count > 0)
+            if (missing != null && missing.Count > 0)
             {
                 throw new InvalidOperationException(
                     $"Missing values for template variables: {string.Join(", ", missing)}. " +
                     $"Provide them via the variables parameter or set defaults.");
             }
 
-            return result;
+            return sb.ToString();
         }
 
         /// <summary>
