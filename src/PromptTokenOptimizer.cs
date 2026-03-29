@@ -554,11 +554,24 @@ namespace Prompt
         {
             var pairs = new List<RedundancyPair>();
 
+            // Pre-tokenize all instructions once upfront to avoid redundant
+            // regex work. Previously each instruction was re-tokenized on every
+            // pairwise comparison, meaning O(n²) tokenizations instead of O(n).
+            var tokenSets = new HashSet<string>[instructions.Count];
             for (int i = 0; i < instructions.Count; i++)
             {
+                tokenSets[i] = TokenizeToSet(instructions[i]);
+            }
+
+            for (int i = 0; i < instructions.Count; i++)
+            {
+                if (tokenSets[i].Count == 0) continue;
+
                 for (int j = i + 1; j < instructions.Count; j++)
                 {
-                    var sim = ComputeSimilarity(instructions[i], instructions[j]);
+                    if (tokenSets[j].Count == 0) continue;
+
+                    var sim = ComputeJaccardSimilarity(tokenSets[i], tokenSets[j]);
                     if (sim >= _config.RedundancyThreshold)
                     {
                         var shorter = instructions[i].Length <= instructions[j].Length
@@ -582,22 +595,60 @@ namespace Prompt
             return pairs;
         }
 
+        /// <summary>
+        /// Compute Jaccard similarity between two pre-tokenized word sets.
+        /// </summary>
+        internal static double ComputeJaccardSimilarity(HashSet<string> setA, HashSet<string> setB)
+        {
+            // Count intersection without allocating a new set
+            int intersection = 0;
+            // Iterate over the smaller set for efficiency
+            var smaller = setA.Count <= setB.Count ? setA : setB;
+            var larger = setA.Count <= setB.Count ? setB : setA;
+
+            foreach (var word in smaller)
+            {
+                if (larger.Contains(word))
+                    intersection++;
+            }
+
+            int union = setA.Count + setB.Count - intersection;
+            return union > 0 ? (double)intersection / union : 0;
+        }
+
+        /// <summary>
+        /// Compute Jaccard similarity between two raw strings.
+        /// Kept for backward compatibility and simpler call sites.
+        /// </summary>
         internal static double ComputeSimilarity(string a, string b)
         {
             if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return 0;
 
-            var wordsA = Tokenize(a);
-            var wordsB = Tokenize(b);
+            var setA = TokenizeToSet(a);
+            var setB = TokenizeToSet(b);
 
-            if (wordsA.Count == 0 || wordsB.Count == 0) return 0;
+            if (setA.Count == 0 || setB.Count == 0) return 0;
 
-            var setA = new HashSet<string>(wordsA);
-            var setB = new HashSet<string>(wordsB);
+            return ComputeJaccardSimilarity(setA, setB);
+        }
 
-            var intersection = setA.Intersect(setB).Count();
-            var union = setA.Union(setB).Count();
+        private static readonly Regex WordTokenizer = new(@"\b\w+\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
-            return union > 0 ? (double)intersection / union : 0;
+        /// <summary>
+        /// Tokenize text into a deduplicated word set (lowercase, length > 1).
+        /// Uses a compiled regex for better throughput on repeated calls.
+        /// </summary>
+        private static HashSet<string> TokenizeToSet(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return new HashSet<string>();
+
+            var set = new HashSet<string>(StringComparer.Ordinal);
+            foreach (Match m in WordTokenizer.Matches(text.ToLowerInvariant()))
+            {
+                if (m.Value.Length > 1)
+                    set.Add(m.Value);
+            }
+            return set;
         }
 
         private static List<string> Tokenize(string text)
