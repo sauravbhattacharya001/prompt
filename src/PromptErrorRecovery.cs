@@ -334,61 +334,8 @@ namespace Prompt
         /// <returns>Analysis result with failure mode, confidence, and evidence.</returns>
         public FailureAnalysis Analyze(string prompt, string response)
         {
-            if (response != null && response.Length > MaxResponseLength)
-                response = response.Substring(0, MaxResponseLength);
+            var candidates = CollectFailures(prompt, response);
 
-            var candidates = new List<FailureAnalysis>();
-
-            // Check empty
-            if (string.IsNullOrWhiteSpace(response))
-            {
-                candidates.Add(new FailureAnalysis
-                {
-                    Mode = FailureMode.EmptyResponse,
-                    Confidence = 1.0,
-                    Description = "Response is empty or contains only whitespace.",
-                    SuggestedHint = "Please provide a substantive response."
-                });
-            }
-            else
-            {
-                // Check refusal
-                var refusalAnalysis = DetectRefusal(response);
-                if (refusalAnalysis.HasFailure) candidates.Add(refusalAnalysis);
-
-                // Check truncation
-                var truncAnalysis = DetectTruncation(response);
-                if (truncAnalysis.HasFailure) candidates.Add(truncAnalysis);
-
-                // Check repetition
-                var repAnalysis = DetectRepetition(response);
-                if (repAnalysis.HasFailure) candidates.Add(repAnalysis);
-
-                // Check hallucination markers
-                var hallAnalysis = DetectHallucination(response);
-                if (hallAnalysis.HasFailure) candidates.Add(hallAnalysis);
-
-                // Check filler only
-                var fillerAnalysis = DetectFillerOnly(response);
-                if (fillerAnalysis.HasFailure) candidates.Add(fillerAnalysis);
-
-                // Custom detectors
-                foreach (var detector in _customDetectors)
-                {
-                    try
-                    {
-                        var custom = detector(prompt ?? "", response);
-                        if (custom != null && custom.HasFailure)
-                            candidates.Add(custom);
-                    }
-                    catch
-                    {
-                        // Swallow custom detector errors
-                    }
-                }
-            }
-
-            // Return highest confidence failure
             if (candidates.Count == 0)
             {
                 return new FailureAnalysis
@@ -399,13 +346,20 @@ namespace Prompt
                 };
             }
 
-            return candidates.OrderByDescending(c => c.Confidence).First();
+            return candidates[0]; // Already sorted by descending confidence
         }
 
         /// <summary>
         /// Analyzes a response and returns ALL detected failures, sorted by confidence.
         /// </summary>
-        public List<FailureAnalysis> AnalyzeAll(string prompt, string response)
+        public List<FailureAnalysis> AnalyzeAll(string prompt, string response) =>
+            CollectFailures(prompt, response);
+
+        /// <summary>
+        /// Runs all built-in and custom failure detectors against the response,
+        /// returning matches sorted by descending confidence.
+        /// </summary>
+        private List<FailureAnalysis> CollectFailures(string prompt, string response)
         {
             if (response != null && response.Length > MaxResponseLength)
                 response = response.Substring(0, MaxResponseLength);
@@ -418,26 +372,29 @@ namespace Prompt
                 {
                     Mode = FailureMode.EmptyResponse,
                     Confidence = 1.0,
-                    Description = "Response is empty or contains only whitespace."
+                    Description = "Response is empty or contains only whitespace.",
+                    SuggestedHint = "Please provide a substantive response."
                 });
                 return results;
             }
 
-            var refusal = DetectRefusal(response);
-            if (refusal.HasFailure) results.Add(refusal);
+            // Run each built-in detector
+            FailureAnalysis[] detections =
+            {
+                DetectRefusal(response),
+                DetectTruncation(response),
+                DetectRepetition(response),
+                DetectHallucination(response),
+                DetectFillerOnly(response)
+            };
 
-            var trunc = DetectTruncation(response);
-            if (trunc.HasFailure) results.Add(trunc);
+            foreach (var detection in detections)
+            {
+                if (detection.HasFailure)
+                    results.Add(detection);
+            }
 
-            var rep = DetectRepetition(response);
-            if (rep.HasFailure) results.Add(rep);
-
-            var hall = DetectHallucination(response);
-            if (hall.HasFailure) results.Add(hall);
-
-            var filler = DetectFillerOnly(response);
-            if (filler.HasFailure) results.Add(filler);
-
+            // Run custom detectors
             foreach (var detector in _customDetectors)
             {
                 try
@@ -446,10 +403,15 @@ namespace Prompt
                     if (custom != null && custom.HasFailure)
                         results.Add(custom);
                 }
-                catch { }
+                catch
+                {
+                    // Swallow custom detector errors to prevent one
+                    // faulty detector from blocking analysis
+                }
             }
 
-            return results.OrderByDescending(r => r.Confidence).ToList();
+            results.Sort((a, b) => b.Confidence.CompareTo(a.Confidence));
+            return results;
         }
 
         /// <summary>
@@ -702,11 +664,8 @@ namespace Prompt
                 statistics = GetStatistics()
             };
 
-            return JsonSerializer.Serialize(data, new JsonSerializerOptions
-            {
-                WriteIndented = indented,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
+            return JsonSerializer.Serialize(data,
+                SerializationGuards.WriteOptions(indented));
         }
 
         #region Detection Methods
