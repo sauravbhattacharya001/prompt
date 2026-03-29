@@ -24,10 +24,5 @@ jobs:
       - name: Build solution
         run: dotnet build Prompt.sln --no-restore --configuration Release
 
-      - name: Run tests (if test project exists)
-        run: |
-          if [ -d "PromptTests" ]; then
-            dotnet test Prompt.sln --no-build --configuration Release --verbosity normal
-          else
-            echo "No test project found, skipping tests"
-          fi
+      - name: Run tests
+        run: dotnet test Prompt.sln --no-build --configuration Release --verbosity normal
