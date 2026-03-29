@@ -6,9 +6,11 @@ using System.Text;
 namespace Prompt
 {
     /// <summary>
-    /// Type of change in a diff hunk.
+    /// Type of change in a line-level diff hunk.
+    /// Renamed from LineDiffType to avoid collision with <see cref="Prompt.LineDiffType"/>
+    /// in PromptDiff.cs which serves a different (field-level) purpose.
     /// </summary>
-    public enum DiffChangeType
+    public enum LineDiffType
     {
         /// <summary>Line is unchanged.</summary>
         Equal,
@@ -24,7 +26,7 @@ namespace Prompt
     public class DiffLine
     {
         /// <summary>Gets the type of change.</summary>
-        public DiffChangeType Type { get; init; }
+        public LineDiffType Type { get; init; }
 
         /// <summary>Gets the line content.</summary>
         public string Content { get; init; } = "";
@@ -57,7 +59,7 @@ namespace Prompt
     /// <summary>
     /// Result of comparing two prompt versions.
     /// </summary>
-    public class DiffResult
+    public class LineDiffResult
     {
         /// <summary>Gets the diff lines.</summary>
         public List<DiffLine> Lines { get; init; } = new();
@@ -78,8 +80,8 @@ namespace Prompt
             {
                 var prefix = line.Type switch
                 {
-                    DiffChangeType.Added => "+",
-                    DiffChangeType.Removed => "-",
+                    LineDiffType.Added => "+",
+                    LineDiffType.Removed => "-",
                     _ => " "
                 };
                 sb.AppendLine($"{prefix} {line.Content}");
@@ -102,8 +104,8 @@ namespace Prompt
             {
                 var (bg, symbol) = line.Type switch
                 {
-                    DiffChangeType.Added => ("#e6ffec", "+"),
-                    DiffChangeType.Removed => ("#ffebe9", "-"),
+                    LineDiffType.Added => ("#e6ffec", "+"),
+                    LineDiffType.Removed => ("#ffebe9", "-"),
                     _ => ("#f6f8fa", " ")
                 };
 
@@ -134,8 +136,8 @@ namespace Prompt
         /// <param name="oldPrompt">The original prompt version.</param>
         /// <param name="newPrompt">The updated prompt version.</param>
         /// <param name="ignoreWhitespace">If true, trims lines before comparison.</param>
-        /// <returns>A <see cref="DiffResult"/> with all changes and statistics.</returns>
-        public static DiffResult Compare(string oldPrompt, string newPrompt, bool ignoreWhitespace = false)
+        /// <returns>A <see cref="LineDiffResult"/> with all changes and statistics.</returns>
+        public static LineDiffResult Compare(string oldPrompt, string newPrompt, bool ignoreWhitespace = false)
         {
             if (oldPrompt == null) throw new ArgumentNullException(nameof(oldPrompt));
             if (newPrompt == null) throw new ArgumentNullException(nameof(newPrompt));
@@ -146,13 +148,13 @@ namespace Prompt
             var lcs = ComputeLCS(oldLines, newLines, ignoreWhitespace);
             var diffLines = BuildDiffLines(oldLines, newLines, lcs);
 
-            int added = diffLines.Count(l => l.Type == DiffChangeType.Added);
-            int removed = diffLines.Count(l => l.Type == DiffChangeType.Removed);
-            int unchanged = diffLines.Count(l => l.Type == DiffChangeType.Equal);
+            int added = diffLines.Count(l => l.Type == LineDiffType.Added);
+            int removed = diffLines.Count(l => l.Type == LineDiffType.Removed);
+            int unchanged = diffLines.Count(l => l.Type == LineDiffType.Equal);
             int total = Math.Max(oldLines.Length, newLines.Length);
             double similarity = total == 0 ? 1.0 : (double)unchanged / total;
 
-            return new DiffResult
+            return new LineDiffResult
             {
                 Lines = diffLines,
                 Stats = new DiffStats
@@ -169,20 +171,20 @@ namespace Prompt
         /// Compares two prompts at the word level within each line, returning
         /// a list of per-line word-level diffs for changed lines.
         /// </summary>
-        public static List<(int LineIndex, List<(DiffChangeType Type, string Word)> Words)> CompareWords(
+        public static List<(int LineIndex, List<(LineDiffType Type, string Word)> Words)> CompareWords(
             string oldPrompt, string newPrompt)
         {
             if (oldPrompt == null) throw new ArgumentNullException(nameof(oldPrompt));
             if (newPrompt == null) throw new ArgumentNullException(nameof(newPrompt));
 
             var result = Compare(oldPrompt, newPrompt);
-            var wordDiffs = new List<(int, List<(DiffChangeType, string)>)>();
+            var wordDiffs = new List<(int, List<(LineDiffType, string)>)>();
 
             // Find paired removed/added lines for word-level diff
             for (int i = 0; i < result.Lines.Count - 1; i++)
             {
-                if (result.Lines[i].Type == DiffChangeType.Removed &&
-                    result.Lines[i + 1].Type == DiffChangeType.Added)
+                if (result.Lines[i].Type == LineDiffType.Removed &&
+                    result.Lines[i + 1].Type == LineDiffType.Added)
                 {
                     var oldWords = result.Lines[i].Content.Split(' ');
                     var newWords = result.Lines[i + 1].Content.Split(' ');
@@ -235,7 +237,7 @@ namespace Prompt
                 {
                     stack.Push(new DiffLine
                     {
-                        Type = DiffChangeType.Equal,
+                        Type = LineDiffType.Equal,
                         Content = oldLines[i - 1],
                         OldLineNumber = i,
                         NewLineNumber = j
@@ -246,7 +248,7 @@ namespace Prompt
                 {
                     stack.Push(new DiffLine
                     {
-                        Type = DiffChangeType.Added,
+                        Type = LineDiffType.Added,
                         Content = newLines[j - 1],
                         OldLineNumber = null,
                         NewLineNumber = j
@@ -257,7 +259,7 @@ namespace Prompt
                 {
                     stack.Push(new DiffLine
                     {
-                        Type = DiffChangeType.Removed,
+                        Type = LineDiffType.Removed,
                         Content = oldLines[i - 1],
                         OldLineNumber = i,
                         NewLineNumber = null
@@ -272,27 +274,27 @@ namespace Prompt
             return result;
         }
 
-        private static List<(DiffChangeType, string)> BuildWordDiff(string[] oldWords, string[] newWords, int[,] dp)
+        private static List<(LineDiffType, string)> BuildWordDiff(string[] oldWords, string[] newWords, int[,] dp)
         {
-            var result = new List<(DiffChangeType, string)>();
+            var result = new List<(LineDiffType, string)>();
             int i = oldWords.Length, j = newWords.Length;
-            var stack = new Stack<(DiffChangeType, string)>();
+            var stack = new Stack<(LineDiffType, string)>();
 
             while (i > 0 || j > 0)
             {
                 if (i > 0 && j > 0 && oldWords[i - 1] == newWords[j - 1])
                 {
-                    stack.Push((DiffChangeType.Equal, oldWords[i - 1]));
+                    stack.Push((LineDiffType.Equal, oldWords[i - 1]));
                     i--; j--;
                 }
                 else if (j > 0 && (i == 0 || dp[i, j - 1] >= dp[i - 1, j]))
                 {
-                    stack.Push((DiffChangeType.Added, newWords[j - 1]));
+                    stack.Push((LineDiffType.Added, newWords[j - 1]));
                     j--;
                 }
                 else
                 {
-                    stack.Push((DiffChangeType.Removed, oldWords[i - 1]));
+                    stack.Push((LineDiffType.Removed, oldWords[i - 1]));
                     i--;
                 }
             }

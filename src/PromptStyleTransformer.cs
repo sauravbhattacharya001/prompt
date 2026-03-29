@@ -5,7 +5,7 @@ namespace Prompt
     /// <summary>
     /// Defines the target communication style for prompt transformation.
     /// </summary>
-    public enum PromptStyle
+    public enum TransformStyle
     {
         /// <summary>Professional, polished language suitable for business contexts.</summary>
         Formal,
@@ -44,7 +44,7 @@ namespace Prompt
         public string Transformed { get; internal set; } = "";
 
         /// <summary>Gets the target style applied.</summary>
-        public PromptStyle TargetStyle { get; internal set; }
+        public TransformStyle TargetStyle { get; internal set; }
 
         /// <summary>Gets the list of transformations applied.</summary>
         public IReadOnlyList<string> Transformations { get; internal set; }
@@ -72,13 +72,13 @@ namespace Prompt
     /// var transformer = new PromptStyleTransformer();
     /// var result = transformer.Transform(
     ///     "Please help me write a function that sorts a list.",
-    ///     PromptStyle.Concise
+    ///     TransformStyle.Concise
     /// );
     /// // → "Help me write a function that sorts a list."
     ///
     /// var formal = transformer.Transform(
     ///     "Hey, can you fix this bug? It's breaking stuff.",
-    ///     PromptStyle.Formal
+    ///     TransformStyle.Formal
     /// );
     /// // → "Greetings, could you address this defect? It is causing failures in items."
     /// </code>
@@ -223,7 +223,7 @@ namespace Prompt
         /// <param name="targetStyle">The desired output style.</param>
         /// <returns>A <see cref="StyleTransformResult"/> with the transformed text and metadata.</returns>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="prompt"/> is null.</exception>
-        public StyleTransformResult Transform(string prompt, PromptStyle targetStyle)
+        public StyleTransformResult Transform(string prompt, TransformStyle targetStyle)
         {
             if (prompt == null) throw new ArgumentNullException(nameof(prompt));
 
@@ -232,14 +232,14 @@ namespace Prompt
 
             result = targetStyle switch
             {
-                PromptStyle.Formal => ApplyFormal(result, transformations),
-                PromptStyle.Casual => ApplyCasual(result, transformations),
-                PromptStyle.Technical => ApplyTechnical(result, transformations),
-                PromptStyle.Simple => ApplySimple(result, transformations),
-                PromptStyle.Concise => ApplyConcise(result, transformations),
-                PromptStyle.Verbose => ApplyVerbose(result, transformations),
-                PromptStyle.Instructional => ApplyInstructional(result, transformations),
-                PromptStyle.Socratic => ApplySocratic(result, transformations),
+                TransformStyle.Formal => ApplyFormal(result, transformations),
+                TransformStyle.Casual => ApplyCasual(result, transformations),
+                TransformStyle.Technical => ApplyTechnical(result, transformations),
+                TransformStyle.Simple => ApplySimple(result, transformations),
+                TransformStyle.Concise => ApplyConcise(result, transformations),
+                TransformStyle.Verbose => ApplyVerbose(result, transformations),
+                TransformStyle.Instructional => ApplyInstructional(result, transformations),
+                TransformStyle.Socratic => ApplySocratic(result, transformations),
                 _ => result
             };
 
@@ -262,11 +262,11 @@ namespace Prompt
         /// <param name="prompt">The prompt text to transform.</param>
         /// <param name="styles">The styles to apply in order.</param>
         /// <returns>A <see cref="StyleTransformResult"/> reflecting the final output.</returns>
-        public StyleTransformResult TransformChain(string prompt, params PromptStyle[] styles)
+        public StyleTransformResult TransformChain(string prompt, params TransformStyle[] styles)
         {
             if (prompt == null) throw new ArgumentNullException(nameof(prompt));
             if (styles == null || styles.Length == 0)
-                return Transform(prompt, PromptStyle.Formal);
+                return Transform(prompt, TransformStyle.Formal);
 
             var allTransformations = new List<string>();
             string current = prompt;

@@ -925,7 +925,7 @@ namespace Prompt
 
         private static List<string> DetectVariables(string prompt)
         {
-            var pattern = new Regex(@"\{\{(\w+)\}\}", RegexOptions.None, TimeSpan.FromMilliseconds(500, TimeSpan.FromMilliseconds(500)));
+            var pattern = new Regex(@"\{\{(\w+)\}\}", RegexOptions.None, TimeSpan.FromMilliseconds(500));
             return pattern.Matches(prompt)
                 .Select(m => m.Groups[1].Value)
                 .Distinct()
