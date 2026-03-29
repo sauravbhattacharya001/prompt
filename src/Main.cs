@@ -108,6 +108,35 @@
         }
 
         /// <summary>
+        /// Validates common parameters, builds the chat message list, and
+        /// returns a prepared <see cref="ChatClient"/> with completion options.
+        /// Centralizes the duplicated setup logic shared by
+        /// <see cref="GetResponseAsync"/> and <see cref="GetResponseStreamAsync"/>.
+        /// </summary>
+        private static (ChatClient Client, List<ChatMessage> Messages, ChatCompletionOptions Options)
+            PrepareRequest(string prompt, string? systemPrompt, int maxRetries, PromptOptions? options)
+        {
+            if (string.IsNullOrWhiteSpace(prompt))
+                throw new ArgumentException("Prompt cannot be null or empty.", nameof(prompt));
+
+            if (maxRetries < 0)
+                throw new ArgumentOutOfRangeException(nameof(maxRetries),
+                    maxRetries, "maxRetries must be non-negative.");
+
+            var chatClient = GetOrCreateChatClient(maxRetries);
+
+            var messages = new List<ChatMessage>();
+            if (!string.IsNullOrWhiteSpace(systemPrompt))
+                messages.Add(new SystemChatMessage(systemPrompt));
+            messages.Add(new UserChatMessage(prompt));
+
+            var opts = options ?? new PromptOptions();
+            var completionOptions = opts.ToChatCompletionOptions();
+
+            return (chatClient, messages, completionOptions);
+        }
+
+        /// <summary>
         /// Sends a prompt to Azure OpenAI and returns the response text.
         /// </summary>
         /// <param name="prompt">The user prompt to send as a user message.</param>
@@ -134,23 +163,8 @@
             PromptOptions? options = null,
             CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(prompt))
-                throw new ArgumentException("Prompt cannot be null or empty.", nameof(prompt));
-
-            if (maxRetries < 0)
-                throw new ArgumentOutOfRangeException(nameof(maxRetries),
-                    maxRetries, "maxRetries must be non-negative.");
-
-            ChatClient chatClient = GetOrCreateChatClient(maxRetries);
-
-            var messages = new List<ChatMessage>();
-            if (!string.IsNullOrWhiteSpace(systemPrompt))
-                messages.Add(new SystemChatMessage(systemPrompt));
-            messages.Add(new UserChatMessage(prompt));
-
-            // Use caller-provided options or fall back to library defaults
-            var opts = options ?? new PromptOptions();
-            var completionOptions = opts.ToChatCompletionOptions();
+            var (chatClient, messages, completionOptions) =
+                PrepareRequest(prompt, systemPrompt, maxRetries, options);
 
             ChatCompletion completion = await chatClient.CompleteChatAsync(
                 messages, completionOptions, cancellationToken);
@@ -177,22 +191,8 @@
             PromptOptions? options = null,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(prompt))
-                throw new ArgumentException("Prompt cannot be null or empty.", nameof(prompt));
-
-            if (maxRetries < 0)
-                throw new ArgumentOutOfRangeException(nameof(maxRetries),
-                    maxRetries, "maxRetries must be non-negative.");
-
-            ChatClient chatClient = GetOrCreateChatClient(maxRetries);
-
-            var messages = new List<ChatMessage>();
-            if (!string.IsNullOrWhiteSpace(systemPrompt))
-                messages.Add(new SystemChatMessage(systemPrompt));
-            messages.Add(new UserChatMessage(prompt));
-
-            var opts = options ?? new PromptOptions();
-            var completionOptions = opts.ToChatCompletionOptions();
+            var (chatClient, messages, completionOptions) =
+                PrepareRequest(prompt, systemPrompt, maxRetries, options);
 
             var accumulated = new StringBuilder();
             string? finishReason = null;
