@@ -150,6 +150,14 @@ namespace Prompt
         private int _totalCircuitBreaks;
         private readonly Dictionary<ErrorCategory, int> _errorCounts = new();
 
+        /// <summary>
+        /// Guards all mutable state: circuit breaker fields, counters, history,
+        /// recent failures, and error counts. A single lock keeps the critical
+        /// sections short (no I/O under lock) while preventing races when
+        /// multiple async operations share the same policy instance.
+        /// </summary>
+        private readonly object _lock = new();
+
         /// <summary>Create a retry policy with the given configuration.</summary>
         public PromptRetryPolicy(RetryPolicyConfig? config = null)
         {
@@ -182,7 +190,7 @@ namespace Prompt
         }
 
         /// <summary>Current circuit breaker state.</summary>
-        public CircuitState CircuitState => _circuitState;
+        public CircuitState CircuitState { get { lock (_lock) return _circuitState; } }
 
         /// <summary>Classify an error message into a category.</summary>
         public ErrorCategory ClassifyError(string errorMessage)
@@ -246,7 +254,9 @@ namespace Prompt
 
             if (_config.EnableJitter && _config.JitterFactor > 0)
             {
-                var jitter = delayMs * _config.JitterFactor * (2.0 * _rng.NextDouble() - 1.0);
+                double rand;
+                lock (_lock) { rand = _rng.NextDouble(); }
+                var jitter = delayMs * _config.JitterFactor * (2.0 * rand - 1.0);
                 delayMs = Math.Max(0, delayMs + jitter);
             }
 
@@ -259,17 +269,20 @@ namespace Prompt
         {
             if (!_config.EnableCircuitBreaker) return false;
 
-            if (_circuitState == CircuitState.Open)
+            lock (_lock)
             {
-                if (DateTime.UtcNow - _circuitOpenedAt >= _config.CircuitBreakerCooldown)
+                if (_circuitState == CircuitState.Open)
                 {
-                    _circuitState = CircuitState.HalfOpen;
-                    _halfOpenSuccesses = 0;
-                    return false;
+                    if (DateTime.UtcNow - _circuitOpenedAt >= _config.CircuitBreakerCooldown)
+                    {
+                        _circuitState = CircuitState.HalfOpen;
+                        _halfOpenSuccesses = 0;
+                        return false;
+                    }
+                    return true;
                 }
-                return true;
+                return false;
             }
-            return false;
         }
 
         /// <summary>
@@ -406,7 +419,7 @@ namespace Prompt
         /// </summary>
         private RetryResult? InitRetryResult()
         {
-            _totalExecutions++;
+            lock (_lock) { _totalExecutions++; }
 
             if (IsCircuitOpen())
             {
@@ -416,7 +429,7 @@ namespace Prompt
                     FinalError = "Circuit breaker is open — too many recent failures.",
                     TotalElapsed = TimeSpan.Zero
                 };
-                _totalCircuitBreaks++;
+                lock (_lock) { _totalCircuitBreaks++; }
                 AddToHistory(result);
                 return result;
             }
@@ -490,8 +503,11 @@ namespace Prompt
                 result.Succeeded = true;
                 result.Result = resultOrError;
                 result.Attempts.Add(attemptRecord);
-                _totalRetries += attempt;
-                _totalSuccesses++;
+                lock (_lock)
+                {
+                    _totalRetries += attempt;
+                    _totalSuccesses++;
+                }
                 RecordSuccess();
                 return true;
             }
@@ -523,7 +539,7 @@ namespace Prompt
         private RetryResult FinalizeResult(RetryResult result, DateTime startTime)
         {
             if (!result.Succeeded && result.RetryCount > 0)
-                _totalRetries += result.RetryCount;
+                lock (_lock) { _totalRetries += result.RetryCount; }
 
             result.TotalElapsed = DateTime.UtcNow - startTime;
             AddToHistory(result);
@@ -573,7 +589,7 @@ namespace Prompt
             {
                 result.CircuitBreakerTripped = true;
                 result.FinalError = "Circuit breaker tripped during retries.";
-                _totalCircuitBreaks++;
+                lock (_lock) { _totalCircuitBreaks++; }
                 return true;
             }
 
@@ -591,45 +607,59 @@ namespace Prompt
         /// <summary>Get execution statistics.</summary>
         public RetryPolicyStats GetStats()
         {
-            return new RetryPolicyStats
+            lock (_lock)
             {
-                TotalExecutions = _totalExecutions,
-                TotalRetries = _totalRetries,
-                TotalSuccesses = _totalSuccesses,
-                TotalCircuitBreaks = _totalCircuitBreaks,
-                CircuitState = _circuitState,
-                ErrorCounts = new Dictionary<ErrorCategory, int>(_errorCounts),
-                SuccessRate = _totalExecutions > 0 ? (double)_totalSuccesses / _totalExecutions : 0,
-                HistoryCount = _history.Count
-            };
+                return new RetryPolicyStats
+                {
+                    TotalExecutions = _totalExecutions,
+                    TotalRetries = _totalRetries,
+                    TotalSuccesses = _totalSuccesses,
+                    TotalCircuitBreaks = _totalCircuitBreaks,
+                    CircuitState = _circuitState,
+                    ErrorCounts = new Dictionary<ErrorCategory, int>(_errorCounts),
+                    SuccessRate = _totalExecutions > 0 ? (double)_totalSuccesses / _totalExecutions : 0,
+                    HistoryCount = _history.Count
+                };
+            }
         }
 
         /// <summary>Get recent execution history.</summary>
         public List<RetryResult> GetHistory(int? limit = null)
         {
-            if (limit.HasValue && limit.Value > 0 && limit.Value < _history.Count)
-                return _history.Skip(_history.Count - limit.Value).ToList();
-            return new List<RetryResult>(_history);
+            lock (_lock)
+            {
+                if (limit.HasValue && limit.Value > 0 && limit.Value < _history.Count)
+                    return _history.Skip(_history.Count - limit.Value).ToList();
+                return new List<RetryResult>(_history);
+            }
         }
 
         /// <summary>Reset circuit breaker state.</summary>
         public void ResetCircuitBreaker()
         {
-            _circuitState = CircuitState.Closed;
-            _recentFailures.Clear();
-            _halfOpenSuccesses = 0;
+            lock (_lock)
+            {
+                _circuitState = CircuitState.Closed;
+                _recentFailures.Clear();
+                _halfOpenSuccesses = 0;
+            }
         }
 
         /// <summary>Clear all stats and history.</summary>
         public void Reset()
         {
-            _totalExecutions = 0;
-            _totalRetries = 0;
-            _totalSuccesses = 0;
-            _totalCircuitBreaks = 0;
-            _errorCounts.Clear();
-            _history.Clear();
-            ResetCircuitBreaker();
+            lock (_lock)
+            {
+                _totalExecutions = 0;
+                _totalRetries = 0;
+                _totalSuccesses = 0;
+                _totalCircuitBreaks = 0;
+                _errorCounts.Clear();
+                _history.Clear();
+                _circuitState = CircuitState.Closed;
+                _recentFailures.Clear();
+                _halfOpenSuccesses = 0;
+            }
         }
 
         /// <summary>Export configuration as JSON.</summary>
@@ -692,45 +722,54 @@ namespace Prompt
         private void RecordFailure()
         {
             if (!_config.EnableCircuitBreaker) return;
-            var now = DateTime.UtcNow;
-            _recentFailures.Add(now);
-
-            var cutoff = now - _config.CircuitBreakerWindow;
-            _recentFailures.RemoveAll(t => t < cutoff);
-
-            if (_circuitState == CircuitState.HalfOpen)
+            lock (_lock)
             {
-                _circuitState = CircuitState.Open;
-                _circuitOpenedAt = now;
-                return;
-            }
+                var now = DateTime.UtcNow;
+                _recentFailures.Add(now);
 
-            if (_recentFailures.Count >= _config.CircuitBreakerThreshold)
-            {
-                _circuitState = CircuitState.Open;
-                _circuitOpenedAt = now;
+                var cutoff = now - _config.CircuitBreakerWindow;
+                _recentFailures.RemoveAll(t => t < cutoff);
+
+                if (_circuitState == CircuitState.HalfOpen)
+                {
+                    _circuitState = CircuitState.Open;
+                    _circuitOpenedAt = now;
+                    return;
+                }
+
+                if (_recentFailures.Count >= _config.CircuitBreakerThreshold)
+                {
+                    _circuitState = CircuitState.Open;
+                    _circuitOpenedAt = now;
+                }
             }
         }
 
         private void RecordSuccess()
         {
             if (!_config.EnableCircuitBreaker) return;
-            if (_circuitState == CircuitState.HalfOpen)
+            lock (_lock)
             {
-                _halfOpenSuccesses++;
-                if (_halfOpenSuccesses >= 2)
+                if (_circuitState == CircuitState.HalfOpen)
                 {
-                    _circuitState = CircuitState.Closed;
-                    _recentFailures.Clear();
+                    _halfOpenSuccesses++;
+                    if (_halfOpenSuccesses >= 2)
+                    {
+                        _circuitState = CircuitState.Closed;
+                        _recentFailures.Clear();
+                    }
                 }
             }
         }
 
         private void IncrementError(ErrorCategory category)
         {
-            if (!_errorCounts.ContainsKey(category))
-                _errorCounts[category] = 0;
-            _errorCounts[category]++;
+            lock (_lock)
+            {
+                if (!_errorCounts.ContainsKey(category))
+                    _errorCounts[category] = 0;
+                _errorCounts[category]++;
+            }
         }
 
         /// <summary>
@@ -739,12 +778,15 @@ namespace Prompt
         /// </summary>
         private void AddToHistory(RetryResult result)
         {
-            _history.Add(result);
-            if (_history.Count > MaxHistorySize)
+            lock (_lock)
             {
-                // Remove the oldest 10% to avoid trimming on every call
-                int removeCount = MaxHistorySize / 10;
-                _history.RemoveRange(0, removeCount);
+                _history.Add(result);
+                if (_history.Count > MaxHistorySize)
+                {
+                    // Remove the oldest 10% to avoid trimming on every call
+                    int removeCount = MaxHistorySize / 10;
+                    _history.RemoveRange(0, removeCount);
+                }
             }
         }
 
