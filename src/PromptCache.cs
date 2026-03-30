@@ -179,8 +179,34 @@ namespace Prompt
                 throw new ArgumentNullException(nameof(prompt));
 
             string input = model != null ? $"{model}::{prompt}" : prompt;
+
+            // Avoid heap allocation for the UTF-8 byte array.
+            // Use stack for small inputs, rented array for large ones.
+            int maxByteCount = Encoding.UTF8.GetMaxByteCount(input.Length);
+            const int stackThreshold = 1024;
+
             Span<byte> hash = stackalloc byte[32]; // SHA-256 = 32 bytes
-            SHA256.HashData(Encoding.UTF8.GetBytes(input), hash);
+
+            if (maxByteCount <= stackThreshold)
+            {
+                Span<byte> utf8 = stackalloc byte[maxByteCount];
+                int written = Encoding.UTF8.GetBytes(input.AsSpan(), utf8);
+                SHA256.HashData(utf8.Slice(0, written), hash);
+            }
+            else
+            {
+                var rented = System.Buffers.ArrayPool<byte>.Shared.Rent(maxByteCount);
+                try
+                {
+                    int written = Encoding.UTF8.GetBytes(input.AsSpan(), rented);
+                    SHA256.HashData(rented.AsSpan(0, written), hash);
+                }
+                finally
+                {
+                    System.Buffers.ArrayPool<byte>.Shared.Return(rented);
+                }
+            }
+
             return Convert.ToHexString(hash).ToLowerInvariant();
         }
 

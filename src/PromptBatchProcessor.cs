@@ -254,12 +254,39 @@ namespace Prompt
         {
             Items = items;
             TotalDurationMs = totalDurationMs;
-            SucceededCount = items.Count(i => i.Status == BatchItemStatus.Succeeded);
-            FailedCount = items.Count(i => i.Status == BatchItemStatus.Failed);
-            SkippedCount = items.Count(i => i.Status == BatchItemStatus.Skipped);
-            TotalRetries = items.Sum(i => Math.Max(0, i.Attempts - 1));
-            FailedItems = items.Where(i => i.Status == BatchItemStatus.Failed).ToList().AsReadOnly();
-            SucceededItems = items.Where(i => i.Status == BatchItemStatus.Succeeded).ToList().AsReadOnly();
+
+            // Single-pass aggregation instead of 5 separate LINQ iterations.
+            int succeeded = 0, failed = 0, skipped = 0, totalRetries = 0;
+            var failedList = new List<BatchItem>();
+            var succeededList = new List<BatchItem>();
+
+            for (int i = 0; i < items.Count; i++)
+            {
+                var item = items[i];
+                totalRetries += Math.Max(0, item.Attempts - 1);
+
+                switch (item.Status)
+                {
+                    case BatchItemStatus.Succeeded:
+                        succeeded++;
+                        succeededList.Add(item);
+                        break;
+                    case BatchItemStatus.Failed:
+                        failed++;
+                        failedList.Add(item);
+                        break;
+                    case BatchItemStatus.Skipped:
+                        skipped++;
+                        break;
+                }
+            }
+
+            SucceededCount = succeeded;
+            FailedCount = failed;
+            SkippedCount = skipped;
+            TotalRetries = totalRetries;
+            FailedItems = failedList.AsReadOnly();
+            SucceededItems = succeededList.AsReadOnly();
         }
 
         /// <summary>
