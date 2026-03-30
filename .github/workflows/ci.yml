@@ -87,7 +87,7 @@ jobs:
 
       - name: Add PR coverage comment
         if: github.event_name == 'pull_request' && always()
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@v3
         with:
           header: coverage
           path: tests/coverage/html/SummaryGithub.md
