@@ -178,10 +178,40 @@ namespace Prompt
             if (prompt == null)
                 throw new ArgumentNullException(nameof(prompt));
 
-            string input = model != null ? $"{model}::{prompt}" : prompt;
-            Span<byte> hash = stackalloc byte[32]; // SHA-256 = 32 bytes
-            SHA256.HashData(Encoding.UTF8.GetBytes(input), hash);
-            return Convert.ToHexString(hash).ToLowerInvariant();
+            // Compute the max byte count to avoid intermediate array allocation.
+            // For typical ASCII prompts this stack-allocates; for very large
+            // prompts (>1 KB encoded) it falls back to a rented array.
+            int modelBytes = model != null
+                ? Encoding.UTF8.GetMaxByteCount(model.Length) + 2 // "::" separator
+                : 0;
+            int maxBytes = modelBytes + Encoding.UTF8.GetMaxByteCount(prompt.Length);
+
+            const int StackLimit = 1024;
+            byte[]? rented = null;
+            Span<byte> buffer = maxBytes <= StackLimit
+                ? stackalloc byte[StackLimit]
+                : (rented = System.Buffers.ArrayPool<byte>.Shared.Rent(maxBytes));
+
+            try
+            {
+                int written = 0;
+                if (model != null)
+                {
+                    written = Encoding.UTF8.GetBytes(model.AsSpan(), buffer);
+                    buffer[written++] = (byte)':';
+                    buffer[written++] = (byte)':';
+                }
+                written += Encoding.UTF8.GetBytes(prompt.AsSpan(), buffer.Slice(written));
+
+                Span<byte> hash = stackalloc byte[32]; // SHA-256 = 32 bytes
+                SHA256.HashData(buffer.Slice(0, written), hash);
+                return Convert.ToHexString(hash).ToLowerInvariant();
+            }
+            finally
+            {
+                if (rented != null)
+                    System.Buffers.ArrayPool<byte>.Shared.Return(rented);
+            }
         }
 
         /// <summary>
