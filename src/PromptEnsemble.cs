@@ -301,16 +301,10 @@ namespace Prompt
         private static string Normalize(string s) =>
             string.Join(" ", s.Split(default(char[]), StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant().TrimEnd('.');
 
-        private static double JaccardSimilarity(string a, string b)
-        {
-            var sa = new HashSet<string>(Tokenize(a)); var sb = new HashSet<string>(Tokenize(b));
-            if (sa.Count == 0 && sb.Count == 0) return 1.0;
-            int inter = sa.Intersect(sb).Count(); int union = sa.Union(sb).Count();
-            return union == 0 ? 0 : (double)inter / union;
-        }
+        private static double JaccardSimilarity(string a, string b) =>
+            TextAnalysisHelpers.JaccardSimilarity(a, b);
 
         private static IEnumerable<string> Tokenize(string s) =>
-            s.ToLowerInvariant().Split(default(char[]), StringSplitOptions.RemoveEmptyEntries)
-             .Select(t => t.Trim('.', ',', '!', '?', ';', ':', '"', '\'', '(', ')'));
+            TextAnalysisHelpers.TokenizeToWordList(s);
     }
 }

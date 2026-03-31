@@ -443,11 +443,9 @@ namespace Prompt
             if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return 0.0;
 
             // Token-level Jaccard similarity (60% weight)
-            var tokensA = Tokenize(a);
-            var tokensB = Tokenize(b);
-            var intersection = tokensA.Intersect(tokensB).Count();
-            var union = tokensA.Union(tokensB).Count();
-            var jaccard = union > 0 ? (double)intersection / union : 0.0;
+            var tokensA = TextAnalysisHelpers.TokenizeToWordSet(a);
+            var tokensB = TextAnalysisHelpers.TokenizeToWordSet(b);
+            var jaccard = TextAnalysisHelpers.JaccardSimilarity(tokensA, tokensB);
 
             // Character-level: 1 - (normalized edit distance) (40% weight)
             var maxLen = Math.Max(a.Length, b.Length);
@@ -455,14 +453,6 @@ namespace Prompt
             var charSim = 1.0 - ((double)editDist / maxLen);
 
             return (jaccard * 0.6) + (charSim * 0.4);
-        }
-
-        private static HashSet<string> Tokenize(string text)
-        {
-            return new HashSet<string>(
-                text.ToLowerInvariant()
-                    .Split(new[] { ' ', '\t', '\n', '\r', ',', '.', '!', '?', ';', ':', '"', '\'', '(', ')', '[', ']', '{', '}' },
-                        StringSplitOptions.RemoveEmptyEntries));
         }
 
         private static int LevenshteinDistance(string a, string b)
@@ -506,8 +496,8 @@ namespace Prompt
                 diffs.Add($"Line count: {baseLines} → {currLines}");
 
             // Token diff
-            var baseTokens = Tokenize(baseline);
-            var currTokens = Tokenize(current);
+            var baseTokens = TextAnalysisHelpers.TokenizeToWordSet(baseline);
+            var currTokens = TextAnalysisHelpers.TokenizeToWordSet(current);
             var added = currTokens.Except(baseTokens).Take(5).ToList();
             var removed = baseTokens.Except(currTokens).Take(5).ToList();
             if (added.Any())

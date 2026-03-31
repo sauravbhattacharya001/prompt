@@ -476,23 +476,11 @@ namespace Prompt
             };
         }
 
-        private static double ComputeWordOverlap(string a, string b)
-        {
-            var wordsA = Tokenize(a);
-            var wordsB = Tokenize(b);
-            if (wordsB.Count == 0) return 0.0;
+        private static double ComputeWordOverlap(string a, string b) =>
+            TextAnalysisHelpers.WordOverlap(a, b);
 
-            int hits = wordsB.Count(w => wordsA.Contains(w));
-            return (double)hits / wordsB.Count;
-        }
-
-        private static HashSet<string> Tokenize(string text)
-        {
-            return new HashSet<string>(
-                Regex.Split(text.ToLowerInvariant(), @"\W+")
-                    .Where(w => w.Length > 0),
-                StringComparer.OrdinalIgnoreCase);
-        }
+        private static HashSet<string> Tokenize(string text) =>
+            TextAnalysisHelpers.TokenizeToWordSetUnfiltered(text);
 
         private static double ComputeNgramCosineSimilarity(string a, string b, int n)
         {
