@@ -597,67 +597,23 @@ namespace Prompt
 
         /// <summary>
         /// Compute Jaccard similarity between two pre-tokenized word sets.
+        /// Delegates to <see cref="TextAnalysisHelpers.JaccardSimilarity(HashSet{string}, HashSet{string})"/>.
         /// </summary>
-        internal static double ComputeJaccardSimilarity(HashSet<string> setA, HashSet<string> setB)
-        {
-            // Count intersection without allocating a new set
-            int intersection = 0;
-            // Iterate over the smaller set for efficiency
-            var smaller = setA.Count <= setB.Count ? setA : setB;
-            var larger = setA.Count <= setB.Count ? setB : setA;
-
-            foreach (var word in smaller)
-            {
-                if (larger.Contains(word))
-                    intersection++;
-            }
-
-            int union = setA.Count + setB.Count - intersection;
-            return union > 0 ? (double)intersection / union : 0;
-        }
+        internal static double ComputeJaccardSimilarity(HashSet<string> setA, HashSet<string> setB) =>
+            TextAnalysisHelpers.JaccardSimilarity(setA, setB);
 
         /// <summary>
         /// Compute Jaccard similarity between two raw strings.
-        /// Kept for backward compatibility and simpler call sites.
+        /// Delegates to <see cref="TextAnalysisHelpers.JaccardSimilarity(string, string)"/>.
         /// </summary>
-        internal static double ComputeSimilarity(string a, string b)
-        {
-            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return 0;
+        internal static double ComputeSimilarity(string a, string b) =>
+            TextAnalysisHelpers.JaccardSimilarity(a, b);
 
-            var setA = TokenizeToSet(a);
-            var setB = TokenizeToSet(b);
+        private static HashSet<string> TokenizeToSet(string text) =>
+            TextAnalysisHelpers.TokenizeToWordSet(text);
 
-            if (setA.Count == 0 || setB.Count == 0) return 0;
-
-            return ComputeJaccardSimilarity(setA, setB);
-        }
-
-        private static readonly Regex WordTokenizer = new(@"\b\w+\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
-
-        /// <summary>
-        /// Tokenize text into a deduplicated word set (lowercase, length > 1).
-        /// Uses a compiled regex for better throughput on repeated calls.
-        /// </summary>
-        private static HashSet<string> TokenizeToSet(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return new HashSet<string>();
-
-            var set = new HashSet<string>(StringComparer.Ordinal);
-            foreach (Match m in WordTokenizer.Matches(text.ToLowerInvariant()))
-            {
-                if (m.Value.Length > 1)
-                    set.Add(m.Value);
-            }
-            return set;
-        }
-
-        private static List<string> Tokenize(string text)
-        {
-            return Regex.Matches(text.ToLowerInvariant(), @"\b\w+\b", RegexOptions.None, TimeSpan.FromMilliseconds(500))
-                .Select(m => m.Value)
-                .Where(w => w.Length > 1) // skip single chars
-                .ToList();
-        }
+        private static List<string> Tokenize(string text) =>
+            TextAnalysisHelpers.TokenizeToWordList(text);
 
         internal List<OptimizationRecommendation> DetectFillerWords(string prompt)
         {
