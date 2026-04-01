@@ -104,6 +104,10 @@ namespace Prompt
             ("you_are_now", new Regex(@"you\s+are\s+now\s+a\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
             ("system_prompt_override", new Regex(@"system\s+prompt\s+override", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
             ("override_instructions", new Regex(@"override\s+(?:your\s+)?instructions", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("act_as", new Regex(@"(?:act|behave)\s+as\s+(?:if\s+)?(?:you\s+(?:are|were)\s+)?(?:a\s+)?", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("pretend_you_are", new Regex(@"pretend\s+(?:that\s+)?you\s*(?:are|'re)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("do_anything_now", new Regex(@"(?:do\s+anything\s+now|D\.?A\.?N\.?\s+mode)", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("ignore_safety", new Regex(@"ignore\s+(?:all\s+)?(?:safety|ethical|content)\s+(?:guidelines|filters|rules|policies)", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
         };
 
         private static readonly (string Type, Regex Pattern)[] PiiPatterns = new[]
