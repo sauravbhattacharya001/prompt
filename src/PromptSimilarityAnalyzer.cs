@@ -124,8 +124,8 @@ namespace Prompt
                 sb.AppendLine($"--- Duplicate Pairs ({DuplicatePairs.Count}) ---");
                 foreach (var pair in DuplicatePairs)
                 {
-                    var a = Truncate(pair.PromptA, 50);
-                    var b = Truncate(pair.PromptB, 50);
+                    var a = StringHelpers.Truncate(pair.PromptA, 50);
+                    var b = StringHelpers.Truncate(pair.PromptB, 50);
                     sb.AppendLine($"  [{pair.Score:F3}] \"{a}\" <-> \"{b}\"");
                 }
                 sb.AppendLine();
@@ -137,9 +137,9 @@ namespace Prompt
                 foreach (var c in Clusters)
                 {
                     sb.AppendLine($"  Cluster {c.Id} ({c.Members.Count} members, avg={c.AverageSimilarity:F3}):");
-                    sb.AppendLine($"    Representative: \"{Truncate(c.Representative, 60)}\"");
+                    sb.AppendLine($"    Representative: \"{StringHelpers.Truncate(c.Representative, 60)}\"");
                     foreach (var m in c.Members.Take(5))
-                        sb.AppendLine($"    - \"{Truncate(m, 60)}\"");
+                        sb.AppendLine($"    - \"{StringHelpers.Truncate(m, 60)}\"");
                     if (c.Members.Count > 5)
                         sb.AppendLine($"    ... and {c.Members.Count - 5} more");
                 }
@@ -147,9 +147,6 @@ namespace Prompt
 
             return sb.ToString();
         }
-
-        private static string Truncate(string s, int max) =>
-            s.Length <= max ? s : s[..max] + "...";
 
         /// <summary>Serialize to JSON.</summary>
         public string ToJson() => JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
@@ -420,39 +417,7 @@ namespace Prompt
         {
             var maxLen = Math.Max(a.Length, b.Length);
             if (maxLen == 0) return 1.0;
-            return 1.0 - (double)LevenshteinDistance(a, b) / maxLen;
-        }
-
-        private static int LevenshteinDistance(string a, string b)
-        {
-            // Ensure we iterate over the shorter string in the inner loop
-            // to minimize memory: O(min(m,n)) instead of O(m*n).
-            if (a.Length < b.Length)
-            {
-                var tmp = a; a = b; b = tmp;
-            }
-
-            var m = a.Length;
-            var n = b.Length;
-            var prev = new int[n + 1];
-            var curr = new int[n + 1];
-
-            for (int j = 0; j <= n; j++) prev[j] = j;
-
-            for (int i = 1; i <= m; i++)
-            {
-                curr[0] = i;
-                for (int j = 1; j <= n; j++)
-                {
-                    var cost = a[i - 1] == b[j - 1] ? 0 : 1;
-                    curr[j] = Math.Min(
-                        Math.Min(prev[j] + 1, curr[j - 1] + 1),
-                        prev[j - 1] + cost);
-                }
-                var swap = prev; prev = curr; curr = swap;
-            }
-
-            return prev[n];
+            return 1.0 - (double)StringHelpers.LevenshteinDistance(a, b) / maxLen;
         }
 
         private double JaccardSimilarity(string a, string b)

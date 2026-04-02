@@ -449,32 +449,10 @@ namespace Prompt
 
             // Character-level: 1 - (normalized edit distance) (40% weight)
             var maxLen = Math.Max(a.Length, b.Length);
-            var editDist = LevenshteinDistance(a, b);
+            var editDist = StringHelpers.LevenshteinDistance(a, b);
             var charSim = 1.0 - ((double)editDist / maxLen);
 
             return (jaccard * 0.6) + (charSim * 0.4);
-        }
-
-        private static int LevenshteinDistance(string a, string b)
-        {
-            // Optimized: only keep two rows
-            if (a.Length > b.Length) (a, b) = (b, a);
-            var prev = new int[a.Length + 1];
-            var curr = new int[a.Length + 1];
-
-            for (int i = 0; i <= a.Length; i++) prev[i] = i;
-
-            for (int j = 1; j <= b.Length; j++)
-            {
-                curr[0] = j;
-                for (int i = 1; i <= a.Length; i++)
-                {
-                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
-                    curr[i] = Math.Min(Math.Min(curr[i - 1] + 1, prev[i] + 1), prev[i - 1] + cost);
-                }
-                (prev, curr) = (curr, prev);
-            }
-            return prev[a.Length];
         }
 
         internal static List<string> FindDifferences(string baseline, string current)

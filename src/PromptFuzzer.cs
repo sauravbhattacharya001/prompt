@@ -185,7 +185,7 @@ namespace Prompt
                         applied.Add(mutation);
                 }
 
-                int editDist = LevenshteinDistance(prompt, mutated);
+                int editDist = StringHelpers.LevenshteinDistance(prompt, mutated);
                 int maxLen = Math.Max(prompt.Length, mutated.Length);
                 double similarity = maxLen > 0
                     ? Math.Round((1.0 - (double)editDist / maxLen) * 100, 1)
@@ -398,33 +398,5 @@ namespace Prompt
             return string.Join(' ', words);
         }
 
-        // ── Levenshtein distance ───────────────────
-
-        private static int LevenshteinDistance(string a, string b)
-        {
-            if (a.Length == 0) return b.Length;
-            if (b.Length == 0) return a.Length;
-
-            // Use two-row optimization for memory efficiency
-            var prev = new int[b.Length + 1];
-            var curr = new int[b.Length + 1];
-
-            for (int j = 0; j <= b.Length; j++)
-                prev[j] = j;
-
-            for (int i = 1; i <= a.Length; i++)
-            {
-                curr[0] = i;
-                for (int j = 1; j <= b.Length; j++)
-                {
-                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
-                    curr[j] = Math.Min(
-                        Math.Min(curr[j - 1] + 1, prev[j] + 1),
-                        prev[j - 1] + cost);
-                }
-                (prev, curr) = (curr, prev);
-            }
-            return prev[b.Length];
-        }
     }
 }

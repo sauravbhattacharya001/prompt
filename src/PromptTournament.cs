@@ -153,12 +153,12 @@ namespace Prompt
                     var a = Rankings.FirstOrDefault(r => r.Index == match.ContenderA);
                     var b = Rankings.FirstOrDefault(r => r.Index == match.ContenderB);
                     var winner = match.Winner == match.ContenderA ? "A" : "B";
-                    sb.AppendLine($"║  {Truncate(a?.DisplayName ?? "?", 14)} vs {Truncate(b?.DisplayName ?? "?", 14)} → {winner} ║");
+                    sb.AppendLine($"║  {StringHelpers.Truncate(a?.DisplayName ?? "?", 14)} vs {StringHelpers.Truncate(b?.DisplayName ?? "?", 14)} → {winner} ║");
                 }
             }
 
             sb.AppendLine("╠══════════════════════════════════════╣");
-            sb.AppendLine($"║  🏆 Champion: {Truncate(Champion?.DisplayName ?? "N/A", 22)} ║");
+            sb.AppendLine($"║  🏆 Champion: {StringHelpers.Truncate(Champion?.DisplayName ?? "N/A", 22)} ║");
             sb.AppendLine("╚══════════════════════════════════════╝");
 
             sb.AppendLine();

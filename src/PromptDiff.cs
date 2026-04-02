@@ -265,8 +265,8 @@ namespace Prompt
                 changes.Add(new DiffChange(
                     DiffChangeType.Modified,
                     "template",
-                    Truncate(oldTemplate.Template, 200),
-                    Truncate(newTemplate.Template, 200)));
+                    StringHelpers.Truncate(oldTemplate.Template, 200),
+                    StringHelpers.Truncate(newTemplate.Template, 200)));
 
                 // Also do line-level diff
                 var oldLines = oldTemplate.Template.Split('\n');
@@ -322,7 +322,7 @@ namespace Prompt
             }
 
             // Calculate similarity
-            double similarity = ComputeSimilarity(oldTemplate.Template, newTemplate.Template);
+            double similarity = StringHelpers.ComputeSimilarity(oldTemplate.Template, newTemplate.Template);
 
             return new DiffResult(changes, similarity);
         }
@@ -422,7 +422,7 @@ namespace Prompt
                     DiffChangeType.Added,
                     $"entry[{name}]",
                     null,
-                    Truncate(entry.Template.Template, 100)));
+                    StringHelpers.Truncate(entry.Template.Template, 100)));
             }
 
             // Removed entries
@@ -433,7 +433,7 @@ namespace Prompt
                 changes.Add(new DiffChange(
                     DiffChangeType.Removed,
                     $"entry[{name}]",
-                    Truncate(entry.Template.Template, 100),
+                    StringHelpers.Truncate(entry.Template.Template, 100),
                     null));
             }
 
@@ -526,93 +526,16 @@ namespace Prompt
                 {
                     changes.Add(new DiffChange(
                         DiffChangeType.Removed, $"line[{oldIdx + 1}]",
-                        Truncate(oldTrimmed[oldIdx], 120), null));
+                        StringHelpers.Truncate(oldTrimmed[oldIdx], 120), null));
                 }
                 else // '+'
                 {
                     changes.Add(new DiffChange(
                         DiffChangeType.Added, $"line[{newIdx + 1}]",
-                        null, Truncate(newTrimmed[newIdx], 120)));
+                        null, StringHelpers.Truncate(newTrimmed[newIdx], 120)));
                 }
             }
         }
 
-        /// <summary>
-        /// Computes a similarity score between 0.0 and 1.0 using
-        /// normalized Levenshtein distance.
-        /// </summary>
-        private static double ComputeSimilarity(string a, string b)
-        {
-            if (string.Equals(a, b, StringComparison.Ordinal))
-                return 1.0;
-
-            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b))
-                return 0.0;
-
-            // For very long strings, use a line-based comparison instead
-            // of character-level Levenshtein to avoid O(n*m) memory.
-            if (a.Length > 5000 || b.Length > 5000)
-            {
-                return ComputeLineSimilarity(a, b);
-            }
-
-            int distance = LevenshteinDistance(a, b);
-            int maxLen = Math.Max(a.Length, b.Length);
-            return 1.0 - ((double)distance / maxLen);
-        }
-
-        /// <summary>
-        /// Line-based similarity for large texts — compares common lines
-        /// as a ratio to avoid expensive character-level computation.
-        /// </summary>
-        private static double ComputeLineSimilarity(string a, string b)
-        {
-            var aLines = new HashSet<string>(a.Split('\n').Select(l => l.TrimEnd()));
-            var bLines = new HashSet<string>(b.Split('\n').Select(l => l.TrimEnd()));
-
-            int common = aLines.Intersect(bLines).Count();
-            int total = Math.Max(aLines.Count, bLines.Count);
-            return total > 0 ? (double)common / total : 1.0;
-        }
-
-        /// <summary>
-        /// Standard Levenshtein distance with two-row optimization.
-        /// </summary>
-        private static int LevenshteinDistance(string a, string b)
-        {
-            int m = a.Length;
-            int n = b.Length;
-
-            var prev = new int[n + 1];
-            var curr = new int[n + 1];
-
-            for (int j = 0; j <= n; j++)
-                prev[j] = j;
-
-            for (int i = 1; i <= m; i++)
-            {
-                curr[0] = i;
-                for (int j = 1; j <= n; j++)
-                {
-                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
-                    curr[j] = Math.Min(
-                        Math.Min(curr[j - 1] + 1, prev[j] + 1),
-                        prev[j - 1] + cost);
-                }
-                (prev, curr) = (curr, prev);
-            }
-
-            return prev[n];
-        }
-
-        /// <summary>
-        /// Truncates a string with ellipsis if it exceeds the max length.
-        /// </summary>
-        private static string Truncate(string value, int maxLength)
-        {
-            if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
-                return value;
-            return value[..(maxLength - 3)] + "...";
-        }
     }
 }

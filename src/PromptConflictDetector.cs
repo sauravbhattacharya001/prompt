@@ -124,8 +124,8 @@ namespace Prompt
             foreach (var conflict in Conflicts.OrderByDescending(c => c.Severity))
             {
                 sb.AppendLine($"[{conflict.Severity}] {conflict.Type}");
-                sb.AppendLine($"  A ({conflict.SourceA}): {Truncate(conflict.InstructionA, 80)}");
-                sb.AppendLine($"  B ({conflict.SourceB}): {Truncate(conflict.InstructionB, 80)}");
+                sb.AppendLine($"  A ({conflict.SourceA}): {StringHelpers.Truncate(conflict.InstructionA, 80)}");
+                sb.AppendLine($"  B ({conflict.SourceB}): {StringHelpers.Truncate(conflict.InstructionB, 80)}");
                 sb.AppendLine($"  → {conflict.Explanation}");
                 if (conflict.Suggestion != null)
                     sb.AppendLine($"  💡 {conflict.Suggestion}");
