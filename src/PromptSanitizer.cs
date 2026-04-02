@@ -151,14 +151,14 @@ namespace Prompt
             // 1. Strip invisible characters
             if (options.StripInvisibleChars)
             {
-                var matches = InvisibleCharsRegex.Matches(text);
-                if (matches.Count > 0)
+                int count = 0;
+                text = InvisibleCharsRegex.Replace(text, _ => { count++; return ""; });
+                if (count > 0)
                 {
-                    text = InvisibleCharsRegex.Replace(text, "");
                     actions.Add(new SanitizeAction
                     {
                         Type = "strip_invisible",
-                        Description = $"Removed {matches.Count} invisible character(s)"
+                        Description = $"Removed {count} invisible character(s)"
                     });
                 }
             }
@@ -166,14 +166,18 @@ namespace Prompt
             // 2. Escape special tokens
             if (options.EscapeSpecialTokens)
             {
-                var matches = SpecialTokenRegex.Matches(text);
-                if (matches.Count > 0)
+                int count = 0;
+                text = SpecialTokenRegex.Replace(text, m =>
                 {
-                    text = SpecialTokenRegex.Replace(text, m => $"[escaped:{m.Value.Trim('<', '>', '|', '[', ']', '/')}]");
+                    count++;
+                    return $"[escaped:{m.Value.Trim('<', '>', '|', '[', ']', '/')}]";
+                });
+                if (count > 0)
+                {
                     actions.Add(new SanitizeAction
                     {
                         Type = "escape_tokens",
-                        Description = $"Escaped {matches.Count} special token(s)"
+                        Description = $"Escaped {count} special token(s)"
                     });
                 }
             }
@@ -183,12 +187,11 @@ namespace Prompt
             {
                 foreach (var (label, pattern) in InjectionPatterns)
                 {
-                    var matches = pattern.Matches(text);
-                    if (matches.Count > 0)
+                    text = pattern.Replace(text, m =>
                     {
-                        injectionCount += matches.Count;
-                        text = pattern.Replace(text, m => $"[blocked:{label}]");
-                    }
+                        injectionCount++;
+                        return $"[blocked:{label}]";
+                    });
                 }
                 if (injectionCount > 0)
                 {
@@ -205,11 +208,13 @@ namespace Prompt
             {
                 foreach (var (type, pattern) in PiiPatterns)
                 {
-                    if (pattern.IsMatch(text))
+                    bool found = false;
+                    text = pattern.Replace(text, _ =>
                     {
-                        redactedPiiTypes.Add(type);
-                        text = pattern.Replace(text, options.PiiPlaceholder);
-                    }
+                        found = true;
+                        return options.PiiPlaceholder;
+                    });
+                    if (found) redactedPiiTypes.Add(type);
                 }
                 if (redactedPiiTypes.Count > 0)
                 {
