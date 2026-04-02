@@ -104,8 +104,15 @@ namespace Prompt
         private int _totalDocuments;
         private double _avgDocumentLength;
 
+        // Running total for incremental average-length computation
+        private int _totalDocumentLength;
+
         // Field tracking for matched-field reporting
         private readonly Dictionary<string, Dictionary<string, HashSet<string>>> _fieldTerms = new();
+
+        // Pre-compiled regex for tokenization (avoids recompilation each call)
+        private static readonly Regex TokenizerRegex = new(@"[^a-z0-9]+",
+            RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -229,7 +236,9 @@ namespace Prompt
             }
 
             _totalDocuments++;
-            RecalculateAvgLength();
+            _totalDocumentLength += allTerms.Count;
+            _avgDocumentLength = _totalDocuments > 0
+                ? _totalDocumentLength / (double)_totalDocuments : 0;
         }
 
         /// <summary>
@@ -268,10 +277,15 @@ namespace Prompt
 
             _entries.Remove(name);
             _tfVectors.Remove(name);
-            _documentLengths.Remove(name);
+            if (_documentLengths.TryGetValue(name, out var removedLen))
+            {
+                _totalDocumentLength -= removedLen;
+                _documentLengths.Remove(name);
+            }
             _fieldTerms.Remove(name);
             _totalDocuments--;
-            RecalculateAvgLength();
+            _avgDocumentLength = _totalDocuments > 0
+                ? _totalDocumentLength / (double)_totalDocuments : 0;
             return true;
         }
 
@@ -286,6 +300,7 @@ namespace Prompt
             _documentLengths.Clear();
             _fieldTerms.Clear();
             _totalDocuments = 0;
+            _totalDocumentLength = 0;
             _avgDocumentLength = 0;
         }
 
@@ -527,7 +542,7 @@ namespace Prompt
                 return new List<string>();
 
             // Split on non-alphanumeric, lowercase, filter stop words, stem
-            var tokens = Regex.Split(text.ToLowerInvariant(), @"[^a-z0-9]+", RegexOptions.None, TimeSpan.FromMilliseconds(500))
+            var tokens = TokenizerRegex.Split(text.ToLowerInvariant())
                 .Where(t => t.Length >= 2 && !StopWords.Contains(t))
                 .Select(Stem)
                 .Where(t => t.Length >= 2)
@@ -738,12 +753,6 @@ namespace Prompt
             return fields;
         }
 
-        private void RecalculateAvgLength()
-        {
-            _avgDocumentLength = _totalDocuments > 0
-                ? _documentLengths.Values.Sum() / (double)_totalDocuments
-                : 0;
-        }
     }
 
     /// <summary>
