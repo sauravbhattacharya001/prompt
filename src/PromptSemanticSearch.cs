@@ -342,19 +342,21 @@ namespace Prompt
             {
                 var term = termKvp.Key;
 
-                // Pre-compute best prefix match
+                // Pre-compute best prefix match (shortest indexed term that starts with query term)
                 if (term.Length >= 3)
                 {
                     string? bestPrefix = null;
-                    // We just need to know which indexed terms are prefix matches;
-                    // actual BM25 score varies per doc, so store the term itself
+                    int bestLen = int.MaxValue;
                     foreach (var indexedTerm in globalVocab)
                     {
-                        if (indexedTerm.StartsWith(term, StringComparison.Ordinal) && indexedTerm != term)
+                        if (indexedTerm.Length > term.Length &&
+                            indexedTerm.Length < bestLen &&
+                            indexedTerm.AsSpan().StartsWith(term.AsSpan(), StringComparison.Ordinal))
                         {
-                            // Pick the shortest prefix expansion (most specific)
-                            if (bestPrefix == null || indexedTerm.Length < bestPrefix.Length)
-                                bestPrefix = indexedTerm;
+                            bestPrefix = indexedTerm;
+                            bestLen = indexedTerm.Length;
+                            // Can't get shorter than term.Length + 1
+                            if (bestLen == term.Length + 1) break;
                         }
                     }
                     prefixExpansions[term] = bestPrefix;
@@ -369,7 +371,7 @@ namespace Prompt
                     {
                         if (Math.Abs(indexedTerm.Length - term.Length) > _maxEditDistance)
                             continue;
-                        int dist = LevenshteinDistance(term, indexedTerm);
+                        int dist = LevenshteinDistance(term, indexedTerm, _maxEditDistance);
                         if (dist > 0 && dist <= _maxEditDistance && dist < bestDist)
                         {
                             bestDist = dist;
@@ -598,35 +600,68 @@ namespace Prompt
         // ── Fuzzy Matching ────────────────────────────────────────────
 
         /// <summary>
-        /// Compute Levenshtein edit distance between two strings.
-        /// Uses the standard dynamic programming algorithm with O(min(m,n)) space.
+        /// Compute bounded Levenshtein edit distance between two strings.
+        /// Uses O(min(m,n)) space with stackalloc for small strings to avoid
+        /// heap allocations. Returns early when the minimum possible distance
+        /// in any row exceeds <paramref name="maxDistance"/>, giving a
+        /// significant speedup for the common case where strings are dissimilar.
         /// </summary>
-        internal static int LevenshteinDistance(string a, string b)
+        /// <param name="a">First string.</param>
+        /// <param name="b">Second string.</param>
+        /// <param name="maxDistance">
+        /// Upper bound — if the true distance exceeds this value, the method
+        /// returns <paramref name="maxDistance"/> + 1 without computing the
+        /// exact result. Pass <see cref="int.MaxValue"/> for unbounded.
+        /// </param>
+        internal static int LevenshteinDistance(string a, string b, int maxDistance = int.MaxValue)
         {
             if (string.IsNullOrEmpty(a)) return b?.Length ?? 0;
             if (string.IsNullOrEmpty(b)) return a.Length;
+
+            // Quick length-difference check
+            if (Math.Abs(a.Length - b.Length) > maxDistance)
+                return maxDistance + 1;
 
             // Ensure a is the shorter string for space optimization
             if (a.Length > b.Length)
                 (a, b) = (b, a);
 
             int m = a.Length, n = b.Length;
-            var prev = new int[m + 1];
-            var curr = new int[m + 1];
+
+            // stackalloc for strings up to ~128 chars (typical search terms
+            // are much shorter) — avoids GC pressure during fuzzy matching
+            const int StackLimit = 128;
+            int rowSize = m + 1;
+            Span<int> prev = rowSize <= StackLimit ? stackalloc int[rowSize] : new int[rowSize];
+            Span<int> curr = rowSize <= StackLimit ? stackalloc int[rowSize] : new int[rowSize];
 
             for (int i = 0; i <= m; i++) prev[i] = i;
 
             for (int j = 1; j <= n; j++)
             {
                 curr[0] = j;
+                int rowMin = j; // track minimum value in this row for early exit
+                char bj = b[j - 1];
+
                 for (int i = 1; i <= m; i++)
                 {
-                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
-                    curr[i] = Math.Min(
+                    int cost = a[i - 1] == bj ? 0 : 1;
+                    int val = Math.Min(
                         Math.Min(curr[i - 1] + 1, prev[i] + 1),
                         prev[i - 1] + cost);
+                    curr[i] = val;
+                    if (val < rowMin) rowMin = val;
                 }
-                (prev, curr) = (curr, prev);
+
+                // If every cell in this row exceeds maxDistance, the final
+                // result will too — no point continuing
+                if (rowMin > maxDistance)
+                    return maxDistance + 1;
+
+                // Swap rows (copy-free via Span reassignment)
+                var tmp = prev;
+                prev = curr;
+                curr = tmp;
             }
 
             return prev[m];
@@ -739,15 +774,27 @@ namespace Prompt
 
             foreach (var kvp in fieldMap)
             {
+                bool matched = false;
                 foreach (var term in queryTerms)
                 {
-                    if (kvp.Value.Contains(term) ||
-                        kvp.Value.Any(t => t.StartsWith(term, StringComparison.Ordinal)))
+                    if (kvp.Value.Contains(term))
                     {
-                        fields.Add(kvp.Key);
+                        matched = true;
                         break;
                     }
+                    // Prefix check only when exact match failed
+                    foreach (var t in kvp.Value)
+                    {
+                        if (t.Length > term.Length && t.AsSpan().StartsWith(term.AsSpan(), StringComparison.Ordinal))
+                        {
+                            matched = true;
+                            break;
+                        }
+                    }
+                    if (matched) break;
                 }
+                if (matched)
+                    fields.Add(kvp.Key);
             }
 
             return fields;
