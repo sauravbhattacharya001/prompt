@@ -52,9 +52,19 @@ namespace Prompt
         public string Name { get; set; } = "";
 
         /// <summary>Azure OpenAI endpoint URI.</summary>
+        /// <remarks>
+        /// Excluded from JSON serialization to prevent credential leakage —
+        /// endpoint URIs may contain embedded access keys or resource identifiers.
+        /// </remarks>
+        [JsonIgnore]
         public string? EndpointUri { get; set; }
 
         /// <summary>Azure OpenAI API key.</summary>
+        /// <remarks>
+        /// Excluded from JSON serialization to prevent credential leakage
+        /// in logs, diagnostics, or config exports. See issue #175.
+        /// </remarks>
+        [JsonIgnore]
         public string? ApiKey { get; set; }
 
         /// <summary>Deployed model name.</summary>
@@ -68,6 +78,21 @@ namespace Prompt
 
         /// <summary>Per-request timeout. Null means no endpoint-specific timeout.</summary>
         public TimeSpan? Timeout { get; set; }
+
+        /// <summary>
+        /// Returns a safe string representation with redacted credentials.
+        /// Prevents accidental key exposure in logs and debugger output.
+        /// </summary>
+        public override string ToString()
+        {
+            var redactedKey = ApiKey is { Length: > 4 }
+                ? $"{ApiKey[..4]}***"
+                : (ApiKey is not null ? "***" : "null");
+            var redactedUri = EndpointUri is not null
+                ? new Uri(EndpointUri).GetLeftPart(UriPartial.Path)
+                : "null";
+            return $"Endpoint[{Name}, Model={Model}, Key={redactedKey}, Uri={redactedUri}]";
+        }
     }
 
     /// <summary>

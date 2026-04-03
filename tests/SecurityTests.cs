@@ -578,4 +578,50 @@ public class TemplateInjectionTests
         var results = suite.Run(prompt => "hello world");
         Assert.NotNull(results);
     }
+
+    // ─────────── LoadBalancerEndpoint: credential redaction (#175) ───────────
+
+    [Fact]
+    public void LoadBalancerEndpoint_Serialization_ExcludesCredentials()
+    {
+        var endpoint = new LoadBalancerEndpoint
+        {
+            Name = "east-us",
+            EndpointUri = "https://myservice.openai.azure.com/",
+            ApiKey = "sk-secret-key-12345",
+            Model = "gpt-4",
+            Weight = 2
+        };
+
+        var json = JsonSerializer.Serialize(endpoint);
+
+        // Credentials must NOT appear in serialized output
+        Assert.DoesNotContain("sk-secret-key-12345", json);
+        Assert.DoesNotContain("myservice.openai.azure.com", json);
+
+        // Non-sensitive fields must still be present
+        Assert.Contains("east-us", json);
+        Assert.Contains("gpt-4", json);
+    }
+
+    [Fact]
+    public void LoadBalancerEndpoint_ToString_RedactsApiKey()
+    {
+        var endpoint = new LoadBalancerEndpoint
+        {
+            Name = "west-us",
+            EndpointUri = "https://myservice.openai.azure.com/?key=secret",
+            ApiKey = "sk-secret-key-12345",
+            Model = "gpt-4"
+        };
+
+        var str = endpoint.ToString();
+
+        // Full key must not appear
+        Assert.DoesNotContain("sk-secret-key-12345", str);
+        // Only first 4 chars shown
+        Assert.Contains("sk-s***", str);
+        // Query string (potential embedded creds) stripped
+        Assert.DoesNotContain("key=secret", str);
+    }
 }

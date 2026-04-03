@@ -23,7 +23,7 @@ namespace Prompt
     /// <summary>
     /// A single line in a diff result.
     /// </summary>
-    public class DiffLine
+    public class ViewerDiffLine
     {
         /// <summary>Gets the type of change.</summary>
         public LineDiffType Type { get; init; }
@@ -62,7 +62,7 @@ namespace Prompt
     public class LineDiffResult
     {
         /// <summary>Gets the diff lines.</summary>
-        public List<DiffLine> Lines { get; init; } = new();
+        public List<ViewerDiffLine> Lines { get; init; } = new();
 
         /// <summary>Gets the diff statistics.</summary>
         public DiffStats Stats { get; init; } = new();
@@ -224,18 +224,18 @@ namespace Prompt
             return dp;
         }
 
-        private static List<DiffLine> BuildDiffLines(string[] oldLines, string[] newLines, int[,] dp)
+        private static List<ViewerDiffLine> BuildDiffLines(string[] oldLines, string[] newLines, int[,] dp)
         {
-            var result = new List<DiffLine>();
+            var result = new List<ViewerDiffLine>();
             int i = oldLines.Length, j = newLines.Length;
 
-            var stack = new Stack<DiffLine>();
+            var stack = new Stack<ViewerDiffLine>();
 
             while (i > 0 || j > 0)
             {
                 if (i > 0 && j > 0 && oldLines[i - 1] == newLines[j - 1])
                 {
-                    stack.Push(new DiffLine
+                    stack.Push(new ViewerDiffLine
                     {
                         Type = LineDiffType.Equal,
                         Content = oldLines[i - 1],
@@ -246,7 +246,7 @@ namespace Prompt
                 }
                 else if (j > 0 && (i == 0 || dp[i, j - 1] >= dp[i - 1, j]))
                 {
-                    stack.Push(new DiffLine
+                    stack.Push(new ViewerDiffLine
                     {
                         Type = LineDiffType.Added,
                         Content = newLines[j - 1],
@@ -257,7 +257,7 @@ namespace Prompt
                 }
                 else
                 {
-                    stack.Push(new DiffLine
+                    stack.Push(new ViewerDiffLine
                     {
                         Type = LineDiffType.Removed,
                         Content = oldLines[i - 1],
