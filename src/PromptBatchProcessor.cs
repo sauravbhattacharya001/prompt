@@ -367,9 +367,12 @@ namespace Prompt
             {
                 foreach (var tag in item.Tags)
                 {
-                    if (!tagGroups.ContainsKey(tag))
-                        tagGroups[tag] = new List<BatchItem>();
-                    tagGroups[tag].Add(item);
+                    if (!tagGroups.TryGetValue(tag, out var list))
+                    {
+                        list = new List<BatchItem>();
+                        tagGroups[tag] = list;
+                    }
+                    list.Add(item);
                 }
             }
 
@@ -377,12 +380,22 @@ namespace Prompt
                 StringComparer.OrdinalIgnoreCase);
             foreach (var (tag, items) in tagGroups)
             {
+                int completed = 0, succeeded = 0, failed = 0;
+                foreach (var item in items)
+                {
+                    if (item.Status != BatchItemStatus.Pending)
+                        completed++;
+                    if (item.Status == BatchItemStatus.Succeeded)
+                        succeeded++;
+                    else if (item.Status == BatchItemStatus.Failed)
+                        failed++;
+                }
                 result[tag] = new BatchProgress
                 {
                     Total = items.Count,
-                    Completed = items.Count(i => i.Status != BatchItemStatus.Pending),
-                    Succeeded = items.Count(i => i.Status == BatchItemStatus.Succeeded),
-                    Failed = items.Count(i => i.Status == BatchItemStatus.Failed)
+                    Completed = completed,
+                    Succeeded = succeeded,
+                    Failed = failed
                 };
             }
             return result;

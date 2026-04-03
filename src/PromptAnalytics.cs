@@ -149,8 +149,8 @@ namespace Prompt
             {
                 foreach (var kvp in stats.GetVariableCounts())
                 {
-                    if (variableCounts.ContainsKey(kvp.Key))
-                        variableCounts[kvp.Key] += kvp.Value;
+                    if (variableCounts.TryGetValue(kvp.Key, out int existing))
+                        variableCounts[kvp.Key] = existing + kvp.Value;
                     else
                         variableCounts[kvp.Key] = kvp.Value;
                 }
@@ -252,13 +252,7 @@ namespace Prompt
                 }).ToList()
             };
 
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = indented,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            };
-            return JsonSerializer.Serialize(data, options);
+            return JsonSerializer.Serialize(data, SerializationGuards.WriteOptions(indented));
         }
 
         /// <summary>
