@@ -84,9 +84,17 @@
     {
         private readonly Func<PromptPipelineContext, PromptPipelineDelegate, Task> _handler;
 
+        /// <inheritdoc />
         public string Name { get; }
+        /// <inheritdoc />
         public int Order { get; }
 
+        /// <summary>
+        /// Creates a lambda-based middleware with the given name, order, and handler.
+        /// </summary>
+        /// <param name="name">Display name for diagnostics.</param>
+        /// <param name="order">Execution order (lower runs first).</param>
+        /// <param name="handler">Async function receiving the context and next delegate.</param>
         public LambdaMiddleware(string name, int order,
             Func<PromptPipelineContext, PromptPipelineDelegate, Task> handler)
         {
@@ -95,6 +103,7 @@
             _handler = handler ?? throw new ArgumentNullException(nameof(handler));
         }
 
+        /// <inheritdoc />
         public Task InvokeAsync(PromptPipelineContext context, PromptPipelineDelegate next)
             => _handler(context, next);
     }
@@ -106,15 +115,23 @@
     {
         private readonly Action<string> _log;
 
+        /// <inheritdoc />
         public string Name => "Logging";
+        /// <inheritdoc />
         public int Order { get; }
 
+        /// <summary>
+        /// Creates a logging middleware that writes messages to the provided action.
+        /// </summary>
+        /// <param name="log">Action invoked with log messages.</param>
+        /// <param name="order">Execution order (default 0).</param>
         public LoggingMiddleware(Action<string> log, int order = 0)
         {
             _log = log ?? throw new ArgumentNullException(nameof(log));
             Order = order;
         }
 
+        /// <inheritdoc />
         public async Task InvokeAsync(PromptPipelineContext context, PromptPipelineDelegate next)
         {
             _log($"[{context.ExecutionId}] Starting prompt ({context.EstimatedTokens} est. tokens)");
@@ -149,7 +166,9 @@
 
         private readonly ConcurrentDictionary<string, Task<string?>> _inflight = new();
 
+        /// <inheritdoc />
         public string Name => "Caching";
+        /// <inheritdoc />
         public int Order { get; }
 
         private int _hitCount;
@@ -178,6 +197,7 @@
             _maxEntries = maxEntries;
         }
 
+        /// <inheritdoc />
         public async Task InvokeAsync(PromptPipelineContext context, PromptPipelineDelegate next)
         {
             var key = context.RenderedPrompt;
@@ -308,9 +328,17 @@
         private readonly int _maxTokens;
         private readonly HashSet<string> _requiredVariables;
 
+        /// <inheritdoc />
         public string Name => "Validation";
+        /// <inheritdoc />
         public int Order { get; }
 
+        /// <summary>
+        /// Creates a validation middleware with token limit and required variable checks.
+        /// </summary>
+        /// <param name="maxTokens">Maximum estimated tokens allowed (default 128000).</param>
+        /// <param name="requiredVariables">Variable names that must be present in the context.</param>
+        /// <param name="order">Execution order (default -10, runs early).</param>
         public ValidationMiddleware(int maxTokens = 128000,
             IEnumerable<string>? requiredVariables = null, int order = -10)
         {
@@ -321,6 +349,7 @@
             Order = order;
         }
 
+        /// <inheritdoc />
         public async Task InvokeAsync(PromptPipelineContext context, PromptPipelineDelegate next)
         {
             if (string.IsNullOrWhiteSpace(context.PromptText))
@@ -361,12 +390,20 @@
         private readonly int _maxRetries;
         private readonly TimeSpan _baseDelay;
 
+        /// <inheritdoc />
         public string Name => "Retry";
+        /// <inheritdoc />
         public int Order { get; }
 
         /// <summary>Number of retries performed across all invocations.</summary>
         public int TotalRetries { get; private set; }
 
+        /// <summary>
+        /// Creates a retry middleware with exponential backoff.
+        /// </summary>
+        /// <param name="maxRetries">Maximum retry attempts (default 3).</param>
+        /// <param name="baseDelay">Initial delay before first retry (default 500ms, doubles each attempt).</param>
+        /// <param name="order">Execution order (default -5).</param>
         public RetryMiddleware(int maxRetries = 3, TimeSpan? baseDelay = null, int order = -5)
         {
             _maxRetries = maxRetries;
@@ -374,6 +411,7 @@
             Order = order;
         }
 
+        /// <inheritdoc />
         public async Task InvokeAsync(PromptPipelineContext context, PromptPipelineDelegate next)
         {
             Exception? lastException = null;
@@ -410,11 +448,15 @@
         private readonly List<ExecutionMetric> _metrics = new();
         private readonly object _lock = new();
 
+        /// <inheritdoc />
         public string Name => "Metrics";
+        /// <inheritdoc />
         public int Order { get; }
 
+        /// <summary>Creates a metrics middleware with the given execution order (default 100, runs late).</summary>
         public MetricsMiddleware(int order = 100) => Order = order;
 
+        /// <inheritdoc />
         public async Task InvokeAsync(PromptPipelineContext context, PromptPipelineDelegate next)
         {
             var sw = Stopwatch.StartNew();
@@ -493,12 +535,20 @@
         private readonly List<string> _blockedPatterns;
         private readonly bool _filterResponse;
 
+        /// <inheritdoc />
         public string Name => "ContentFilter";
+        /// <inheritdoc />
         public int Order { get; }
 
         /// <summary>Number of prompts blocked.</summary>
         public int BlockedCount { get; private set; }
 
+        /// <summary>
+        /// Creates a content filter middleware that blocks prompts containing specified patterns.
+        /// </summary>
+        /// <param name="blockedPatterns">Substrings to block (case-insensitive).</param>
+        /// <param name="filterResponse">Whether to also filter model responses (default true).</param>
+        /// <param name="order">Execution order (default -8).</param>
         public ContentFilterMiddleware(IEnumerable<string> blockedPatterns,
             bool filterResponse = true, int order = -8)
         {
@@ -508,6 +558,7 @@
             Order = order;
         }
 
+        /// <inheritdoc />
         public async Task InvokeAsync(PromptPipelineContext context, PromptPipelineDelegate next)
         {
             foreach (var pattern in _blockedPatterns)
