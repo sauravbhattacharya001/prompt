@@ -20,6 +20,8 @@
   href: security-hardening.md
 - name: Model Options
   href: options.md
+- name: Streaming Responses
+  href: streaming.md
 - name: Error Handling
   href: error-handling.md
 - name: Routing & Orchestration

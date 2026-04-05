@@ -41,6 +41,7 @@ Console.WriteLine(response);
 | [Prompt Chains](articles/chains.md) | Multi-step reasoning pipelines |
 | [Model Options](articles/options.md) | Temperature, tokens, penalties, and presets |
 | [Routing & Orchestration](articles/routing-and-orchestration.md) | Intent-based routing and DAG workflow orchestration |
+| [Streaming](articles/streaming.md) | Real-time parsing of streaming responses |
 | [Error Handling](articles/error-handling.md) | Exception types, retry behavior, and production patterns |
 | [Migration Guide](articles/migration.md) | Upgrading between versions with breaking change details |
 | [API Reference](api/) | Full class and method documentation |

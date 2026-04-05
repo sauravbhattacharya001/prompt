@@ -13,7 +13,6 @@ These are major features with no corresponding article in `docs/articles/`:
 | Analytics & Reporting | `PromptAnalytics`, `PromptUsageReport`, `PromptCostEstimator` | `analytics.md` |
 | Prompt Linting & Quality | `PromptLinter`, `PromptQualityGate`, `PromptComplianceChecker` | `linting.md` |
 | Workflow & Pipelines | `PromptWorkflow`, `PromptPipeline`, `PromptDependencyGraph` | `workflows.md` |
-| Streaming | `PromptStreamParser`, `StreamChunk` | `streaming.md` |
 | Template Inheritance | `PromptInheritance`, `PromptConditional`, `PromptInterpolator` | `advanced-templates.md` |
 | Caching & Performance | `PromptCache`, `PromptRateLimiter`, `PromptPerformanceProfiler` | `caching.md` |
 | Snapshot & Promotion | `PromptSnapshotManager`, `PromptPromotionManager` | `lifecycle.md` |
@@ -60,3 +59,4 @@ The following topics are covered by current articles:
 - Production features → `production-features.md`
 - Migration → `migration.md`
 - Security hardening → `security-hardening.md`
+- Streaming → `streaming.md`
