@@ -111,6 +111,56 @@ namespace Prompt
         }
 
         /// <summary>
+        /// Extracts character n-grams from text with their frequency counts.
+        /// Used for bigram/trigram similarity computations across multiple analyzers.
+        /// </summary>
+        /// <param name="text">The text to extract n-grams from (should be pre-lowercased).</param>
+        /// <param name="n">The n-gram size (e.g., 2 for bigrams, 3 for trigrams).</param>
+        /// <returns>A dictionary mapping each n-gram to its occurrence count.</returns>
+        internal static Dictionary<string, int> GetNgrams(string text, int n)
+        {
+            var ngrams = new Dictionary<string, int>();
+            for (int i = 0; i <= text.Length - n; i++)
+            {
+                var gram = text.Substring(i, n);
+                ngrams[gram] = ngrams.GetValueOrDefault(gram) + 1;
+            }
+            return ngrams;
+        }
+
+        /// <summary>
+        /// Computes cosine similarity between two strings using character n-gram vectors.
+        /// </summary>
+        /// <param name="a">First text.</param>
+        /// <param name="b">Second text.</param>
+        /// <param name="n">The n-gram size (default 2 for bigrams).</param>
+        /// <returns>Cosine similarity between 0.0 and 1.0.</returns>
+        internal static double NgramCosineSimilarity(string a, string b, int n = 2)
+        {
+            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b))
+                return 0.0;
+
+            var ngramsA = GetNgrams(a.ToLowerInvariant(), n);
+            var ngramsB = GetNgrams(b.ToLowerInvariant(), n);
+
+            var allKeys = new HashSet<string>(ngramsA.Keys);
+            allKeys.UnionWith(ngramsB.Keys);
+
+            double dot = 0, magA = 0, magB = 0;
+            foreach (var key in allKeys)
+            {
+                ngramsA.TryGetValue(key, out int countA);
+                ngramsB.TryGetValue(key, out int countB);
+                dot += countA * countB;
+                magA += countA * countA;
+                magB += countB * countB;
+            }
+
+            if (magA == 0 || magB == 0) return 0.0;
+            return dot / (Math.Sqrt(magA) * Math.Sqrt(magB));
+        }
+
+        /// <summary>
         /// Computes word overlap ratio: what fraction of words in
         /// <paramref name="reference"/> appear in <paramref name="candidate"/>.
         /// </summary>

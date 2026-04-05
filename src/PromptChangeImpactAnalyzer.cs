@@ -621,8 +621,8 @@ namespace Prompt
             if (a.Length < 2 && b.Length < 2)
                 return string.Equals(a, b, StringComparison.OrdinalIgnoreCase) ? 1.0 : 0.0;
 
-            var bigramsA = GetBigrams(a.ToLowerInvariant());
-            var bigramsB = GetBigrams(b.ToLowerInvariant());
+            var bigramsA = TextAnalysisHelpers.GetNgrams(a.ToLowerInvariant(), 2);
+            var bigramsB = TextAnalysisHelpers.GetNgrams(b.ToLowerInvariant(), 2);
 
             int intersection = 0;
             var bCopy = new Dictionary<string, int>(bigramsB);
@@ -639,15 +639,6 @@ namespace Prompt
             return total == 0 ? 1.0 : (2.0 * intersection) / total;
         }
 
-        private static Dictionary<string, int> GetBigrams(string text)
-        {
-            var bigrams = new Dictionary<string, int>();
-            for (int i = 0; i < text.Length - 1; i++)
-            {
-                string bg = text.Substring(i, 2);
-                bigrams[bg] = bigrams.GetValueOrDefault(bg, 0) + 1;
-            }
-            return bigrams;
-        }
+        // GetBigrams consolidated into TextAnalysisHelpers.GetNgrams(text, 2)
     }
 }

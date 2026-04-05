@@ -212,7 +212,7 @@ namespace Prompt
         {
             if (a == b) return 1.0;
             if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return 0.0;
-            var ba = GetBigrams(a.ToLowerInvariant()); var bb = GetBigrams(b.ToLowerInvariant());
+            var ba = TextAnalysisHelpers.GetNgrams(a.ToLowerInvariant(), 2); var bb = TextAnalysisHelpers.GetNgrams(b.ToLowerInvariant(), 2);
             if (ba.Count == 0 && bb.Count == 0) return 1.0;
             if (ba.Count == 0 || bb.Count == 0) return 0.0;
             int inter = 0; var copy = new Dictionary<string, int>(bb);
@@ -220,8 +220,7 @@ namespace Prompt
             return (2.0 * inter) / (ba.Values.Sum() + bb.Values.Sum());
         }
 
-        private static Dictionary<string, int> GetBigrams(string text)
-        { var bg = new Dictionary<string, int>(); for (int i = 0; i < text.Length - 1; i++) { var s = text.Substring(i, 2); bg[s] = bg.GetValueOrDefault(s) + 1; } return bg; }
+        // GetBigrams consolidated into TextAnalysisHelpers.GetNgrams(text, 2)
 
         internal static List<DiffSegment> ComputeDiffs(string golden, string actual)
         {

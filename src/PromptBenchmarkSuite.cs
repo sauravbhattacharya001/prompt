@@ -482,41 +482,11 @@ namespace Prompt
         private static HashSet<string> Tokenize(string text) =>
             TextAnalysisHelpers.TokenizeToWordSetUnfiltered(text);
 
-        private static double ComputeNgramCosineSimilarity(string a, string b, int n)
-        {
-            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b))
-                return 0.0;
-
-            var ngramsA = GetNgrams(a.ToLowerInvariant(), n);
-            var ngramsB = GetNgrams(b.ToLowerInvariant(), n);
-
-            var allKeys = new HashSet<string>(ngramsA.Keys);
-            allKeys.UnionWith(ngramsB.Keys);
-
-            double dot = 0, magA = 0, magB = 0;
-            foreach (var key in allKeys)
-            {
-                ngramsA.TryGetValue(key, out int countA);
-                ngramsB.TryGetValue(key, out int countB);
-                dot += countA * countB;
-                magA += countA * countA;
-                magB += countB * countB;
-            }
-
-            if (magA == 0 || magB == 0) return 0.0;
-            return dot / (Math.Sqrt(magA) * Math.Sqrt(magB));
-        }
-
-        private static Dictionary<string, int> GetNgrams(string text, int n)
-        {
-            var ngrams = new Dictionary<string, int>();
-            for (int i = 0; i <= text.Length - n; i++)
-            {
-                var gram = text.Substring(i, n);
-                ngrams[gram] = ngrams.GetValueOrDefault(gram) + 1;
-            }
-            return ngrams;
-        }
+        /// <summary>
+        /// Delegates to <see cref="TextAnalysisHelpers.NgramCosineSimilarity"/>.
+        /// </summary>
+        private static double ComputeNgramCosineSimilarity(string a, string b, int n) =>
+            TextAnalysisHelpers.NgramCosineSimilarity(a, b, n);
 
         private static double ComputeLcsRatio(string a, string b)
         {
