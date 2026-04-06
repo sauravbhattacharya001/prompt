@@ -226,12 +226,22 @@ namespace Prompt
     internal class EndpointState
     {
         public LoadBalancerEndpoint Config { get; }
-        public EndpointHealth Health { get; set; } = EndpointHealth.Healthy;
+        private int _health = (int)EndpointHealth.Healthy;
+        public EndpointHealth Health
+        {
+            get => (EndpointHealth)Volatile.Read(ref _health);
+            set => Volatile.Write(ref _health, (int)value);
+        }
         public long TotalRequests;
         public long Successes;
         public long Failures;
         public int InFlight;
-        public int ConsecutiveFailures;
+        internal int _consecutiveFailures;
+        public int ConsecutiveFailures
+        {
+            get => Volatile.Read(ref _consecutiveFailures);
+            set => Volatile.Write(ref _consecutiveFailures, value);
+        }
         public DateTimeOffset? LastUnhealthyAt;
         private readonly ConcurrentQueue<double> _latencySamples = new();
         private readonly int _maxSamples;
@@ -476,7 +486,7 @@ namespace Prompt
                 Interlocked.Exchange(ref state.Successes, 0);
                 Interlocked.Exchange(ref state.Failures, 0);
                 Interlocked.Exchange(ref state.InFlight, 0);
-                state.ConsecutiveFailures = 0;
+                Interlocked.Exchange(ref state._consecutiveFailures, 0);
                 state.LastUnhealthyAt = null;
             }
             Interlocked.Exchange(ref _failoverEvents, 0);
@@ -588,7 +598,7 @@ namespace Prompt
         {
             Interlocked.Increment(ref state.Successes);
             Interlocked.Decrement(ref state.InFlight);
-            state.ConsecutiveFailures = 0;
+            Interlocked.Exchange(ref state._consecutiveFailures, 0);
             state.RecordLatency(latencyMs);
 
             if (state.Health == EndpointHealth.Degraded)
@@ -610,15 +620,15 @@ namespace Prompt
         private void RecordFailure(EndpointState state, double latencyMs, bool isFailover, Exception ex)
         {
             Interlocked.Increment(ref state.Failures);
-            state.ConsecutiveFailures++;
+            int failures = Interlocked.Increment(ref state._consecutiveFailures);
             state.RecordLatency(latencyMs);
 
-            if (state.ConsecutiveFailures >= _config.UnhealthyThreshold)
+            if (failures >= _config.UnhealthyThreshold)
             {
                 state.Health = EndpointHealth.Unhealthy;
                 state.LastUnhealthyAt = DateTimeOffset.UtcNow;
             }
-            else if (state.ConsecutiveFailures >= _config.DegradedThreshold)
+            else if (failures >= _config.DegradedThreshold)
             {
                 state.Health = EndpointHealth.Degraded;
             }
