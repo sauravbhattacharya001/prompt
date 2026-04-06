@@ -279,6 +279,14 @@ namespace Prompt
             for (int i = 0; i < list.Count; i++)
                 normalized[i] = Normalize(list[i]);
 
+            // Pre-tokenize and build HashSets once, avoiding repeated
+            // Tokenize + HashSet construction inside the O(n²) loop.
+            // Previously, every duplicate pair triggered 2 Tokenize calls
+            // and 3 set operations (Intersect, Except, Except).
+            var tokenSets = new HashSet<string>[list.Count];
+            for (int i = 0; i < list.Count; i++)
+                tokenSets[i] = new HashSet<string>(Tokenize(normalized[i]));
+
             for (int i = 0; i < list.Count; i++)
             {
                 for (int j = i + 1; j < list.Count; j++)
@@ -286,11 +294,6 @@ namespace Prompt
                     var score = ComputeSimilarity(normalized[i], normalized[j], m);
                     if (score >= t)
                     {
-                        var tokensA = Tokenize(normalized[i]);
-                        var tokensB = Tokenize(normalized[j]);
-                        var setA = new HashSet<string>(tokensA);
-                        var setB = new HashSet<string>(tokensB);
-
                         pairs.Add(new SimilarityResult
                         {
                             PromptA = list[i],
@@ -298,9 +301,9 @@ namespace Prompt
                             Metric = m,
                             Score = score,
                             IsDuplicate = true,
-                            SharedTokens = setA.Intersect(setB).OrderBy(x => x).ToList(),
-                            UniqueToA = setA.Except(setB).OrderBy(x => x).ToList(),
-                            UniqueToB = setB.Except(setA).OrderBy(x => x).ToList()
+                            SharedTokens = tokenSets[i].Intersect(tokenSets[j]).OrderBy(x => x).ToList(),
+                            UniqueToA = tokenSets[i].Except(tokenSets[j]).OrderBy(x => x).ToList(),
+                            UniqueToB = tokenSets[j].Except(tokenSets[i]).OrderBy(x => x).ToList()
                         });
                     }
                 }
