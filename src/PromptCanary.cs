@@ -102,7 +102,9 @@ namespace Prompt
     public class PromptCanary
     {
         private readonly List<CanaryToken> _registry = new();
+        private readonly HashSet<string> _registeredIds = new(StringComparer.Ordinal);
         private static readonly char[] ZeroWidthChars = { '\u200B', '\u200C', '\u200D', '\uFEFF' };
+        private static readonly HashSet<char> ZeroWidthSet = new(ZeroWidthChars);
 
         /// <summary>
         /// Gets the current registry of canary tokens being tracked.
@@ -142,6 +144,7 @@ namespace Prompt
             };
 
             _registry.Add(token);
+            _registeredIds.Add(token.Id);
             return token;
         }
 
@@ -152,7 +155,7 @@ namespace Prompt
         public void Register(CanaryToken token)
         {
             if (token == null) throw new ArgumentNullException(nameof(token));
-            if (!_registry.Any(t => t.Id == token.Id))
+            if (_registeredIds.Add(token.Id))
                 _registry.Add(token);
         }
 
@@ -213,6 +216,10 @@ namespace Prompt
 
             var matched = new List<string>();
 
+            // Decode zero-width characters once, outside the loop
+            string decoded = DecodeZeroWidth(text);
+            bool hasDecoded = !string.IsNullOrEmpty(decoded);
+
             foreach (var token in _registry)
             {
                 // Check for raw value in text
@@ -222,9 +229,8 @@ namespace Prompt
                     continue;
                 }
 
-                // Check for zero-width encoded value
-                string decoded = DecodeZeroWidth(text);
-                if (!string.IsNullOrEmpty(decoded) && decoded.Contains(token.Value, StringComparison.OrdinalIgnoreCase))
+                // Check for zero-width encoded value (decoded once above)
+                if (hasDecoded && decoded.Contains(token.Value, StringComparison.OrdinalIgnoreCase))
                 {
                     matched.Add(token.Id);
                 }
@@ -285,7 +291,13 @@ namespace Prompt
         /// </summary>
         private static string DecodeZeroWidth(string input)
         {
-            var zwChars = input.Where(c => ZeroWidthChars.Contains(c)).ToList();
+            // Use HashSet for O(1) lookups instead of Array.Contains O(n)
+            var zwChars = new List<char>();
+            foreach (char c in input)
+            {
+                if (ZeroWidthSet.Contains(c))
+                    zwChars.Add(c);
+            }
             if (zwChars.Count < 4) return "";
 
             var bytes = new List<byte>();
