@@ -308,9 +308,9 @@ namespace Prompt
             var theirsChanged = new HashSet<int>();
 
             foreach (var line in diffOurs.Lines.Where(l => l.Operation == DiffOperation.Delete && l.OldLineNumber.HasValue))
-                oursChanged.Add(l.OldLineNumber.Value);
+                oursChanged.Add(line.OldLineNumber.Value);
             foreach (var line in diffTheirs.Lines.Where(l => l.Operation == DiffOperation.Delete && l.OldLineNumber.HasValue))
-                theirsChanged.Add(l.OldLineNumber.Value);
+                theirsChanged.Add(line.OldLineNumber.Value);
 
             var conflicts = oursChanged.Intersect(theirsChanged).ToHashSet();
 
