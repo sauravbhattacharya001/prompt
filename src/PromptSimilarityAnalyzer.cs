@@ -430,10 +430,16 @@ namespace Prompt
 
             if (setA.Count == 0 && setB.Count == 0) return 1.0;
 
-            var intersection = setA.Intersect(setB).Count();
-            var union = setA.Union(setB).Count();
+            // Count intersection without allocating an intermediate collection
+            int intersectionCount = 0;
+            foreach (var item in setA)
+            {
+                if (setB.Contains(item))
+                    intersectionCount++;
+            }
+            int unionCount = setA.Count + setB.Count - intersectionCount;
 
-            return union == 0 ? 1.0 : (double)intersection / union;
+            return unionCount == 0 ? 1.0 : (double)intersectionCount / unionCount;
         }
 
         private double CosineSimilarity(string a, string b)
@@ -467,10 +473,16 @@ namespace Prompt
 
             if (bigramsA.Count == 0 && bigramsB.Count == 0) return 1.0;
 
-            var intersection = bigramsA.Intersect(bigramsB).Count();
+            // Count intersection without allocating an intermediate LINQ enumerable
+            int intersectionCount = 0;
+            foreach (var bg in bigramsA)
+            {
+                if (bigramsB.Contains(bg))
+                    intersectionCount++;
+            }
             var total = bigramsA.Count + bigramsB.Count;
 
-            return total == 0 ? 1.0 : 2.0 * intersection / total;
+            return total == 0 ? 1.0 : 2.0 * intersectionCount / total;
         }
 
         private double LCSSimilarity(string a, string b)
@@ -564,17 +576,21 @@ namespace Prompt
                 Union(p.PromptA, p.PromptB);
             }
 
-            // Group by root
+            // Group by root — use a parallel HashSet for O(1) membership checks
             var groups = new Dictionary<string, List<string>>();
+            var groupSets = new Dictionary<string, HashSet<string>>();
             foreach (var p in pairs)
             {
                 var rootA = Find(p.PromptA);
-                if (!groups.ContainsKey(rootA)) groups[rootA] = new List<string>();
-                if (!groups[rootA].Contains(p.PromptA)) groups[rootA].Add(p.PromptA);
-
-                var rootB = Find(p.PromptB);
-                // After union, rootA and rootB should be the same
-                if (!groups[rootA].Contains(p.PromptB)) groups[rootA].Add(p.PromptB);
+                if (!groups.ContainsKey(rootA))
+                {
+                    groups[rootA] = new List<string>();
+                    groupSets[rootA] = new HashSet<string>();
+                }
+                if (groupSets[rootA].Add(p.PromptA))
+                    groups[rootA].Add(p.PromptA);
+                if (groupSets[rootA].Add(p.PromptB))
+                    groups[rootA].Add(p.PromptB);
             }
 
             var clusters = new List<SimilarityCluster>();
