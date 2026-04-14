@@ -438,8 +438,40 @@ namespace Prompt
                 }
             }
 
-            results.Sort((a, b) => b.Score.CompareTo(a.Score));
-            return results.Take(maxResults).ToList();
+            // When maxResults is much smaller than the result set, a partial
+            // sort via bounded insertion is O(n·k) which beats O(n log n) full
+            // sort for the typical case where the caller wants top-10 from
+            // hundreds of documents.
+            if (results.Count <= maxResults)
+            {
+                results.Sort((a, b) => b.Score.CompareTo(a.Score));
+                return results;
+            }
+
+            // Bounded selection: keep only the top-maxResults entries.
+            // Uses a simple min-tracking approach that avoids sorting the
+            // entire list — keeps a sorted-by-score list of size maxResults
+            // and replaces the minimum when a better candidate arrives.
+            var top = new List<SearchResult>(maxResults + 1);
+            double threshold = double.MinValue;
+            for (int i = 0; i < results.Count; i++)
+            {
+                var r = results[i];
+                if (top.Count < maxResults)
+                {
+                    InsertSorted(top, r);
+                    if (top.Count == maxResults)
+                        threshold = top[top.Count - 1].Score;
+                }
+                else if (r.Score > threshold)
+                {
+                    // Remove the smallest (last) and insert new
+                    top.RemoveAt(top.Count - 1);
+                    InsertSorted(top, r);
+                    threshold = top[top.Count - 1].Score;
+                }
+            }
+            return top;
         }
 
         /// <summary>
@@ -502,7 +534,7 @@ namespace Prompt
                 TotalDocuments = _totalDocuments,
                 VocabularySize = _documentFrequency.Count,
                 AverageDocumentLength = Math.Round(_avgDocumentLength, 2),
-                TotalTermOccurrences = _tfVectors.Values.Sum(tf => (int)tf.Values.Sum()),
+                TotalTermOccurrences = CountTotalTermOccurrences(),
                 LongestDocument = _documentLengths.Count > 0 ? _documentLengths.Values.Max() : 0,
                 ShortestDocument = _documentLengths.Count > 0 ? _documentLengths.Values.Min() : 0,
                 MostCommonTerms = _documentFrequency
@@ -514,6 +546,39 @@ namespace Prompt
         }
 
         // ── BM25 internals ───────────────────────────────────────────
+
+        /// <summary>
+        /// Binary-search insert into a descending-sorted list of search results.
+        /// Used by the bounded top-K selection in <see cref="Search"/>.
+        /// </summary>
+        private static void InsertSorted(List<SearchResult> list, SearchResult item)
+        {
+            int lo = 0, hi = list.Count;
+            while (lo < hi)
+            {
+                int mid = (lo + hi) >> 1;
+                if (list[mid].Score >= item.Score)
+                    lo = mid + 1;
+                else
+                    hi = mid;
+            }
+            list.Insert(lo, item);
+        }
+
+        /// <summary>
+        /// Counts total term occurrences across all indexed documents without
+        /// LINQ allocation overhead.
+        /// </summary>
+        private int CountTotalTermOccurrences()
+        {
+            int total = 0;
+            foreach (var tf in _tfVectors.Values)
+            {
+                foreach (var count in tf.Values)
+                    total += (int)count;
+            }
+            return total;
+        }
 
         private double ComputeTermBM25(string term, Dictionary<string, double> tf, int docLen)
         {
@@ -543,13 +608,21 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(text))
                 return new List<string>();
 
-            // Split on non-alphanumeric, lowercase, filter stop words, stem
-            var tokens = TokenizerRegex.Split(text.ToLowerInvariant())
-                .Where(t => t.Length >= 2 && !StopWords.Contains(t))
-                .Select(Stem)
-                .Where(t => t.Length >= 2)
-                .ToList();
-
+            // Split on non-alphanumeric, lowercase, filter stop words, stem.
+            // Uses direct loop instead of LINQ chain to avoid iterator/delegate
+            // overhead — this method is called per-field per-document during
+            // indexing and per-query during search, so it's on the hot path.
+            var parts = TokenizerRegex.Split(text.ToLowerInvariant());
+            var tokens = new List<string>(parts.Length);
+            for (int i = 0; i < parts.Length; i++)
+            {
+                var t = parts[i];
+                if (t.Length < 2 || StopWords.Contains(t))
+                    continue;
+                var stemmed = Stem(t);
+                if (stemmed.Length >= 2)
+                    tokens.Add(stemmed);
+            }
             return tokens;
         }
 
