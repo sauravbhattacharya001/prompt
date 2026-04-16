@@ -40,6 +40,7 @@ namespace Prompt
     public class PromptRouter
     {
         private readonly Dictionary<string, RouteConfig> _routes = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Regex[]> _compiledPatterns = new(StringComparer.OrdinalIgnoreCase);
         private readonly PromptLibrary? _library;
         private string? _fallbackRoute;
         private double _minScore = 0.1;
@@ -109,11 +110,30 @@ namespace Prompt
             }
 
             _routes[name] = config;
+
+            // Pre-compile regex patterns once at registration time instead of
+            // re-creating Regex objects on every ScoreAll/Route call.  Compiled
+            // regexes are significantly faster for repeated matching.
+            if (config.Patterns is { Length: > 0 })
+            {
+                _compiledPatterns[name] = config.Patterns
+                    .Select(p => new Regex(p, RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout))
+                    .ToArray();
+            }
+            else
+            {
+                _compiledPatterns[name] = Array.Empty<Regex>();
+            }
+
             return this;
         }
 
         /// <summary>Remove a route by name. Returns true if removed.</summary>
-        public bool RemoveRoute(string name) => _routes.Remove(name);
+        public bool RemoveRoute(string name)
+        {
+            _compiledPatterns.Remove(name);
+            return _routes.Remove(name);
+        }
 
         /// <summary>Check if a route exists.</summary>
         public bool HasRoute(string name) => _routes.ContainsKey(name);
@@ -170,13 +190,12 @@ namespace Prompt
                     score += (double)keywordHits / config.Keywords.Length * 0.6;
                 }
 
-                // Regex pattern matching: any match adds bonus
+                // Regex pattern matching using pre-compiled patterns: any match adds bonus
                 int patternHits = 0;
-                if (config.Patterns is { Length: > 0 })
+                if (_compiledPatterns.TryGetValue(name, out var patterns) && patterns.Length > 0)
                 {
-                    patternHits = config.Patterns.Count(p =>
-                        SafeIsMatch(input, p));
-                    score += (double)patternHits / config.Patterns.Length * 0.4;
+                    patternHits = patterns.Count(p => SafeIsMatch(input, p));
+                    score += (double)patternHits / patterns.Length * 0.4;
                 }
 
                 // Apply priority weight
@@ -223,6 +242,7 @@ namespace Prompt
         public void Clear()
         {
             _routes.Clear();
+            _compiledPatterns.Clear();
             _fallbackRoute = null;
         }
 
@@ -379,23 +399,20 @@ namespace Prompt
         }
 
         /// <summary>
-        /// Regex match with timeout and exception safety.  Returns false if the
-        /// pattern times out (ReDoS) or is invalid, rather than propagating the
-        /// exception — route scoring should never crash, just miss.
+        /// Regex match with timeout and exception safety using a pre-compiled
+        /// <see cref="Regex"/> instance.  Returns false if the pattern times out
+        /// (ReDoS) rather than propagating the exception — route scoring should
+        /// never crash, just miss.
         /// </summary>
-        private static bool SafeIsMatch(string input, string pattern)
+        private static bool SafeIsMatch(string input, Regex compiledPattern)
         {
             try
             {
-                return Regex.IsMatch(input, pattern, RegexOptions.IgnoreCase, RegexTimeout);
+                return compiledPattern.IsMatch(input);
             }
             catch (RegexMatchTimeoutException)
             {
                 return false;  // treat timed-out pattern as non-match
-            }
-            catch (ArgumentException)
-            {
-                return false;  // malformed pattern — should not happen after AddRoute validation
             }
         }
 
