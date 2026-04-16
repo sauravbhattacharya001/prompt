@@ -530,6 +530,25 @@ namespace Prompt
             var groups = new List<List<int>>();
             var assigned = new HashSet<int>();
 
+            // Pre-compute normalized text and n-gram sets to avoid redundant
+            // normalization and tokenization on every pair comparison.
+            var normalized = new string[messages.Count];
+            var ngramSets = new HashSet<string>[messages.Count];
+            for (int i = 0; i < messages.Count; i++)
+            {
+                var content = messages[i].Content;
+                if (string.IsNullOrEmpty(content))
+                {
+                    normalized[i] = "";
+                    ngramSets[i] = new HashSet<string>();
+                }
+                else
+                {
+                    normalized[i] = NormalizeForComparison(content);
+                    ngramSets[i] = GetWordNgrams(normalized[i], 2);
+                }
+            }
+
             for (int i = 0; i < messages.Count; i++)
             {
                 if (assigned.Contains(i)) continue;
@@ -540,7 +559,9 @@ namespace Prompt
                     if (assigned.Contains(j)) continue;
                     if (messages[i].Role != messages[j].Role) continue;
 
-                    double sim = ComputeSimilarity(messages[i].Content, messages[j].Content);
+                    double sim = ComputeSimilarityFromNgrams(
+                        normalized[i], ngramSets[i],
+                        normalized[j], ngramSets[j]);
                     if (sim >= _options.SimilarityThreshold)
                     {
                         group.Add(j);
@@ -567,20 +588,34 @@ namespace Prompt
             a = NormalizeForComparison(a);
             b = NormalizeForComparison(b);
 
-            if (a == b) return 1.0;
+            return ComputeSimilarityFromNgrams(
+                a, GetWordNgrams(a, 2),
+                b, GetWordNgrams(b, 2));
+        }
 
-            // Jaccard similarity on word n-grams
-            var setA = GetWordNgrams(a, 2);
-            var setB = GetWordNgrams(b, 2);
+        /// <summary>
+        /// Computes Jaccard similarity from pre-computed normalized strings and n-gram sets.
+        /// Avoids redundant normalization/tokenization when comparing many pairs.
+        /// </summary>
+        private static double ComputeSimilarityFromNgrams(
+            string normA, HashSet<string> setA,
+            string normB, HashSet<string> setB)
+        {
+            if (normA.Length == 0 && normB.Length == 0) return 1.0;
+            if (normA.Length == 0 || normB.Length == 0) return 0.0;
+            if (normA == normB) return 1.0;
 
             if (setA.Count == 0 && setB.Count == 0) return 1.0;
             if (setA.Count == 0 || setB.Count == 0) return 0.0;
 
-            // Count intersection directly instead of creating new sets
+            // Iterate over the smaller set for fewer hash lookups
+            var (smaller, larger) = setA.Count <= setB.Count
+                ? (setA, setB) : (setB, setA);
+
             int intersection = 0;
-            foreach (var item in setA)
+            foreach (var item in smaller)
             {
-                if (setB.Contains(item))
+                if (larger.Contains(item))
                     intersection++;
             }
             int union = setA.Count + setB.Count - intersection;
