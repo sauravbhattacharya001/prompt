@@ -255,24 +255,7 @@ namespace Prompt
             await _sendLock.WaitAsync(cancellationToken);
             try
             {
-                List<ChatMessage> snapshot;
-                lock (_lock)
-                {
-                    _messages.Add(new UserChatMessage(message));
-                    TrimMessagesUnsafe();
-                    snapshot = new List<ChatMessage>(_messages);
-                }
-
-                var completionOptions = new PromptOptions
-                {
-                    Temperature = _temperature,
-                    MaxTokens = _maxTokens,
-                    TopP = _topP,
-                    FrequencyPenalty = _frequencyPenalty,
-                    PresencePenalty = _presencePenalty,
-                }.ToChatCompletionOptions();
-
-                ChatClient chatClient = Main.GetOrCreateChatClient(_maxRetries);
+                var (snapshot, completionOptions, chatClient) = PrepareRequest(message);
 
                 ChatCompletion completion = await chatClient.CompleteChatAsync(
                     snapshot, completionOptions, cancellationToken);
@@ -280,13 +263,7 @@ namespace Prompt
                 string? responseText = completion?.Content?.FirstOrDefault()?.Text;
 
                 if (responseText != null)
-                {
-                    lock (_lock)
-                    {
-                        _messages.Add(new AssistantChatMessage(responseText));
-                        TrimMessagesUnsafe();
-                    }
-                }
+                    AppendAssistantMessage(responseText);
 
                 return responseText;
             }
@@ -316,24 +293,7 @@ namespace Prompt
             await _sendLock.WaitAsync(cancellationToken);
             try
             {
-                List<ChatMessage> snapshot;
-                lock (_lock)
-                {
-                    _messages.Add(new UserChatMessage(message));
-                    TrimMessagesUnsafe();
-                    snapshot = new List<ChatMessage>(_messages);
-                }
-
-                var completionOptions = new PromptOptions
-                {
-                    Temperature = _temperature,
-                    MaxTokens = _maxTokens,
-                    TopP = _topP,
-                    FrequencyPenalty = _frequencyPenalty,
-                    PresencePenalty = _presencePenalty,
-                }.ToChatCompletionOptions();
-
-                ChatClient chatClient = Main.GetOrCreateChatClient(_maxRetries);
+                var (snapshot, completionOptions, chatClient) = PrepareRequest(message);
 
                 var accumulated = new StringBuilder();
                 string? finishReason = null;
@@ -352,13 +312,17 @@ namespace Prompt
 
                         bool isComplete = update.FinishReason != null;
 
+                        // Cache ToString() to avoid double allocation for
+                        // FullText and EstimateTokens on the same chunk.
+                        string fullTextSoFar = accumulated.ToString();
+
                         yield return new StreamChunk
                         {
                             Delta = delta,
-                            FullText = accumulated.ToString(),
+                            FullText = fullTextSoFar,
                             IsComplete = isComplete,
                             FinishReason = isComplete ? finishReason : null,
-                            TokensUsed = PromptGuard.EstimateTokens(accumulated.ToString())
+                            TokensUsed = PromptGuard.EstimateTokens(fullTextSoFar)
                         };
                     }
                 }
@@ -366,26 +330,21 @@ namespace Prompt
                 // Emit final chunk if stream ended without explicit finish
                 if (finishReason == null)
                 {
+                    string finalText = accumulated.ToString();
                     yield return new StreamChunk
                     {
                         Delta = "",
-                        FullText = accumulated.ToString(),
+                        FullText = finalText,
                         IsComplete = true,
                         FinishReason = "stop",
-                        TokensUsed = PromptGuard.EstimateTokens(accumulated.ToString())
+                        TokensUsed = PromptGuard.EstimateTokens(finalText)
                     };
                 }
 
                 // Add assembled response to conversation history
                 string fullResponse = accumulated.ToString();
                 if (!string.IsNullOrEmpty(fullResponse))
-                {
-                    lock (_lock)
-                    {
-                        _messages.Add(new AssistantChatMessage(fullResponse));
-                        TrimMessagesUnsafe();
-                    }
-                }
+                    AppendAssistantMessage(fullResponse);
             }
             finally
             {
@@ -427,6 +386,47 @@ namespace Prompt
             lock (_lock)
             {
                 _messages.Add(new AssistantChatMessage(message));
+                TrimMessagesUnsafe();
+            }
+        }
+
+        /// <summary>
+        /// Prepares a request by adding the user message, trimming history,
+        /// snapshotting messages, building completion options, and obtaining
+        /// the chat client.  Consolidates the setup logic shared by
+        /// <see cref="SendAsync"/> and <see cref="SendStreamAsync"/>.
+        /// </summary>
+        private (List<ChatMessage> Snapshot, ChatCompletionOptions Options, ChatClient Client) PrepareRequest(string userMessage)
+        {
+            List<ChatMessage> snapshot;
+            lock (_lock)
+            {
+                _messages.Add(new UserChatMessage(userMessage));
+                TrimMessagesUnsafe();
+                snapshot = new List<ChatMessage>(_messages);
+            }
+
+            var completionOptions = new PromptOptions
+            {
+                Temperature = _temperature,
+                MaxTokens = _maxTokens,
+                TopP = _topP,
+                FrequencyPenalty = _frequencyPenalty,
+                PresencePenalty = _presencePenalty,
+            }.ToChatCompletionOptions();
+
+            ChatClient chatClient = Main.GetOrCreateChatClient(_maxRetries);
+            return (snapshot, completionOptions, chatClient);
+        }
+
+        /// <summary>
+        /// Appends an assistant response to conversation history under lock.
+        /// </summary>
+        private void AppendAssistantMessage(string response)
+        {
+            lock (_lock)
+            {
+                _messages.Add(new AssistantChatMessage(response));
                 TrimMessagesUnsafe();
             }
         }
