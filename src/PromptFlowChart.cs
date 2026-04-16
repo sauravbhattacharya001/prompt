@@ -402,7 +402,7 @@ namespace Prompt
         /// </summary>
         public string RenderHtml()
         {
-            var mermaid = Render().Replace("\\n", "<br/>");
+            var mermaid = EscapeHtml(Render()).Replace("\\n", "<br/>");
             return $@"<!DOCTYPE html>
 <html lang=""en"">
 <head>
@@ -525,7 +525,10 @@ namespace Prompt
 
         private static string EscapeLabel(string text)
         {
-            return text.Replace("\"", "#quot;");
+            return text.Replace("&", "#amp;")
+                       .Replace("<", "#lt;")
+                       .Replace(">", "#gt;")
+                       .Replace("\"", "#quot;");
         }
 
         private static string EscapeHtml(string text)
