@@ -244,12 +244,11 @@ namespace Prompt
 
             double structSim = a.StructureType == b.StructureType ? 1.0 : 0.3;
 
-            // Jaccard similarity on word sets
-            var wordsA = new HashSet<string>(a.WordSet, StringComparer.OrdinalIgnoreCase);
-            var wordsB = new HashSet<string>(b.WordSet, StringComparer.OrdinalIgnoreCase);
-            int intersection = wordsA.Intersect(wordsB, StringComparer.OrdinalIgnoreCase).Count();
-            int union = wordsA.Union(wordsB, StringComparer.OrdinalIgnoreCase).Count();
-            double jaccardSim = union == 0 ? 1.0 : (double)intersection / union;
+            // Jaccard similarity on word sets — delegates to shared helper
+            // to avoid duplicating intersection/union logic
+            double jaccardSim = a.WordSet.Count == 0 && b.WordSet.Count == 0
+                ? 1.0
+                : TextAnalysisHelpers.JaccardSimilarity(a.WordSet, b.WordSet);
 
             return Math.Clamp(
                 wordSim * 0.1 + lineSim * 0.05 + varSim * 0.15 + secSim * 0.15 + structSim * 0.1 + jaccardSim * 0.45,
@@ -314,7 +313,10 @@ namespace Prompt
                 AvgWordLength = avgWordLen,
                 AvgSentenceLength = avgSentenceLen,
                 StructureType = structureType,
-                WordSet = words.Select(w => w.ToLowerInvariant().Trim(',', '.', '!', '?', ';', ':')).Where(w => w.Length > 0).ToList()
+                WordSet = new HashSet<string>(
+                    words.Select(w => w.ToLowerInvariant().Trim(',', '.', '!', '?', ';', ':'))
+                         .Where(w => w.Length > 0),
+                    StringComparer.OrdinalIgnoreCase)
             };
         }
 
@@ -346,7 +348,7 @@ namespace Prompt
             public double AvgWordLength;
             public double AvgSentenceLength;
             public string StructureType = "";
-            public List<string> WordSet = new();
+            public HashSet<string> WordSet = new(StringComparer.OrdinalIgnoreCase);
         }
     }
 }
