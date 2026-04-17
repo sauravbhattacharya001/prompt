@@ -140,6 +140,12 @@ namespace Prompt
         private readonly List<EnsembleMemberResult> _results = new();
         private readonly Random _rng;
 
+        /// <summary>
+        /// Initializes a new <see cref="PromptEnsemble"/> with the specified configuration.
+        /// </summary>
+        /// <param name="config">Ensemble configuration defining members, strategy, and scoring.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="config"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentException">Configuration has fewer than 2 members.</exception>
         public PromptEnsemble(EnsembleConfig config)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -147,13 +153,34 @@ namespace Prompt
             _rng = new Random();
         }
 
+        /// <summary>
+        /// Initializes a new <see cref="PromptEnsemble"/> with a fixed random seed for deterministic selection.
+        /// </summary>
+        /// <param name="config">Ensemble configuration defining members, strategy, and scoring.</param>
+        /// <param name="seed">Random seed for reproducible results in <see cref="EnsembleStrategy.Random"/> strategy.</param>
         public PromptEnsemble(EnsembleConfig config, int seed) : this(config) { _rng = new Random(seed); }
 
+        /// <summary>Gets the ensemble configuration.</summary>
         public EnsembleConfig Config => _config;
+
+        /// <summary>Gets the collected member results so far.</summary>
         public IReadOnlyList<EnsembleMemberResult> Results => _results.AsReadOnly();
+
+        /// <summary>Gets the number of responses (including errors) collected so far.</summary>
         public int ResponseCount => _results.Count;
+
+        /// <summary>Gets whether all ensemble members have responded.</summary>
         public bool IsComplete => _results.Count >= _config.Members.Count;
 
+        /// <summary>
+        /// Records a successful response from an ensemble member.
+        /// If the configuration includes a scorer function, the response is scored automatically.
+        /// </summary>
+        /// <param name="label">The member label (must match a configured member).</param>
+        /// <param name="response">The response text from this member.</param>
+        /// <param name="duration">Optional elapsed time for this member's response.</param>
+        /// <exception cref="ArgumentException">No member with the given <paramref name="label"/> exists.</exception>
+        /// <exception cref="InvalidOperationException">The member has already responded.</exception>
         public void AddResponse(string label, string response, TimeSpan? duration = null)
         {
             _ = _config.Members.FirstOrDefault(m => m.Label == label) ?? throw new ArgumentException($"No member '{label}'.");
@@ -163,6 +190,15 @@ namespace Prompt
             _results.Add(result);
         }
 
+        /// <summary>
+        /// Records a failed response from an ensemble member.
+        /// Error members are excluded from aggregation but tracked in results.
+        /// </summary>
+        /// <param name="label">The member label (must match a configured member).</param>
+        /// <param name="errorMessage">Description of the failure.</param>
+        /// <param name="duration">Optional elapsed time before the error occurred.</param>
+        /// <exception cref="ArgumentException">No member with the given <paramref name="label"/> exists.</exception>
+        /// <exception cref="InvalidOperationException">The member has already responded.</exception>
         public void AddError(string label, string errorMessage, TimeSpan? duration = null)
         {
             _ = _config.Members.FirstOrDefault(m => m.Label == label) ?? throw new ArgumentException($"No member '{label}'.");
@@ -170,6 +206,12 @@ namespace Prompt
             _results.Add(new EnsembleMemberResult { Label = label, IsError = true, ErrorMessage = errorMessage, Duration = duration ?? TimeSpan.Zero });
         }
 
+        /// <summary>
+        /// Convenience method to add multiple responses at once, matched to members by index order.
+        /// Members that have already responded are skipped.
+        /// </summary>
+        /// <param name="responses">Response texts, matched positionally to configured members.</param>
+        /// <exception cref="ArgumentException">More responses provided than configured members.</exception>
         public void AddResponses(params string[] responses)
         {
             if (responses.Length > _config.Members.Count) throw new ArgumentException("More responses than members.");
@@ -180,6 +222,12 @@ namespace Prompt
             }
         }
 
+        /// <summary>
+        /// Aggregates collected responses using the configured strategy (majority vote, best-of-N, consensus, etc.).
+        /// Returns the selected response, confidence score, and per-member details.
+        /// </summary>
+        /// <returns>An <see cref="EnsembleAggregation"/> containing the winning response and metadata.</returns>
+        /// <exception cref="InvalidOperationException">No valid (non-error) responses have been collected.</exception>
         public EnsembleAggregation Aggregate()
         {
             var valid = _results.Where(r => !r.IsError).ToList();
@@ -199,8 +247,14 @@ namespace Prompt
             return agg;
         }
 
+        /// <summary>Clears all collected results, allowing the ensemble to be reused.</summary>
         public void Reset() => _results.Clear();
 
+        /// <summary>
+        /// Serializes the aggregation result to JSON.
+        /// </summary>
+        /// <param name="indented">Whether to format the JSON with indentation.</param>
+        /// <returns>A JSON string representing the <see cref="EnsembleAggregation"/>.</returns>
         public string ToJson(bool indented = true) => JsonSerializer.Serialize(Aggregate(), new JsonSerializerOptions
         {
             WriteIndented = indented,
