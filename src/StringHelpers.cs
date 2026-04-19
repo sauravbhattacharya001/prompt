@@ -1,6 +1,7 @@
 namespace Prompt
 {
     using System;
+    using System.Buffers;
     using System.Collections.Generic;
     using System.Linq;
 
@@ -13,32 +14,80 @@ namespace Prompt
     {
         /// <summary>
         /// Standard Levenshtein distance with two-row optimization.
+        /// Uses ArrayPool to avoid GC pressure when called in tight loops
+        /// (e.g. O(n²) pairwise similarity comparisons).
         /// </summary>
         internal static int LevenshteinDistance(string a, string b)
+        {
+            return LevenshteinDistance(a, b, int.MaxValue);
+        }
+
+        /// <summary>
+        /// Bounded Levenshtein distance — returns early when the minimum
+        /// possible distance exceeds <paramref name="maxDistance"/>,
+        /// returning maxDistance + 1. This avoids wasted computation when
+        /// callers only need to know if strings are within a threshold.
+        /// Uses ArrayPool to eliminate per-call heap allocations.
+        /// </summary>
+        internal static int LevenshteinDistance(string a, string b, int maxDistance)
         {
             int m = a.Length;
             int n = b.Length;
 
-            var prev = new int[n + 1];
-            var curr = new int[n + 1];
+            // Quick length-difference check for bounded mode
+            if (Math.Abs(m - n) > maxDistance)
+                return maxDistance + 1;
 
-            for (int j = 0; j <= n; j++)
-                prev[j] = j;
-
-            for (int i = 1; i <= m; i++)
+            // Ensure 'a' is the shorter string for less memory usage
+            if (m > n)
             {
-                curr[0] = i;
-                for (int j = 1; j <= n; j++)
-                {
-                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
-                    curr[j] = Math.Min(
-                        Math.Min(curr[j - 1] + 1, prev[j] + 1),
-                        prev[j - 1] + cost);
-                }
-                (prev, curr) = (curr, prev);
+                (a, b) = (b, a);
+                (m, n) = (n, m);
             }
 
-            return prev[n];
+            int rowSize = m + 1;
+            var pool = ArrayPool<int>.Shared;
+            var prev = pool.Rent(rowSize);
+            var curr = pool.Rent(rowSize);
+
+            try
+            {
+                for (int j = 0; j <= m; j++)
+                    prev[j] = j;
+
+                for (int i = 1; i <= n; i++)
+                {
+                    curr[0] = i;
+                    int rowMin = i;
+                    char bi = b[i - 1];
+
+                    for (int j = 1; j <= m; j++)
+                    {
+                        int cost = a[j - 1] == bi ? 0 : 1;
+                        int val = Math.Min(
+                            Math.Min(curr[j - 1] + 1, prev[j] + 1),
+                            prev[j - 1] + cost);
+                        curr[j] = val;
+                        if (val < rowMin) rowMin = val;
+                    }
+
+                    // Early exit: if every cell in this row exceeds the
+                    // bound, the final result will too
+                    if (rowMin > maxDistance)
+                    {
+                        return maxDistance + 1;
+                    }
+
+                    (prev, curr) = (curr, prev);
+                }
+
+                return prev[m];
+            }
+            finally
+            {
+                pool.Return(prev);
+                pool.Return(curr);
+            }
         }
 
         /// <summary>
@@ -83,8 +132,18 @@ namespace Prompt
         internal static double JaccardSimilarity(HashSet<string> a, HashSet<string> b)
         {
             if (a.Count == 0 && b.Count == 0) return 1.0;
-            int intersection = a.Intersect(b).Count();
-            int union = a.Union(b).Count();
+
+            // Iterate the smaller set for O(min(|a|,|b|)) intersection
+            // without allocating intermediate LINQ enumerables.
+            var smaller = a.Count <= b.Count ? a : b;
+            var larger  = a.Count <= b.Count ? b : a;
+            int intersection = 0;
+            foreach (var item in smaller)
+            {
+                if (larger.Contains(item))
+                    intersection++;
+            }
+            int union = a.Count + b.Count - intersection;
             return union > 0 ? (double)intersection / union : 0.0;
         }
 
