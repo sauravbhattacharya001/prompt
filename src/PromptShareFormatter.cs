@@ -129,6 +129,9 @@ namespace Prompt
         /// </summary>
         public static async Task SaveAsync(ShareablePrompt prompt, ShareFormat format, string filePath)
         {
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
+            filePath = Path.GetFullPath(filePath);
             var content = Format(prompt, format);
             await File.WriteAllTextAsync(filePath, content);
         }

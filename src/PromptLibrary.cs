@@ -608,6 +608,9 @@ namespace Prompt
                 throw new ArgumentException(
                     "File path cannot be null or empty.", nameof(filePath));
 
+            // Resolve to full path to prevent path traversal on write
+            filePath = Path.GetFullPath(filePath);
+
             string json = ToJson(indented);
             await File.WriteAllTextAsync(filePath, json, cancellationToken);
         }

@@ -472,6 +472,9 @@ namespace Prompt
         /// </summary>
         public async Task SaveToFileAsync(string path, CancellationToken ct = default)
         {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("File path cannot be null or empty.", nameof(path));
+            path = Path.GetFullPath(path);
             await File.WriteAllTextAsync(path, ToJson(), ct);
         }
 
