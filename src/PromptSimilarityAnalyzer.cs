@@ -309,7 +309,7 @@ namespace Prompt
                 }
             }
 
-            var clusters = BuildClusters(list, pairs, t);
+            var clusters = BuildClusters(list, pairs);
             var involvedInDuplicates = new HashSet<string>();
             foreach (var p in pairs)
             {
@@ -537,7 +537,7 @@ namespace Prompt
             return bigrams;
         }
 
-        private List<SimilarityCluster> BuildClusters(List<string> prompts, List<SimilarityResult> pairs, double threshold)
+        private List<SimilarityCluster> BuildClusters(List<string> prompts, List<SimilarityResult> pairs)
         {
             // Union-Find clustering
             var parent = new Dictionary<string, string>();
@@ -560,9 +560,16 @@ namespace Prompt
                 if (ra != rb) parent[ra] = rb;
             }
 
+            // Build a score lookup from already-computed pairs so we never
+            // re-normalize or re-compute similarity inside the cluster loop.
+            // Previously BuildClusters called Normalize + ComputeSimilarity
+            // for every intra-cluster pair — O(k²) redundant work per cluster.
+            var pairScores = new Dictionary<(string, string), double>();
             foreach (var p in pairs)
             {
                 Union(p.PromptA, p.PromptB);
+                pairScores[(p.PromptA, p.PromptB)] = p.Score;
+                pairScores[(p.PromptB, p.PromptA)] = p.Score;
             }
 
             // Group by root — use a parallel HashSet for O(1) membership checks
@@ -586,16 +593,22 @@ namespace Prompt
             int id = 1;
             foreach (var (root, members) in groups)
             {
-                // Average pairwise similarity within the cluster
+                // Average pairwise similarity using pre-computed scores
                 double totalSim = 0;
                 int count = 0;
                 for (int i = 0; i < members.Count; i++)
                 {
                     for (int j = i + 1; j < members.Count; j++)
                     {
-                        var na = Normalize(members[i]);
-                        var nb = Normalize(members[j]);
-                        totalSim += ComputeSimilarity(na, nb, _defaultMetric);
+                        if (pairScores.TryGetValue((members[i], members[j]), out var score))
+                        {
+                            totalSim += score;
+                        }
+                        else
+                        {
+                            // Pair was below threshold — use 0 as lower bound
+                            // rather than recomputing (transitive cluster member)
+                        }
                         count++;
                     }
                 }
