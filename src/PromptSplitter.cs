@@ -579,16 +579,17 @@ namespace Prompt
                     overlapText = prevRaw.Substring(prevRaw.Length - overlapLen);
                 }
 
+                string decoratedContent = _applyDecorations(
+                    (overlapText.Length > 0 ? overlapText : "") +
+                    text.Substring(chunks[i].StartOffset, chunks[i].EndOffset - chunks[i].StartOffset),
+                    i, total, overlapText);
+
                 chunks[i] = new PromptChunk
                 {
                     Index = i,
                     TotalChunks = total,
-                    Content = _applyDecorations(
-                        (overlapText.Length > 0 ? overlapText : "") +
-                        text.Substring(chunks[i].StartOffset, chunks[i].EndOffset - chunks[i].StartOffset),
-                        i, total, overlapText),
-                    EstimatedTokens = EstimateTokens(
-                        text.Substring(chunks[i].StartOffset, chunks[i].EndOffset - chunks[i].StartOffset)),
+                    Content = decoratedContent,
+                    EstimatedTokens = EstimateTokens(decoratedContent),
                     StartOffset = chunks[i].StartOffset,
                     EndOffset = chunks[i].EndOffset,
                     OverlapText = overlapText
