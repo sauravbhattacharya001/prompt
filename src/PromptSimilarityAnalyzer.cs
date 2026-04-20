@@ -427,19 +427,8 @@ namespace Prompt
         {
             var setA = new HashSet<string>(Tokenize(a));
             var setB = new HashSet<string>(Tokenize(b));
-
             if (setA.Count == 0 && setB.Count == 0) return 1.0;
-
-            // Count intersection without allocating an intermediate collection
-            int intersectionCount = 0;
-            foreach (var item in setA)
-            {
-                if (setB.Contains(item))
-                    intersectionCount++;
-            }
-            int unionCount = setA.Count + setB.Count - intersectionCount;
-
-            return unionCount == 0 ? 1.0 : (double)intersectionCount / unionCount;
+            return StringHelpers.JaccardSimilarity(setA, setB);
         }
 
         private double CosineSimilarity(string a, string b)

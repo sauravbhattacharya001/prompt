@@ -610,10 +610,8 @@ namespace Prompt
 
         private static double JaccardSimilarity(HashSet<string> a, HashSet<string> b)
         {
-            if (a.Count == 0 && b.Count == 0) return 1.0;
-            int intersection = a.Count(k => b.Contains(k));
-            int union = a.Count + b.Count - intersection;
-            return union > 0 ? (double)intersection / union : 0;
+            if (a.Count == 0 && b.Count == 0) return 0;
+            return StringHelpers.JaccardSimilarity(a, b);
         }
 
         private static string ScoreToGrade(double score)

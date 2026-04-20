@@ -486,12 +486,7 @@ namespace Prompt
                     .Where(w => w.Length > 2),
                 StringComparer.Ordinal);
 
-        private static double JaccardSimilarity(HashSet<string> a, HashSet<string> b)
-        {
-            if (a.Count == 0 && b.Count == 0) return 1.0;
-            var intersection = a.Count(x => b.Contains(x));
-            var union = a.Count + b.Count - intersection;
-            return union == 0 ? 1.0 : (double)intersection / union;
-        }
+        private static double JaccardSimilarity(HashSet<string> a, HashSet<string> b) =>
+            StringHelpers.JaccardSimilarity(a, b);
     }
 }
