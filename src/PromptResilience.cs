@@ -532,9 +532,7 @@ namespace Prompt
         }
 
         private List<string> SplitSentences(string text) =>
-            Regex.Split(text, @"(?<=[.!?\n])\s+")
-                .Where(s => s.Trim().Length > 0)
-                .ToList();
+            TextAnalysisHelpers.SplitSentences(text, splitOnNewlines: true);
 
         // ── Perturbation methods ────────────────────────
 

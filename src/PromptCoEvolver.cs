@@ -780,15 +780,8 @@ namespace Prompt
 
         private static List<string> SplitSentences(string text) => SplitSentencesStatic(text);
 
-        private static List<string> SplitSentencesStatic(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text)) return new List<string>();
-
-            return Regex.Split(text, @"(?<=[.!?])\s+")
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .Select(s => s.Trim())
-                .ToList();
-        }
+        private static List<string> SplitSentencesStatic(string text) =>
+            TextAnalysisHelpers.SplitSentences(text);
 
         private static List<string> SplitParagraphs(string text)
         {

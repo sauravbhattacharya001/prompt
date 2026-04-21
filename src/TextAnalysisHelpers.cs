@@ -181,5 +181,38 @@ namespace Prompt
             }
             return (double)hits / wordsB.Count;
         }
+
+        /// <summary>
+        /// Pre-compiled regex for sentence boundary splitting.
+        /// Splits on sentence-ending punctuation (.!?) optionally followed by
+        /// whitespace, or on newlines followed by whitespace.
+        /// </summary>
+        private static readonly Regex SentenceBoundary =
+            new(@"(?<=[.!?\n])\s+", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+
+        /// <summary>
+        /// Splits text into sentences on punctuation boundaries (.!?) and
+        /// optional newline boundaries. Returns a list of non-empty trimmed strings.
+        /// </summary>
+        /// <param name="text">Text to split into sentences.</param>
+        /// <param name="splitOnNewlines">If true, also splits on newline boundaries.</param>
+        /// <returns>List of sentence strings.</returns>
+        internal static List<string> SplitSentences(string text, bool splitOnNewlines = false)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return new List<string>();
+
+            var pattern = splitOnNewlines ? SentenceBoundary : PunctuationOnlySentenceBoundary;
+            return pattern.Split(text)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s.Trim())
+                .ToList();
+        }
+
+        /// <summary>
+        /// Pre-compiled regex splitting only on punctuation boundaries (no newlines).
+        /// </summary>
+        private static readonly Regex PunctuationOnlySentenceBoundary =
+            new(@"(?<=[.!?])\s+", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
     }
 }

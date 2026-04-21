@@ -469,12 +469,8 @@ namespace Prompt
             return found;
         }
 
-        private static string[] SplitSentences(string text)
-        {
-            return Regex.Split(text, @"(?<=[.!?])\s+")
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .ToArray();
-        }
+        private static string[] SplitSentences(string text) =>
+            TextAnalysisHelpers.SplitSentences(text).ToArray();
 
         private static string SimplifySentences(string text, int maxWords, out int simplified)
         {
