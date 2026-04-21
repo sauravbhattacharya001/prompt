@@ -463,7 +463,8 @@ namespace Prompt
             foreach (var term in allJargon.Keys.OrderByDescending(k => k.Length))
             {
                 var pattern = @"(?<!\w)" + Regex.Escape(term) + @"(?!\w)";
-                if (Regex.IsMatch(text, pattern, RegexOptions.IgnoreCase))
+                if (Regex.IsMatch(text, pattern, RegexOptions.IgnoreCase,
+                    TimeSpan.FromMilliseconds(500)))
                     found.Add(term);
             }
             return found;
