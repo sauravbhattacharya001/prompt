@@ -17,6 +17,11 @@
 [![Pages](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/pages.yml?style=flat-square&label=Docs&logo=github)](https://sauravbhattacharya001.github.io/prompt/)
 [![GitHub Release](https://img.shields.io/github/v/release/sauravbhattacharya001/prompt?style=flat-square&logo=github&color=blue)](https://github.com/sauravbhattacharya001/prompt/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/sauravbhattacharya001/prompt?style=flat-square&logo=git&color=orange)](https://github.com/sauravbhattacharya001/prompt/commits/main)
+[![GitHub Stars](https://img.shields.io/github/stars/sauravbhattacharya001/prompt?style=flat-square&logo=github&color=gold)](https://github.com/sauravbhattacharya001/prompt/stargazers)
+[![Open Issues](https://img.shields.io/github/issues/sauravbhattacharya001/prompt?style=flat-square&logo=github&color=red)](https://github.com/sauravbhattacharya001/prompt/issues)
+[![Contributors](https://img.shields.io/github/contributors/sauravbhattacharya001/prompt?style=flat-square&logo=github&color=green)](https://github.com/sauravbhattacharya001/prompt/graphs/contributors)
+[![Repo Size](https://img.shields.io/github/repo-size/sauravbhattacharya001/prompt?style=flat-square&logo=github&color=lightgrey)](https://github.com/sauravbhattacharya001/prompt)
+[![Dependabot](https://img.shields.io/badge/Dependabot-enabled-brightgreen?style=flat-square&logo=dependabot)](https://github.com/sauravbhattacharya001/prompt/security/dependabot)
 
 Send prompts to Azure OpenAI and get responses — with templates, chains, safety guards, token management, version control, and a full prompt engineering toolkit. Zero boilerplate.
 
