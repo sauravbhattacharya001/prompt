@@ -216,8 +216,8 @@ namespace Prompt
             var sb = new StringBuilder();
             sb.AppendLine("═══ Prompt Co-Evolution Report ═══");
             sb.AppendLine();
-            sb.AppendLine($"Parent A: \"{Truncate(ParentA, 60)}\"");
-            sb.AppendLine($"Parent B: \"{Truncate(ParentB, 60)}\"");
+            sb.AppendLine($"Parent A: \"{StringHelpers.Truncate(ParentA, 60)}\"");
+            sb.AppendLine($"Parent B: \"{StringHelpers.Truncate(ParentB, 60)}\"");
             sb.AppendLine($"Generations: {Config.Generations} | Population: {Config.PopulationSize} | Mutation Rate: {Config.MutationRate:P0}");
             sb.AppendLine($"Total Variants: {TotalVariantsProduced}");
             sb.AppendLine();
@@ -228,7 +228,7 @@ namespace Prompt
                 foreach (var offspring in Generations[g].OrderByDescending(o => o.OverallFitness))
                 {
                     sb.AppendLine($"  [{offspring.Id}] Fitness: {offspring.OverallFitness:F2} | {offspring.CrossoverUsed} + {offspring.MutationsApplied.Count} mutations");
-                    sb.AppendLine($"    \"{Truncate(offspring.Text, 80)}\"");
+                    sb.AppendLine($"    \"{StringHelpers.Truncate(offspring.Text, 80)}\"");
                 }
                 sb.AppendLine();
             }
@@ -253,8 +253,6 @@ namespace Prompt
             Converters = { new JsonStringEnumConverter() }
         });
 
-        private static string Truncate(string s, int max) =>
-            s.Length <= max ? s : s[..(max - 3)] + "...";
     }
 
     /// <summary>

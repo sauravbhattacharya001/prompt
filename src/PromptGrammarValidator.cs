@@ -597,7 +597,7 @@ namespace Prompt
                 var opts = rule.IgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
                 if (Regex.IsMatch(response, rule.Pattern, opts, TimeSpan.FromMilliseconds(500)))
                     return null;
-                return MakeViolation(rule, "Response does not match pattern.", rule.Pattern, Truncate(response, 100));
+                return MakeViolation(rule, "Response does not match pattern.", rule.Pattern, StringHelpers.Truncate(response, 100));
             }
             catch (RegexParseException ex)
             {
@@ -610,7 +610,7 @@ namespace Prompt
             // Try to extract JSON from response (may be wrapped in markdown code blocks)
             var json = ExtractJson(response);
             if (json == null)
-                return MakeViolation(rule, "Response is not valid JSON.", "Valid JSON", Truncate(response, 100));
+                return MakeViolation(rule, "Response is not valid JSON.", "Valid JSON", StringHelpers.Truncate(response, 100));
 
             try
             {
@@ -648,7 +648,7 @@ namespace Prompt
             }
             catch (JsonException ex)
             {
-                return MakeViolation(rule, $"Invalid JSON: {ex.Message}", "Valid JSON", Truncate(response, 100));
+                return MakeViolation(rule, $"Invalid JSON: {ex.Message}", "Valid JSON", StringHelpers.Truncate(response, 100));
             }
         }
 
@@ -660,7 +660,7 @@ namespace Prompt
                 return null;
             var allowed = string.Join(", ", rule.AllowedValues.Take(10));
             return MakeViolation(rule, "Response is not one of the allowed values.",
-                $"One of: [{allowed}]", Truncate(trimmed, 60));
+                $"One of: [{allowed}]", StringHelpers.Truncate(trimmed, 60));
         }
 
         private GrammarViolation? ValidateStartsWith(string response, GrammarRule rule)
@@ -669,7 +669,7 @@ namespace Prompt
             if (response.StartsWith(rule.Pattern, comparison))
                 return null;
             return MakeViolation(rule, $"Response must start with: {rule.Pattern}",
-                rule.Pattern, Truncate(response, 60));
+                rule.Pattern, StringHelpers.Truncate(response, 60));
         }
 
         private GrammarViolation? ValidateEndsWith(string response, GrammarRule rule)
@@ -678,7 +678,7 @@ namespace Prompt
             if (response.EndsWith(rule.Pattern, comparison))
                 return null;
             return MakeViolation(rule, $"Response must end with: {rule.Pattern}",
-                rule.Pattern, Truncate(response, 60));
+                rule.Pattern, StringHelpers.Truncate(response, 60));
         }
 
         private GrammarViolation? ValidateContains(string response, GrammarRule rule)
@@ -796,8 +796,6 @@ namespace Prompt
             return true;
         }
 
-        private static string Truncate(string text, int maxLen) =>
-            text.Length <= maxLen ? text : text[..maxLen] + "…";
 
         private FixSuggestion GenerateSuggestion(string response, GrammarRule rule, GrammarViolation violation)
         {

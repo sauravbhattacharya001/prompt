@@ -435,7 +435,7 @@ namespace Prompt
                     var name = activeVarNames[i];
                     var value = valueLists[i][indices[i]];
                     variables[name] = value;
-                    labelParts.Add($"{name}={Truncate(value, 20)}");
+                    labelParts.Add($"{name}={StringHelpers.Truncate(value, 20)}");
                 }
 
                 // Apply filter if present
@@ -537,10 +537,5 @@ namespace Prompt
             return Expand(template, config);
         }
 
-        private static string Truncate(string text, int maxLen)
-        {
-            if (text.Length <= maxLen) return text;
-            return text.Substring(0, maxLen - 3) + "...";
-        }
     }
 }

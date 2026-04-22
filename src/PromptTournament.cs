@@ -182,8 +182,6 @@ namespace Prompt
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         });
 
-        private static string Truncate(string s, int max) =>
-            s.Length <= max ? s.PadRight(max) : s[..(max - 2)] + "..";
     }
 
     /// <summary>

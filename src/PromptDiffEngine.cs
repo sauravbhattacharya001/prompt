@@ -137,17 +137,17 @@ namespace Prompt
                 var line = Lines[i];
                 if (line.Operation == DiffOperation.Equal)
                 {
-                    var t = Truncate(line.Text, width);
+                    var t = StringHelpers.Truncate(line.Text, width);
                     sb.AppendLine($"{t.PadRight(width)} │ {t.PadRight(width)}");
                     i++;
                 }
                 else if (line.Operation == DiffOperation.Delete)
                 {
-                    var old = Truncate(line.Text, width);
+                    var old = StringHelpers.Truncate(line.Text, width);
                     // Check if next line is a matching insert
                     if (i + 1 < Lines.Count && Lines[i + 1].Operation == DiffOperation.Insert)
                     {
-                        var nw = Truncate(Lines[i + 1].Text, width);
+                        var nw = StringHelpers.Truncate(Lines[i + 1].Text, width);
                         sb.AppendLine($"{old.PadRight(width)} │ {nw.PadRight(width)}");
                         i += 2;
                     }
@@ -159,7 +159,7 @@ namespace Prompt
                 }
                 else // Insert
                 {
-                    var nw = Truncate(line.Text, width);
+                    var nw = StringHelpers.Truncate(line.Text, width);
                     sb.AppendLine($"{"".PadRight(width)} │ {nw.PadRight(width)}");
                     i++;
                 }
@@ -176,8 +176,6 @@ namespace Prompt
             return $"Similarity: {Similarity:P1} | +{Additions} -{Deletions} ~{Unchanged} | {Hunks.Count} hunk(s)";
         }
 
-        private static string Truncate(string s, int max) =>
-            s.Length <= max ? s : s.Substring(0, max - 1) + "…";
     }
 
     /// <summary>

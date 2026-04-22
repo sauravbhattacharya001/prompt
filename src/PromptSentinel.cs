@@ -130,7 +130,7 @@ namespace Prompt
                 {
                     lines.Add($"  [{f.Severity}] {f.RuleId} {f.RuleName}");
                     lines.Add($"         Category : {f.Category}");
-                    lines.Add($"         Evidence : \"{Truncate(f.Evidence, 80)}\"");
+                    lines.Add($"         Evidence : \"{StringHelpers.Truncate(f.Evidence, 80)}\"");
                     lines.Add($"         Offset   : {f.Offset}");
                     lines.Add($"         Action   : {f.Recommendation}");
                     lines.Add("");
@@ -140,8 +140,6 @@ namespace Prompt
             return string.Join(Environment.NewLine, lines);
         }
 
-        private static string Truncate(string s, int max) =>
-            s.Length <= max ? s : s.Substring(0, max) + "…";
     }
 
     /// <summary>A detection rule used by PromptSentinel.</summary>
@@ -232,7 +230,7 @@ namespace Prompt
                         RuleName = rule.Name,
                         Category = rule.Category,
                         Severity = rule.Severity,
-                        Evidence = Truncate(text.Substring(m.Index, Math.Min(m.Length, text.Length - m.Index)), 120),
+                        Evidence = StringHelpers.Truncate(text.Substring(m.Index, Math.Min(m.Length, text.Length - m.Index)), 120),
                         Offset = m.Index,
                         Recommendation = rule.Recommendation
                     });
@@ -439,8 +437,6 @@ namespace Prompt
                 Recommendation = rec
             };
 
-        private static string Truncate(string s, int max) =>
-            s.Length <= max ? s : s.Substring(0, max) + "…";
 
         private static string NewScanId() =>
             $"SNT-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N").Substring(0, 8)}";

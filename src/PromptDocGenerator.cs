@@ -379,7 +379,7 @@ namespace Prompt
             var lines = new List<string>
             {
                 "var template = new PromptTemplate(",
-                $"    \"{EscapeForCode(Truncate(prompt, 60))}\",",
+                $"    \"{EscapeForCode(StringHelpers.Truncate(prompt, 60))}\",",
             };
 
             var defaultVars = variables.Where(v => v.HasDefault).ToList();
@@ -708,11 +708,6 @@ namespace Prompt
             return text.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "");
         }
 
-        private static string Truncate(string text, int maxLen)
-        {
-            if (text.Length <= maxLen) return text;
-            return text[..maxLen] + "...";
-        }
 
         private static void AppendCompareRow(System.Text.StringBuilder sb, string metric, int a, int b)
         {

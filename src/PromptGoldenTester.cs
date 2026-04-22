@@ -203,7 +203,7 @@ namespace Prompt
             {
                 string icon = r.Status switch { GoldenStatus.Match => "✓", GoldenStatus.Drift => "~", GoldenStatus.Regression => "✗", GoldenStatus.Error => "!", _ => "?" };
                 sb.AppendLine($"  {icon} [{r.Id}] {r.Status} (similarity: {r.SimilarityScore:P1})");
-                if (r.Status != GoldenStatus.Match && r.Diffs.Count > 0) foreach (var d in r.Diffs.Take(3)) sb.AppendLine($"      {d.Type}: \"{Truncate(d.Text, 60)}\"");
+                if (r.Status != GoldenStatus.Match && r.Diffs.Count > 0) foreach (var d in r.Diffs.Take(3)) sb.AppendLine($"      {d.Type}: \"{StringHelpers.Truncate(d.Text, 60)}\"");
             }
             return sb.ToString();
         }
@@ -232,7 +232,6 @@ namespace Prompt
         }
 
         private GoldenStatus ClassifyStatus(double sim) => sim >= _matchThreshold ? GoldenStatus.Match : sim >= _driftThreshold ? GoldenStatus.Drift : GoldenStatus.Regression;
-        private static string Truncate(string t, int m) => t.Length <= m ? t : t[..(m - 3)] + "...";
 
         public enum GoldenStatus { Match, Drift, Regression, Error }
         public enum DiffType { Removed, Added }

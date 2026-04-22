@@ -318,8 +318,8 @@ namespace Prompt
                 if (varNames.Length > 16) varNames = varNames[..13] + "...";
 
                 sb.AppendLine(string.Format("│ {0,-19} │ {1,-10} │ {2,-13} │ {3,-16} │",
-                    Truncate(a.Name, 19),
-                    Truncate(a.Category, 10),
+                    StringHelpers.Truncate(a.Name, 19),
+                    StringHelpers.Truncate(a.Category, 10),
                     new string('★', a.Effectiveness) + new string('☆', 5 - a.Effectiveness),
                     varNames));
             }
@@ -388,11 +388,6 @@ namespace Prompt
             return score;
         }
 
-        private static string Truncate(string value, int maxLength)
-        {
-            if (value.Length <= maxLength) return value;
-            return value[..(maxLength - 3)] + "...";
-        }
 
         private static List<PromptArchetype> CreateBuiltInArchetypes()
         {

@@ -618,7 +618,7 @@ namespace Prompt
                 string text = prefix + "\n\n" + prompt;
                 AddVariant(variants, prompt, text,
                     $"prefix-{i + 1}",
-                    new[] { $"prefix:\"{Truncate(prefix, 40)}\"" });
+                    new[] { $"prefix:\"{StringHelpers.Truncate(prefix, 40)}\"" });
             }
 
             for (int i = 0; i < config.CustomSuffixes.Count; i++)
@@ -628,7 +628,7 @@ namespace Prompt
                 string text = prompt + "\n\n" + suffix;
                 AddVariant(variants, prompt, text,
                     $"suffix-{i + 1}",
-                    new[] { $"suffix:\"{Truncate(suffix, 40)}\"" });
+                    new[] { $"suffix:\"{StringHelpers.Truncate(suffix, 40)}\"" });
             }
         }
 
@@ -852,10 +852,5 @@ namespace Prompt
                 Array.AsReadOnly(transforms), delta));
         }
 
-        private static string Truncate(string text, int maxLen)
-        {
-            if (text.Length <= maxLen) return text;
-            return text.Substring(0, maxLen - 3) + "...";
-        }
     }
 }

@@ -260,7 +260,7 @@ namespace Prompt
                 suggestions.Add(new CostSuggestion
                 {
                     Category = "Duplicate Content",
-                    Description = $"Sentence repeated {count}x: \"{Truncate(sentence, 60)}\"",
+                    Description = $"Sentence repeated {count}x: \"{StringHelpers.Truncate(sentence, 60)}\"",
                     EstimatedTokenSavings = saving,
                     EstimatedCostSavings = saving / 1000.0 * _currentModel.CostPer1KInputTokens,
                     Severity = "High",
@@ -338,7 +338,7 @@ namespace Prompt
                     EstimatedTokenSavings = saving,
                     EstimatedCostSavings = saving / 1000.0 * _currentModel.CostPer1KInputTokens,
                     Severity = "Medium",
-                    OriginalFragment = Truncate(preambleMatch.Value, 100),
+                    OriginalFragment = StringHelpers.Truncate(preambleMatch.Value, 100),
                 });
             }
 
@@ -443,10 +443,5 @@ namespace Prompt
             _ => "unknown",
         };
 
-        private static string Truncate(string text, int maxLen)
-        {
-            if (text.Length <= maxLen) return text;
-            return text[..(maxLen - 3)] + "...";
-        }
     }
 }

@@ -75,8 +75,6 @@ namespace Prompt
         public override string ToString() =>
             $"[{Rule.Risk}] {Rule.Name} at position {Position}: \"{StringHelpers.Truncate(MatchedText, 60)}\"";
 
-        private static string Truncate(string s, int max) =>
-            s.Length <= max ? s : s.Substring(0, max - 3) + "...";
     }
 
     /// <summary>Aggregate result of an injection scan.</summary>

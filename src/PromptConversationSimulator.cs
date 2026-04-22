@@ -172,10 +172,8 @@ namespace Prompt
 
         /// <summary>Human-readable description.</summary>
         public override string ToString() =>
-            $"Turn {TurnIndex}: expected pattern '{ExpectedPattern}' not found in: \"{Truncate(ActualContent, 80)}\"";
+            $"Turn {TurnIndex}: expected pattern '{ExpectedPattern}' not found in: \"{StringHelpers.Truncate(ActualContent, 80)}\"";
 
-        private static string Truncate(string s, int max) =>
-            s.Length <= max ? s : s[..max] + "…";
     }
 
     /// <summary>
@@ -463,7 +461,7 @@ namespace Prompt
             foreach (var (name, result) in results)
             {
                 sb.AppendLine(
-                    $"{Truncate(name, 24),-25} {result.TurnsExecuted,-8} " +
+                    $"{StringHelpers.Truncate(name, 24),-25} {result.TurnsExecuted,-8} " +
                     $"{result.TotalEstimatedTokens,-10} {result.Warnings.Count,-10} " +
                     $"{(result.Success ? "✓" : "✗"),5}");
             }
@@ -561,7 +559,5 @@ namespace Prompt
             return (int)Math.Ceiling(text.Length / 4.0);
         }
 
-        private static string Truncate(string s, int max) =>
-            s.Length <= max ? s : s[..max] + "…";
     }
 }

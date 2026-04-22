@@ -123,7 +123,7 @@ namespace Prompt
 
                 // Template preview
                 sb.AppendLine("<pre class=\"template\">" +
-                    Enc(Truncate(entry.Template.Template, 300)) + "</pre>");
+                    Enc(StringHelpers.Truncate(entry.Template.Template, 300)) + "</pre>");
 
                 // Variables
                 if (vars.Any())
@@ -261,11 +261,6 @@ namespace Prompt
             return value;
         }
 
-        private static string Truncate(string text, int maxLength)
-        {
-            if (text.Length <= maxLength) return text;
-            return text[..maxLength] + "...";
-        }
 
         private static void AppendCss(StringBuilder sb, bool darkMode)
         {

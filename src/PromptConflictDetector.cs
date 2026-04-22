@@ -143,8 +143,6 @@ namespace Prompt
                 Converters = { new JsonStringEnumConverter() }
             });
 
-        private static string Truncate(string s, int max) =>
-            s.Length <= max ? s : s[..(max - 3)] + "...";
     }
 
     /// <summary>
