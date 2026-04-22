@@ -32,6 +32,35 @@ namespace Prompt
     {
         private readonly EvaluatorConfig _config;
 
+        // ─── Pre-allocated static sets (avoid per-call allocation) ──
+
+        private static readonly HashSet<string> s_fillerWords = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "basically", "actually", "literally", "really", "very",
+            "quite", "rather", "somewhat", "just", "simply",
+            "obviously", "clearly", "certainly", "definitely",
+            "essentially", "fundamentally", "honestly", "frankly"
+        };
+
+        private static readonly HashSet<string> s_stopWords = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+            "have", "has", "had", "do", "does", "did", "will", "would", "could",
+            "should", "may", "might", "shall", "can", "need", "dare", "ought",
+            "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
+            "as", "into", "through", "during", "before", "after", "above", "below",
+            "between", "out", "off", "over", "under", "again", "further", "then",
+            "once", "here", "there", "when", "where", "why", "how", "all", "each",
+            "every", "both", "few", "more", "most", "other", "some", "such",
+            "no", "nor", "not", "only", "own", "same", "so", "than", "too",
+            "very", "just", "because", "but", "and", "or", "if", "while",
+            "about", "this", "that", "these", "those", "it", "its",
+            "i", "me", "my", "we", "our", "you", "your", "he", "she", "they",
+            "them", "his", "her", "what", "which", "who", "whom",
+            "list", "give", "tell", "explain", "describe", "write", "provide",
+            "please", "make", "create", "show", "include"
+        };
+
         /// <summary>
         /// Creates an evaluator with default configuration.
         /// </summary>
@@ -344,15 +373,7 @@ namespace Prompt
                 return new DimensionScore(0, "Response has no words");
 
             // 1. Filler word ratio
-            var fillerWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "basically", "actually", "literally", "really", "very",
-                "quite", "rather", "somewhat", "just", "simply",
-                "obviously", "clearly", "certainly", "definitely",
-                "essentially", "fundamentally", "honestly", "frankly"
-            };
-
-            int fillerCount = words.Count(w => fillerWords.Contains(w));
+            int fillerCount = words.Count(w => s_fillerWords.Contains(w));
             double fillerRatio = (double)fillerCount / words.Length;
 
             // 2. Repetition: count how many unique words vs total
@@ -468,27 +489,8 @@ namespace Prompt
         /// </summary>
         internal static HashSet<string> ExtractKeywords(string text)
         {
-            var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-                "have", "has", "had", "do", "does", "did", "will", "would", "could",
-                "should", "may", "might", "shall", "can", "need", "dare", "ought",
-                "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
-                "as", "into", "through", "during", "before", "after", "above", "below",
-                "between", "out", "off", "over", "under", "again", "further", "then",
-                "once", "here", "there", "when", "where", "why", "how", "all", "each",
-                "every", "both", "few", "more", "most", "other", "some", "such",
-                "no", "nor", "not", "only", "own", "same", "so", "than", "too",
-                "very", "just", "because", "but", "and", "or", "if", "while",
-                "about", "this", "that", "these", "those", "it", "its",
-                "i", "me", "my", "we", "our", "you", "your", "he", "she", "they",
-                "them", "his", "her", "what", "which", "who", "whom",
-                "list", "give", "tell", "explain", "describe", "write", "provide",
-                "please", "make", "create", "show", "include"
-            };
-
             var words = Regex.Split(text.ToLowerInvariant(), @"[^\w]+", RegexOptions.None, TimeSpan.FromMilliseconds(500))
-                .Where(w => w.Length > 2 && !stopWords.Contains(w))
+                .Where(w => w.Length > 2 && !s_stopWords.Contains(w))
                 .ToHashSet();
 
             return words;
