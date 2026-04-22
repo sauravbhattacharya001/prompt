@@ -197,6 +197,9 @@ namespace Prompt
     /// </example>
     public class PromptChecklist
     {
+        /// <summary>ReDoS timeout for all Regex operations on untrusted prompt text.</summary>
+        private static readonly TimeSpan RxTimeout = TimeSpan.FromMilliseconds(500);
+
         private readonly List<CheckDefinition> _checks = new();
         private double _deployThreshold = 70.0;
 
@@ -395,7 +398,7 @@ namespace Prompt
                 Weight = 1.0,
                 Check = text =>
                 {
-                    var sentenceEnd = Regex.Matches(text, @"[.!?:]\s");
+                    var sentenceEnd = Regex.Matches(text, @"[.!?:]\s", RegexOptions.None, RxTimeout);
                     return (sentenceEnd.Count >= 1,
                         sentenceEnd.Count >= 1 ? "Contains complete sentences" : "No sentence-ending punctuation found");
                 },
@@ -430,7 +433,7 @@ namespace Prompt
                 {
                     // Flag prompts that start sentences with vague "it" or "this" without antecedent
                     var matches = Regex.Matches(text, @"(?:^|\.\s+)(It|This|That)\s+(?:is|was|should|will|can)\b",
-                        RegexOptions.IgnoreCase);
+                        RegexOptions.IgnoreCase, RxTimeout);
                     return (matches.Count <= 2,
                         matches.Count <= 2 ? "Pronoun usage is acceptable" : $"Found {matches.Count} potentially ambiguous pronoun references");
                 },
@@ -467,7 +470,7 @@ namespace Prompt
                 Check = text =>
                 {
                     var doubles = Regex.Matches(text, @"\b(not|no|never|don't|doesn't|won't|can't|shouldn't)\b[^.]{0,30}\b(not|no|never|none|nothing|neither)\b",
-                        RegexOptions.IgnoreCase);
+                        RegexOptions.IgnoreCase, RxTimeout);
                     return (doubles.Count == 0,
                         doubles.Count == 0 ? "No double negations found" : $"Found {doubles.Count} double negation(s) that may confuse the model");
                 },
@@ -495,7 +498,7 @@ namespace Prompt
                     };
                     foreach (var p in patterns)
                     {
-                        if (Regex.IsMatch(text, p, RegexOptions.IgnoreCase))
+                        if (Regex.IsMatch(text, p, RegexOptions.IgnoreCase, RxTimeout))
                             return (false, $"Potential secret/key detected matching pattern: {p[..Math.Min(20, p.Length)]}...");
                     }
                     return (true, "No embedded secrets detected");
@@ -523,7 +526,7 @@ namespace Prompt
                     var lower = text.ToLowerInvariant();
                     foreach (var p in patterns)
                     {
-                        if (Regex.IsMatch(lower, p))
+                        if (Regex.IsMatch(lower, p, RegexOptions.None, RxTimeout))
                             return (false, "Detected potential jailbreak/injection pattern");
                     }
                     return (true, "No jailbreak patterns detected");
@@ -578,7 +581,7 @@ namespace Prompt
                 Check = text =>
                 {
                     var vague = Regex.Matches(text, @"\b(a few|some|several|many|a lot|various|numerous|a number of)\b",
-                        RegexOptions.IgnoreCase);
+                        RegexOptions.IgnoreCase, RxTimeout);
                     return (vague.Count <= 1,
                         vague.Count <= 1 ? "Quantifiers are specific enough" : $"Found {vague.Count} vague quantifiers");
                 },
