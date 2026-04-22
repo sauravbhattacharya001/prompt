@@ -181,6 +181,15 @@ namespace Prompt
         private static readonly Regex VariablePattern =
             new(@"\{\{(\w+)\}\}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
+        // Pre-compiled regexes for EstimateComplexity — avoids allocating
+        // new Regex objects on every call (once per prompt in the library).
+        private static readonly Regex InstructionPattern =
+            new(@"(?:^|\n)\s*[\-\*\d+\.]\s", RegexOptions.Compiled, TimeSpan.FromMilliseconds(200));
+        private static readonly Regex ConditionalPattern =
+            new(@"\b(if|when|unless|otherwise|else|except)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(200));
+        private static readonly Regex HeaderPattern =
+            new(@"(?:^|\n)#+\s", RegexOptions.Compiled, TimeSpan.FromMilliseconds(200));
+
         /// <summary>
         /// Analyzes a prompt library and produces a coverage report.
         /// </summary>
@@ -446,16 +455,16 @@ namespace Prompt
             int varCount = VariablePattern.Matches(template).Count;
             score += Math.Min(varCount * 0.5, 2);
 
-            // Instruction indicators
-            var instructions = Regex.Matches(template, @"(?:^|\n)\s*[\-\*\d+\.]\s", RegexOptions.None, TimeSpan.FromMilliseconds(200));
+            // Instruction indicators (pre-compiled regex — no per-call allocation)
+            var instructions = InstructionPattern.Matches(template);
             score += Math.Min(instructions.Count * 0.3, 2);
 
-            // Conditional language
-            if (Regex.IsMatch(template, @"\b(if|when|unless|otherwise|else|except)\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(200)))
+            // Conditional language (pre-compiled regex)
+            if (ConditionalPattern.IsMatch(template))
                 score += 1;
 
-            // Multi-section
-            var headers = Regex.Matches(template, @"(?:^|\n)#+\s", RegexOptions.None, TimeSpan.FromMilliseconds(200));
+            // Multi-section (pre-compiled regex)
+            var headers = HeaderPattern.Matches(template);
             score += Math.Min(headers.Count * 0.5, 1.5);
 
             return Math.Min(score, 10);
