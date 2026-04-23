@@ -54,16 +54,25 @@ namespace Prompt
     /// </summary>
     public class PromptHeatmap
     {
-        // Instruction keywords that indicate directive content
-        private static readonly HashSet<string> InstructionKeywords = new(StringComparer.OrdinalIgnoreCase)
+        // Single-word instruction keywords — matched via O(1) HashSet lookup
+        // per word instead of O(K×N) substring search per keyword.
+        private static readonly HashSet<string> SingleWordKeywords = new(StringComparer.OrdinalIgnoreCase)
         {
-            "must", "should", "always", "never", "ensure", "make sure", "do not",
-            "don't", "required", "mandatory", "important", "critical", "note",
+            "must", "should", "always", "never", "ensure",
+            "required", "mandatory", "important", "critical", "note",
             "remember", "avoid", "include", "exclude", "use", "return", "output",
             "respond", "format", "provide", "generate", "create", "write", "list",
-            "explain", "describe", "analyze", "summarize", "translate", "act as",
-            "you are", "your role", "your task", "step", "first", "then", "finally",
-            "if", "when", "unless", "only", "exactly", "strictly", "carefully"
+            "explain", "describe", "analyze", "summarize", "translate",
+            "step", "first", "then", "finally",
+            "if", "when", "unless", "only", "exactly", "strictly", "carefully",
+            "don't"
+        };
+
+        // Multi-word instruction phrases — must still use substring matching.
+        // Kept separate to avoid penalizing single-word lookups.
+        private static readonly string[] MultiWordKeywords = new[]
+        {
+            "make sure", "do not", "act as", "you are", "your role", "your task"
         };
 
         // Variable/placeholder patterns
@@ -258,11 +267,25 @@ h1 { color: #fff; margin-bottom: 0.5rem; }
             var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (words.Length == 0) return 0;
 
+            // Single-word keywords: O(W) total via HashSet lookup per word,
+            // replacing the previous O(K×N) approach that called Contains()
+            // for every keyword against the full text.
             int hits = 0;
-            var lower = text.ToLowerInvariant();
-            foreach (var kw in InstructionKeywords)
+            foreach (var word in words)
             {
-                if (lower.Contains(kw)) hits++;
+                // Strip trailing punctuation for cleaner matching
+                var clean = word.TrimEnd('.', ',', '!', '?', ':', ';', ')');
+                if (SingleWordKeywords.Contains(clean))
+                    hits++;
+            }
+
+            // Multi-word phrases: only 6 phrases vs original 50 keywords,
+            // so the substring scan cost is ~8× lower.
+            var lower = text.ToLowerInvariant();
+            foreach (var phrase in MultiWordKeywords)
+            {
+                if (lower.Contains(phrase, StringComparison.Ordinal))
+                    hits++;
             }
 
             return Math.Clamp(hits / (double)Math.Max(words.Length, 1) * 2.0, 0, 1);
