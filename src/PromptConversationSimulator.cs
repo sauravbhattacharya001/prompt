@@ -552,12 +552,8 @@ namespace Prompt
                 TimeSpan.FromSeconds(2));
         }
 
-        private static int EstimateTokens(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return 0;
-            // Rough GPT tokenizer approximation: ~4 chars per token
-            return (int)Math.Ceiling(text.Length / 4.0);
-        }
+        private static int EstimateTokens(string text) =>
+            TextAnalysisHelpers.EstimateTokens(text);
 
     }
 }

@@ -502,10 +502,7 @@ namespace Prompt
             return "What if you were to " + char.ToLower(statement[0]) + statement[1..] + "?";
         }
 
-        private static int EstimateTokens(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return 0;
-            return (int)Math.Ceiling(text.Length / 4.0);
-        }
+        private static int EstimateTokens(string text) =>
+            TextAnalysisHelpers.EstimateTokens(text);
     }
 }

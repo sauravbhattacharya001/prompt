@@ -369,7 +369,7 @@ namespace Prompt
                 .Select(m => m.Value).Where(t => t.Length > 1 && !StopWords.Contains(t)).ToList();
 
         private static int EstimateTokens(string text) =>
-            string.IsNullOrEmpty(text) ? 0 : (int)Math.Ceiling(text.Length / 4.0);
+            TextAnalysisHelpers.EstimateTokens(text);
 
         private void Evict(int count)
         {

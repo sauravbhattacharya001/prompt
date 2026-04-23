@@ -210,6 +210,20 @@ namespace Prompt
         }
 
         /// <summary>
+        /// Estimates token count for a text string using the ~4 chars/token
+        /// approximation common to GPT-family tokenizers.
+        /// Replaces duplicated EstimateTokens methods across
+        /// PromptConversationSimulator, PromptMemoryIndex, and PromptStyleTransformer.
+        /// </summary>
+        /// <param name="text">The text to estimate tokens for.</param>
+        /// <returns>Estimated token count (0 for null/empty input).</returns>
+        internal static int EstimateTokens(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return 0;
+            return (int)Math.Ceiling(text.Length / 4.0);
+        }
+
+        /// <summary>
         /// Pre-compiled regex splitting only on punctuation boundaries (no newlines).
         /// </summary>
         private static readonly Regex PunctuationOnlySentenceBoundary =
