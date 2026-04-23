@@ -219,6 +219,89 @@ namespace Prompt
         /// </summary>
         private static readonly TimeSpan RxTimeout = TimeSpan.FromMilliseconds(500);
 
+        // ── Shared keyword/phrase lists (used by both scoring and diagnosis) ──
+
+        private static readonly string[] AmbiguousWords = { "maybe", "perhaps", "somehow", "something like", "sort of", "kind of", "stuff", "things" };
+        private static readonly string[] InstructionVerbs = { "write", "list", "describe", "explain", "generate", "create", "analyze", "summarize", "compare", "evaluate", "provide", "return", "output" };
+        private static readonly string[] BoundaryPhrases = { "do not", "don't", "never", "avoid", "refrain", "must not" };
+        private static readonly string[] FormatKeywords = { "json", "xml", "csv", "markdown", "bullet", "table", "list", "format", "schema" };
+        private static readonly string[] FillerPhrases = { "please note that", "it is important to", "in order to", "as a matter of fact", "basically", "essentially", "actually", "in terms of" };
+        private static readonly string[] ConstraintKeywords = { "must", "should", "only", "exactly", "no more than", "at least", "between", "limit", "maximum", "minimum" };
+
+        private static readonly Regex InstructionVerbsRx = new Regex(
+            @"\b(" + string.Join("|", InstructionVerbs) + @")\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex RoleRx = new Regex(
+            @"\b(you are|act as|role|persona|expert)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex GuardrailRx = new Regex(
+            @"\b(if unsure|when uncertain|if you don'?t know|decline)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex BoundaryRx = new Regex(
+            @"\b(do not|don't|never|avoid|must not)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex ExampleRx = new Regex(
+            @"\b(example|sample|like this|for instance|e\.g\.)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex FormatRx = new Regex(
+            @"\b(" + string.Join("|", FormatKeywords) + @")\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex SentenceSplitRx = new Regex(
+            @"[.!?]+", RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex PassiveVoiceRx = new Regex(
+            @"\b(is|are|was|were)\s+(being\s+)?\w+ed\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex NumberRx = new Regex(
+            @"\b\d+\b", RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex ProperNounRx = new Regex(
+            @"\b[A-Z][a-z]+(?:\s[A-Z][a-z]+)+\b", RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex HeaderRx = new Regex(
+            @"^#+\s", RegexOptions.Multiline | RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex ListRx = new Regex(
+            @"^[\-\*\d]+[.)]\s", RegexOptions.Multiline | RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex LengthGuidanceRx = new Regex(
+            @"\b(short|brief|concise|detailed|comprehensive|one.?line|paragraph|sentences?\b.*\d|words?\b.*\d|\d+\s*words?)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout);
+        private static readonly Regex ScopeRx = new Regex(
+            @"\b(only|scope|limited to|within|stay)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, RxTimeout);
+
+        /// <summary>Count how many phrases from the array appear in the text (case-insensitive).</summary>
+        private static int CountPhraseHits(string text, string[] phrases)
+        {
+            int count = 0;
+            foreach (var phrase in phrases)
+            {
+                if (text.IndexOf(phrase, StringComparison.OrdinalIgnoreCase) >= 0)
+                    count++;
+            }
+            return count;
+        }
+
+        /// <summary>Return which phrases from the array appear in the text.</summary>
+        private static List<string> FindPhraseHits(string text, string[] phrases)
+        {
+            var hits = new List<string>();
+            foreach (var phrase in phrases)
+            {
+                if (text.IndexOf(phrase, StringComparison.OrdinalIgnoreCase) >= 0)
+                    hits.Add(phrase);
+            }
+            return hits;
+        }
+
+        /// <summary>Split text into non-empty trimmed sentences.</summary>
+        private static List<string> SplitSentences(string text)
+        {
+            return SentenceSplitRx.Split(text)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0)
+                .ToList();
+        }
+
+        /// <summary>Clamp a score to [0, 100].</summary>
+        private static int ClampScore(int score) => Math.Max(0, Math.Min(100, score));
+
         // ── Preset configs ──
 
         /// <summary>Quick pass with 3 generations and low target.</summary>
@@ -343,63 +426,59 @@ namespace Prompt
         {
             int score = 50;
             // Shorter sentences improve clarity
-            var sentences = Regex.Split(p, @"[.!?]+", RegexOptions.None, RxTimeout).Where(s => s.Trim().Length > 0).ToList();
+            var sentences = SplitSentences(p);
             double avgLen = sentences.Any() ? sentences.Average(s => s.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length) : 0;
             if (avgLen > 0 && avgLen <= 20) score += 15;
             else if (avgLen <= 30) score += 5;
 
             // Active voice indicators
-            if (!Regex.IsMatch(p, @"\b(is|are|was|were)\s+(being\s+)?\w+ed\b", RegexOptions.IgnoreCase, RxTimeout))
+            if (!PassiveVoiceRx.IsMatch(p))
                 score += 10;
 
             // Clear instruction verbs
-            var instructionVerbs = new[] { "write", "list", "describe", "explain", "generate", "create", "analyze", "summarize", "compare", "evaluate", "provide", "return", "output" };
-            int verbCount = instructionVerbs.Count(v => Regex.IsMatch(p, $@"\b{v}\b", RegexOptions.IgnoreCase, RxTimeout));
+            int verbCount = InstructionVerbsRx.Matches(p).Select(m => m.Value.ToLowerInvariant()).Distinct().Count();
             score += Math.Min(verbCount * 5, 15);
 
             // No ambiguous words
-            var ambiguous = new[] { "maybe", "perhaps", "somehow", "something like", "sort of", "kind of", "stuff", "things" };
-            int ambiguousCount = ambiguous.Count(a => p.IndexOf(a, StringComparison.OrdinalIgnoreCase) >= 0);
+            int ambiguousCount = CountPhraseHits(p, AmbiguousWords);
             score -= ambiguousCount * 5;
 
-            return Math.Max(0, Math.Min(100, score));
+            return ClampScore(score);
         }
 
         private static int ScoreSpecificity(string p)
         {
             int score = 40;
             // Numbers/quantities
-            if (Regex.IsMatch(p, @"\b\d+\b", RegexOptions.None, RxTimeout)) score += 10;
+            if (NumberRx.IsMatch(p)) score += 10;
 
             // Quoted examples
             if (p.Contains('"') || p.Contains("```") || p.Contains("example")) score += 10;
 
             // Named entities/proper nouns
-            if (Regex.IsMatch(p, @"\b[A-Z][a-z]+(?:\s[A-Z][a-z]+)+\b", RegexOptions.None, RxTimeout)) score += 5;
+            if (ProperNounRx.IsMatch(p)) score += 5;
 
             // Constraints
-            var constraints = new[] { "must", "should", "only", "exactly", "no more than", "at least", "between", "limit", "maximum", "minimum" };
-            int cCount = constraints.Count(c => p.IndexOf(c, StringComparison.OrdinalIgnoreCase) >= 0);
+            int cCount = CountPhraseHits(p, ConstraintKeywords);
             score += Math.Min(cCount * 5, 20);
 
             // Persona/role
-            if (Regex.IsMatch(p, @"\b(you are|act as|role|persona|expert)\b", RegexOptions.IgnoreCase, RxTimeout))
-                score += 10;
+            if (RoleRx.IsMatch(p)) score += 10;
 
             // Length bonus for detail
             if (p.Length > 200) score += 5;
             if (p.Length > 500) score += 5;
 
-            return Math.Max(0, Math.Min(100, score));
+            return ClampScore(score);
         }
 
         private static int ScoreStructure(string p)
         {
             int score = 40;
             // Has sections/headers
-            if (Regex.IsMatch(p, @"^#+\s", RegexOptions.Multiline, RxTimeout)) score += 15;
+            if (HeaderRx.IsMatch(p)) score += 15;
             // Has lists
-            if (Regex.IsMatch(p, @"^[\-\*\d]+[.)]\s", RegexOptions.Multiline, RxTimeout)) score += 10;
+            if (ListRx.IsMatch(p)) score += 10;
             // Has line breaks / paragraphs
             if (p.Contains("\n\n")) score += 10;
             // Has delimiters
@@ -410,49 +489,43 @@ namespace Prompt
             // Not just one huge paragraph
             if (lines < 3 && p.Length > 300) score -= 10;
 
-            return Math.Max(0, Math.Min(100, score));
+            return ClampScore(score);
         }
 
         private static int ScoreSafety(string p)
         {
             int score = 50;
             // Boundary statements
-            var boundaries = new[] { "do not", "don't", "never", "avoid", "refrain", "must not" };
-            int bCount = boundaries.Count(b => p.IndexOf(b, StringComparison.OrdinalIgnoreCase) >= 0);
+            int bCount = CountPhraseHits(p, BoundaryPhrases);
             score += Math.Min(bCount * 8, 24);
 
             // Guardrails
-            if (Regex.IsMatch(p, @"\b(if unsure|when uncertain|if you don'?t know|decline)\b", RegexOptions.IgnoreCase, RxTimeout))
-                score += 15;
+            if (GuardrailRx.IsMatch(p)) score += 15;
 
             // Scope limitation
-            if (Regex.IsMatch(p, @"\b(only|scope|limited to|within|stay)\b", RegexOptions.IgnoreCase, RxTimeout))
-                score += 10;
+            if (ScopeRx.IsMatch(p)) score += 10;
 
-            return Math.Max(0, Math.Min(100, score));
+            return ClampScore(score);
         }
 
         private static int ScoreOutputGuidance(string p)
         {
             int score = 30;
             // Format specification
-            var formats = new[] { "json", "xml", "csv", "markdown", "bullet", "table", "list", "format", "schema" };
-            int fCount = formats.Count(f => p.IndexOf(f, StringComparison.OrdinalIgnoreCase) >= 0);
+            int fCount = CountPhraseHits(p, FormatKeywords);
             score += Math.Min(fCount * 8, 24);
 
             // Length guidance
-            if (Regex.IsMatch(p, @"\b(short|brief|concise|detailed|comprehensive|one.?line|paragraph|sentences?\b.*\d|words?\b.*\d|\d+\s*words?)", RegexOptions.IgnoreCase, RxTimeout))
-                score += 15;
+            if (LengthGuidanceRx.IsMatch(p)) score += 15;
 
             // Example output
-            if (Regex.IsMatch(p, @"\b(example|sample|like this|for instance|e\.g\.)\b", RegexOptions.IgnoreCase, RxTimeout))
-                score += 15;
+            if (ExampleRx.IsMatch(p)) score += 15;
 
             // Structured output markers
             if (p.Contains("```") || p.Contains("{") || Regex.IsMatch(p, @"\bfield\b", RegexOptions.IgnoreCase, RxTimeout))
                 score += 10;
 
-            return Math.Max(0, Math.Min(100, score));
+            return ClampScore(score);
         }
 
         private static int ScoreConciseness(string p)
@@ -463,19 +536,18 @@ namespace Prompt
             else if (p.Length > 2000) score -= 10;
 
             // Penalty for filler words
-            var fillers = new[] { "please note that", "it is important to", "in order to", "as a matter of fact", "basically", "essentially", "actually", "in terms of" };
-            int fillerCount = fillers.Count(f => p.IndexOf(f, StringComparison.OrdinalIgnoreCase) >= 0);
+            int fillerCount = CountPhraseHits(p, FillerPhrases);
             score -= fillerCount * 5;
 
             // Penalty for repetition (duplicate sentences)
-            var sents = Regex.Split(p, @"[.!?]+", RegexOptions.None, RxTimeout).Select(s => s.Trim().ToLowerInvariant()).Where(s => s.Length > 10).ToList();
+            var sents = SplitSentences(p).Select(s => s.ToLowerInvariant()).Where(s => s.Length > 10).ToList();
             int dupes = sents.Count - sents.Distinct().Count();
             score -= dupes * 10;
 
             // Too short is also bad (under-specified)
             if (p.Length < 20) score -= 20;
 
-            return Math.Max(0, Math.Min(100, score));
+            return ClampScore(score);
         }
 
         // ── Diagnosis ──
@@ -488,12 +560,11 @@ namespace Prompt
             {
                 if (sc.Clarity < 60)
                 {
-                    var ambiguous = new[] { "maybe", "perhaps", "somehow", "something like", "sort of", "kind of", "stuff", "things" };
-                    var found = ambiguous.Where(a => prompt.IndexOf(a, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+                    var found = FindPhraseHits(prompt, AmbiguousWords);
                     if (found.Any())
                         results.Add(new AutopilotDiagnosis { Dimension = "Clarity", Severity = 0.7, Description = $"Ambiguous language: {string.Join(", ", found)}", Fix = "remove_ambiguous" });
 
-                    if (!Regex.IsMatch(prompt, @"\b(write|list|describe|explain|generate|create|analyze|summarize|compare|evaluate|provide|return|output)\b", RegexOptions.IgnoreCase, RxTimeout))
+                    if (!InstructionVerbsRx.IsMatch(prompt))
                         results.Add(new AutopilotDiagnosis { Dimension = "Clarity", Severity = 0.8, Description = "No clear instruction verb found", Fix = "add_instruction_verb" });
                 }
             }
@@ -502,10 +573,10 @@ namespace Prompt
             {
                 if (sc.Specificity < 60)
                 {
-                    if (!Regex.IsMatch(prompt, @"\b(you are|act as|role|persona|expert)\b", RegexOptions.IgnoreCase, RxTimeout))
+                    if (!RoleRx.IsMatch(prompt))
                         results.Add(new AutopilotDiagnosis { Dimension = "Specificity", Severity = 0.6, Description = "No role/persona defined", Fix = "add_role" });
 
-                    if (!Regex.IsMatch(prompt, @"\b\d+\b", RegexOptions.None, RxTimeout))
+                    if (!NumberRx.IsMatch(prompt))
                         results.Add(new AutopilotDiagnosis { Dimension = "Specificity", Severity = 0.5, Description = "No numeric constraints or quantities", Fix = "add_constraints" });
                 }
             }
@@ -514,7 +585,7 @@ namespace Prompt
             {
                 if (sc.Structure < 60)
                 {
-                    if (!Regex.IsMatch(prompt, @"^[\-\*\d]+[.)]\s", RegexOptions.Multiline, RxTimeout) && !Regex.IsMatch(prompt, @"^#+\s", RegexOptions.Multiline, RxTimeout))
+                    if (!ListRx.IsMatch(prompt) && !HeaderRx.IsMatch(prompt))
                         results.Add(new AutopilotDiagnosis { Dimension = "Structure", Severity = 0.6, Description = "No lists or headers for organization", Fix = "add_structure" });
 
                     if (prompt.Split('\n').Length < 3 && prompt.Length > 200)
@@ -526,10 +597,10 @@ namespace Prompt
             {
                 if (sc.Safety < 60)
                 {
-                    if (!Regex.IsMatch(prompt, @"\b(do not|don't|never|avoid|must not)\b", RegexOptions.IgnoreCase, RxTimeout))
+                    if (!BoundaryRx.IsMatch(prompt))
                         results.Add(new AutopilotDiagnosis { Dimension = "Safety", Severity = 0.8, Description = "No boundary/constraint statements", Fix = "add_boundaries" });
 
-                    if (!Regex.IsMatch(prompt, @"\b(if unsure|when uncertain|if you don'?t know)\b", RegexOptions.IgnoreCase, RxTimeout))
+                    if (!GuardrailRx.IsMatch(prompt))
                         results.Add(new AutopilotDiagnosis { Dimension = "Safety", Severity = 0.6, Description = "No uncertainty guardrail", Fix = "add_guardrail" });
                 }
             }
@@ -538,10 +609,10 @@ namespace Prompt
             {
                 if (sc.OutputGuidance < 60)
                 {
-                    if (!Regex.IsMatch(prompt, @"\b(json|xml|csv|markdown|bullet|table|list|format|schema)\b", RegexOptions.IgnoreCase, RxTimeout))
+                    if (!FormatRx.IsMatch(prompt))
                         results.Add(new AutopilotDiagnosis { Dimension = "OutputGuidance", Severity = 0.7, Description = "No output format specified", Fix = "add_format" });
 
-                    if (!Regex.IsMatch(prompt, @"\b(example|sample|like this|for instance|e\.g\.)\b", RegexOptions.IgnoreCase, RxTimeout))
+                    if (!ExampleRx.IsMatch(prompt))
                         results.Add(new AutopilotDiagnosis { Dimension = "OutputGuidance", Severity = 0.5, Description = "No example output provided", Fix = "add_example" });
                 }
             }
@@ -550,12 +621,11 @@ namespace Prompt
             {
                 if (sc.Conciseness < 60)
                 {
-                    var fillers = new[] { "please note that", "it is important to", "in order to", "as a matter of fact", "basically", "essentially", "actually", "in terms of" };
-                    var found = fillers.Where(f => prompt.IndexOf(f, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+                    var found = FindPhraseHits(prompt, FillerPhrases);
                     if (found.Any())
                         results.Add(new AutopilotDiagnosis { Dimension = "Conciseness", Severity = 0.5, Description = $"Filler phrases: {string.Join(", ", found)}", Fix = "remove_fillers" });
 
-                    var sents = Regex.Split(prompt, @"[.!?]+", RegexOptions.None, RxTimeout).Select(s => s.Trim()).Where(s => s.Length > 10).ToList();
+                    var sents = SplitSentences(prompt).Where(s => s.Length > 10).ToList();
                     var dupes = sents.GroupBy(s => s.ToLowerInvariant()).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
                     if (dupes.Any())
                         results.Add(new AutopilotDiagnosis { Dimension = "Conciseness", Severity = 0.6, Description = "Duplicate sentences detected", Fix = "remove_duplicates" });
