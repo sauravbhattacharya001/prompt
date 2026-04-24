@@ -205,57 +205,18 @@ namespace Prompt
             var messages = Parse(prompt);
             var result = new FormatResult { Provider = provider };
 
-            switch (provider)
+            if (provider == ChatProvider.OpenAI)
             {
-                case ChatProvider.OpenAI:
-                    result.Messages = messages;
-                    break;
-
-                case ChatProvider.Anthropic:
-                    // Anthropic wants system as a separate top-level parameter
-                    var systemMsg = messages.FirstOrDefault(m => m.Role == "system");
-                    if (systemMsg != null)
-                    {
-                        result.SystemMessage = systemMsg.Content;
-                        result.Messages = messages
-                            .Where(m => m.Role != "system")
-                            .Select(m => new ChatMessage(
-                                m.Role == "assistant" ? "assistant" : "user",
-                                m.Content))
-                            .ToList();
-                    }
-                    else
-                    {
-                        result.Messages = messages
-                            .Select(m => new ChatMessage(
-                                m.Role == "assistant" ? "assistant" : "user",
-                                m.Content))
-                            .ToList();
-                    }
-                    break;
-
-                case ChatProvider.Gemini:
-                    // Gemini uses "model" instead of "assistant", system as system_instruction
-                    var geminiSystem = messages.FirstOrDefault(m => m.Role == "system");
-                    if (geminiSystem != null)
-                    {
-                        result.SystemMessage = geminiSystem.Content;
-                        result.Messages = messages
-                            .Where(m => m.Role != "system")
-                            .Select(m => new ChatMessage(
-                                m.Role == "assistant" ? "model" : "user",
-                                m.Content))
-                            .ToList();
-                    }
-                    else
-                    {
-                        result.Messages = messages
-                            .Select(m => new ChatMessage(
-                                m.Role == "assistant" ? "model" : "user",
-                                m.Content))
-                            .ToList();
-                    }
-                    break;
+                result.Messages = messages;
+            }
+            else
+            {
+                // Anthropic and Gemini both extract system messages to a
+                // top-level field and remap non-system roles.  The only
+                // difference is the name used for the assistant role.
+                string assistantAlias = provider == ChatProvider.Gemini
+                    ? "model" : "assistant";
+                ExtractSystemAndRemapRoles(messages, result, assistantAlias);
             }
 
             // Ensure at least one user message exists
@@ -379,6 +340,29 @@ namespace Prompt
         }
 
         #region Private helpers
+
+        /// <summary>
+        /// Extracts the system message (if any) into <see cref="FormatResult.SystemMessage"/>
+        /// and remaps remaining roles.  Both Anthropic and Gemini use this pattern —
+        /// only the alias for the "assistant" role differs ("assistant" vs "model").
+        /// </summary>
+        private static void ExtractSystemAndRemapRoles(
+            List<ChatMessage> messages, FormatResult result, string assistantAlias)
+        {
+            var systemMsg = messages.FirstOrDefault(m => m.Role == "system");
+            if (systemMsg != null)
+                result.SystemMessage = systemMsg.Content;
+
+            result.Messages = new List<ChatMessage>(messages.Count);
+            foreach (var m in messages)
+            {
+                if (m.Role == "system")
+                    continue;
+                result.Messages.Add(new ChatMessage(
+                    m.Role == "assistant" ? assistantAlias : "user",
+                    m.Content));
+            }
+        }
 
         private static Match? SafeRegexMatch(string input)
         {
