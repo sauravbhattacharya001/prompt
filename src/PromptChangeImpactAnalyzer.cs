@@ -455,28 +455,18 @@ namespace Prompt
             var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (_graph == null) return visited;
 
+            // Use the graph's O(1) GetDependents via reverse index
             var queue = new Queue<string>();
-            // Find nodes that depend on nodeId
-            foreach (var node in _graph.Nodes.Values)
-            {
-                if (node.Dependencies.Any(d => string.Equals(d, nodeId, StringComparison.OrdinalIgnoreCase)))
-                {
-                    if (visited.Add(node.Id))
-                        queue.Enqueue(node.Id);
-                }
-            }
+            foreach (var dep in _graph.GetDependents(nodeId))
+                if (visited.Add(dep))
+                    queue.Enqueue(dep);
 
             while (queue.Count > 0)
             {
                 var current = queue.Dequeue();
-                foreach (var node in _graph.Nodes.Values)
-                {
-                    if (node.Dependencies.Any(d => string.Equals(d, current, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        if (visited.Add(node.Id))
-                            queue.Enqueue(node.Id);
-                    }
-                }
+                foreach (var dep in _graph.GetDependents(current))
+                    if (visited.Add(dep))
+                        queue.Enqueue(dep);
             }
 
             return visited;
@@ -490,11 +480,8 @@ namespace Prompt
             var visited = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var queue = new Queue<(string id, int depth)>();
 
-            foreach (var node in _graph.Nodes.Values)
-            {
-                if (node.Dependencies.Any(d => string.Equals(d, promptName, StringComparison.OrdinalIgnoreCase)))
-                    queue.Enqueue((node.Id, 1));
-            }
+            foreach (var dep in _graph.GetDependents(promptName))
+                queue.Enqueue((dep, 1));
 
             while (queue.Count > 0)
             {
@@ -504,11 +491,8 @@ namespace Prompt
                 visited[current] = depth;
                 maxDepth = Math.Max(maxDepth, depth);
 
-                foreach (var node in _graph.Nodes.Values)
-                {
-                    if (node.Dependencies.Any(d => string.Equals(d, current, StringComparison.OrdinalIgnoreCase)))
-                        queue.Enqueue((node.Id, depth + 1));
-                }
+                foreach (var dep in _graph.GetDependents(current))
+                    queue.Enqueue((dep, depth + 1));
             }
 
             return maxDepth;

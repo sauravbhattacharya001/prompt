@@ -181,6 +181,9 @@ namespace Prompt
     public sealed class PromptDependencyGraph
     {
         private readonly Dictionary<string, PromptNode> _nodes = new();
+        // Reverse adjacency index: toId → set of fromIds that depend on it.
+        // Maintained by AddEdge/RemoveEdge/RemoveNode so GetDependents is O(1).
+        private readonly Dictionary<string, HashSet<string>> _reverseEdges = new();
 
         /// <summary>All nodes in the graph.</summary>
         public IReadOnlyDictionary<string, PromptNode> Nodes => _nodes;
@@ -211,9 +214,19 @@ namespace Prompt
         /// <summary>Remove a node and all edges referencing it.</summary>
         public bool RemoveNode(string id)
         {
-            if (!_nodes.Remove(id)) return false;
-            foreach (var node in _nodes.Values)
-                node.RemoveDependency(id);
+            if (!_nodes.TryGetValue(id, out var removedNode)) return false;
+            _nodes.Remove(id);
+            // Remove reverse edges for this node's own dependencies
+            foreach (var dep in removedNode.Dependencies)
+                RemoveReverseEdge(dep, id);
+            // Remove all reverse edges pointing to this node (other nodes that depended on it)
+            if (_reverseEdges.TryGetValue(id, out var dependents))
+            {
+                foreach (var depId in dependents)
+                    if (_nodes.TryGetValue(depId, out var n))
+                        n.RemoveDependency(id);
+                _reverseEdges.Remove(id);
+            }
             return true;
         }
 
@@ -225,6 +238,7 @@ namespace Prompt
             if (!_nodes.ContainsKey(toId))
                 throw new ArgumentException($"Node '{toId}' not found.", nameof(toId));
             _nodes[fromId].DependsOn(toId);
+            AddReverseEdge(toId, fromId);
             return this;
         }
 
@@ -232,16 +246,18 @@ namespace Prompt
         public bool RemoveEdge(string fromId, string toId)
         {
             if (!_nodes.TryGetValue(fromId, out var node)) return false;
-            return node.RemoveDependency(toId);
+            bool removed = node.RemoveDependency(toId);
+            if (removed)
+                RemoveReverseEdge(toId, fromId);
+            return removed;
         }
 
-        /// <summary>Get all nodes that directly depend on the given node.</summary>
+        /// <summary>Get all nodes that directly depend on the given node. O(1) via reverse index.</summary>
         public IReadOnlyList<string> GetDependents(string nodeId)
         {
-            return _nodes.Values
-                .Where(n => n.Dependencies.Contains(nodeId))
-                .Select(n => n.Id)
-                .ToList();
+            if (_reverseEdges.TryGetValue(nodeId, out var set))
+                return set.ToList();
+            return Array.Empty<string>();
         }
 
         /// <summary>Get transitive dependencies (all ancestors).</summary>
@@ -463,11 +479,8 @@ namespace Prompt
             var roots = _nodes.Values.Where(n => n.Dependencies.All(d => !_nodes.ContainsKey(d)) || n.Dependencies.Count == 0)
                 .Select(n => n.Id).ToList();
             var dependentCounts = new Dictionary<string, int>();
-            foreach (var id in _nodes.Keys) dependentCounts[id] = 0;
-            foreach (var node in _nodes.Values)
-                foreach (var dep in node.Dependencies)
-                    if (dependentCounts.ContainsKey(dep))
-                        dependentCounts[dep]++;
+            foreach (var id in _nodes.Keys)
+                dependentCounts[id] = _reverseEdges.TryGetValue(id, out var revSet) ? revSet.Count : 0;
             var leaves = dependentCounts.Where(kv => kv.Value == 0).Select(kv => kv.Key).ToList();
 
             double avgFanIn = _nodes.Count > 0 ? _nodes.Values.Average(n => n.Dependencies.Count(d => _nodes.ContainsKey(d))) : 0;
@@ -653,7 +666,10 @@ namespace Prompt
             {
                 string refId = match.Groups[1].Value;
                 if (_nodes.ContainsKey(refId) && refId != nodeId)
+                {
                     _nodes[nodeId].DependsOn(refId);
+                    AddReverseEdge(refId, nodeId);
+                }
             }
             return this;
         }
@@ -665,7 +681,12 @@ namespace Prompt
             foreach (var node in other._nodes.Values)
             {
                 if (!_nodes.ContainsKey(node.Id))
+                {
                     _nodes[node.Id] = node;
+                    // Rebuild reverse edges for the merged node's dependencies
+                    foreach (var dep in node.Dependencies)
+                        AddReverseEdge(dep, node.Id);
+                }
             }
             return this;
         }
@@ -681,8 +702,13 @@ namespace Prompt
                 {
                     sub.AddNode(id, node.Label, node.Weight);
                     foreach (var dep in node.Dependencies)
+                    {
                         if (ids.Contains(dep))
+                        {
                             sub._nodes[id].DependsOn(dep);
+                            sub.AddReverseEdge(dep, id);
+                        }
+                    }
                 }
             }
             return sub;
@@ -695,6 +721,26 @@ namespace Prompt
         /// <summary>Get the requirement set: all nodes needed for the given node to execute.</summary>
         public IReadOnlySet<string> GetRequirementSet(string nodeId)
             => GetTransitiveDependencies(nodeId);
+
+        private void AddReverseEdge(string toId, string fromId)
+        {
+            if (!_reverseEdges.TryGetValue(toId, out var set))
+            {
+                set = new HashSet<string>();
+                _reverseEdges[toId] = set;
+            }
+            set.Add(fromId);
+        }
+
+        private void RemoveReverseEdge(string toId, string fromId)
+        {
+            if (_reverseEdges.TryGetValue(toId, out var set))
+            {
+                set.Remove(fromId);
+                if (set.Count == 0)
+                    _reverseEdges.Remove(toId);
+            }
+        }
 
         private static string EscapeDot(string s)
             => s.Replace("\"", "\\\"").Replace("\n", "\\n");
