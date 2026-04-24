@@ -220,9 +220,52 @@ namespace Prompt
 
                 if (rule.Severity < _config.MinSeverity) continue;
 
-                foreach (Match m in rule.Pattern.Matches(lower))
+                MatchCollection matches;
+                try
+                {
+                    matches = rule.Pattern.Matches(lower);
+                }
+                catch (RegexMatchTimeoutException)
+                {
+                    // Treat a timed-out rule as a potential threat — the input
+                    // is crafted to cause catastrophic backtracking, which is
+                    // itself a strong injection/DoS signal.
+                    findings.Add(new ThreatFinding
+                    {
+                        RuleId = rule.Id,
+                        RuleName = rule.Name,
+                        Category = rule.Category,
+                        Severity = ThreatSeverity.High,
+                        Evidence = StringHelpers.Truncate(text, 120),
+                        Offset = 0,
+                        Recommendation = $"{rule.Recommendation} (regex timed out — possible ReDoS payload)"
+                    });
+                    continue;
+                }
+
+                foreach (Match m in matches)
                 {
                     if (findings.Count >= _config.MaxFindings) break;
+
+                    try
+                    {
+                        // Matches are lazily evaluated; timeout can fire here.
+                        _ = m.Index;
+                    }
+                    catch (RegexMatchTimeoutException)
+                    {
+                        findings.Add(new ThreatFinding
+                        {
+                            RuleId = rule.Id,
+                            RuleName = rule.Name,
+                            Category = rule.Category,
+                            Severity = ThreatSeverity.High,
+                            Evidence = StringHelpers.Truncate(text, 120),
+                            Offset = 0,
+                            Recommendation = $"{rule.Recommendation} (regex timed out — possible ReDoS payload)"
+                        });
+                        break;
+                    }
 
                     findings.Add(new ThreatFinding
                     {
@@ -425,6 +468,14 @@ namespace Prompt
             return rules;
         }
 
+        /// <summary>
+        /// Regex match timeout for all sentinel rules.  Prevents ReDoS when
+        /// adversarial input triggers catastrophic backtracking — a real risk
+        /// because PromptSentinel evaluates user-supplied text against complex
+        /// patterns with nested alternation and quantifiers.
+        /// </summary>
+        private static readonly TimeSpan RuleTimeout = TimeSpan.FromMilliseconds(500);
+
         private static SentinelRule R(string id, string name, ThreatCategory cat,
             ThreatSeverity sev, string pattern, RegexOptions opts, string rec) =>
             new()
@@ -433,7 +484,7 @@ namespace Prompt
                 Name = name,
                 Category = cat,
                 Severity = sev,
-                Pattern = new Regex(pattern, opts),
+                Pattern = new Regex(pattern, opts, RuleTimeout),
                 Recommendation = rec
             };
 
