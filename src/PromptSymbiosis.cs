@@ -99,7 +99,7 @@ namespace Prompt
 
         /// <summary>Overall capability coverage (fraction of dimensions with score > 0.3).</summary>
         public double CoverageScore => Capabilities.Count > 0
-            ? (double)Capabilities.Count(kv => kv.Value > 0.3) / Enum.GetValues<CapabilityDimension>().Length
+            ? (double)Capabilities.Count(kv => kv.Value > 0.3) / PromptSymbiosis.DimensionCount
             : 0;
     }
 
@@ -190,6 +190,9 @@ namespace Prompt
     /// </summary>
     public sealed class PromptSymbiosis
     {
+        private static readonly CapabilityDimension[] AllDimensions = Enum.GetValues<CapabilityDimension>();
+        internal static readonly int DimensionCount = AllDimensions.Length;
+
         private readonly List<PromptCapabilityProfile> _profiles = new();
 
         /// <summary>All registered prompt profiles.</summary>
@@ -315,10 +318,9 @@ namespace Prompt
 
         private static SymbioticRelationship AnalyzePair(PromptCapabilityProfile a, PromptCapabilityProfile b)
         {
-            var allDims = Enum.GetValues<CapabilityDimension>();
             double complementarity = 0, overlap = 0, count = 0;
 
-            foreach (var dim in allDims)
+            foreach (var dim in AllDimensions)
             {
                 var sa = a.Capabilities.GetValueOrDefault(dim);
                 var sb = b.Capabilities.GetValueOrDefault(dim);
@@ -413,7 +415,7 @@ namespace Prompt
                 [CapabilityDimension.Planning] = "Add a planning/orchestration prompt"
             };
 
-            foreach (var dim in Enum.GetValues<CapabilityDimension>())
+            foreach (var dim in AllDimensions)
             {
                 var bestScore = _profiles.Count > 0
                     ? _profiles.Max(p => p.Capabilities.GetValueOrDefault(dim))
@@ -457,7 +459,7 @@ namespace Prompt
                 var steps = new List<string> { pair.PromptA, pair.PromptB };
                 var combined = ComputeCombinedCoverage(steps);
                 var covered = GetCoveredDimensions(steps);
-                var gapped = Enum.GetValues<CapabilityDimension>().Except(covered).ToList();
+                var gapped = AllDimensions.Except(covered).ToList();
                 chains.Add(new SymbioticChain
                 {
                     Steps = steps,
@@ -474,10 +476,9 @@ namespace Prompt
 
         private SymbioticChain BuildCoverageChain()
         {
-            var allDims = Enum.GetValues<CapabilityDimension>();
             var selected = new List<string>();
-            var coveredScores = new Dictionary<CapabilityDimension, double>();
-            foreach (var d in allDims) coveredScores[d] = 0;
+            var coveredScores = new Dictionary<CapabilityDimension, double>(DimensionCount);
+            foreach (var d in AllDimensions) coveredScores[d] = 0;
 
             var remaining = _profiles.ToList();
 
@@ -490,7 +491,7 @@ namespace Prompt
                 foreach (var p in remaining)
                 {
                     double gain = 0;
-                    foreach (var dim in allDims)
+                    foreach (var dim in AllDimensions)
                     {
                         var current = coveredScores[dim];
                         var offered = p.Capabilities.GetValueOrDefault(dim);
@@ -503,7 +504,7 @@ namespace Prompt
                 if (best == null || bestGain < 0.05) break;
 
                 selected.Add(best.Name);
-                foreach (var dim in allDims)
+                foreach (var dim in AllDimensions)
                 {
                     var offered = best.Capabilities.GetValueOrDefault(dim);
                     if (offered > coveredScores[dim])
@@ -513,7 +514,7 @@ namespace Prompt
             }
 
             var covered = GetCoveredDimensions(selected);
-            var gapped = allDims.Except(covered).ToList();
+            var gapped = AllDimensions.Except(covered).ToList();
 
             return new SymbioticChain
             {
@@ -528,23 +529,32 @@ namespace Prompt
 
         private double ComputeCombinedCoverage(List<string> steps)
         {
-            var allDims = Enum.GetValues<CapabilityDimension>();
-            var profiles = steps.Select(s => _profiles.FirstOrDefault(p => p.Name == s)).Where(p => p != null).ToList();
+            var profileIndex = BuildProfileIndex();
+            var profiles = steps.Select(s => profileIndex.GetValueOrDefault(s)).Where(p => p != null).ToList();
             if (profiles.Count == 0) return 0;
             int covered = 0;
-            foreach (var dim in allDims)
+            foreach (var dim in AllDimensions)
             {
                 var best = profiles.Max(p => p!.Capabilities.GetValueOrDefault(dim));
                 if (best > 0.3) covered++;
             }
-            return Math.Round((double)covered / allDims.Length, 3);
+            return Math.Round((double)covered / DimensionCount, 3);
+        }
+
+        private Dictionary<string, PromptCapabilityProfile> BuildProfileIndex()
+        {
+            var index = new Dictionary<string, PromptCapabilityProfile>(_profiles.Count);
+            foreach (var p in _profiles)
+                index[p.Name] = p;
+            return index;
         }
 
         private List<CapabilityDimension> GetCoveredDimensions(List<string> steps)
         {
-            var profiles = steps.Select(s => _profiles.FirstOrDefault(p => p.Name == s)).Where(p => p != null).ToList();
+            var profileIndex = BuildProfileIndex();
+            var profiles = steps.Select(s => profileIndex.GetValueOrDefault(s)).Where(p => p != null).ToList();
             var result = new List<CapabilityDimension>();
-            foreach (var dim in Enum.GetValues<CapabilityDimension>())
+            foreach (var dim in AllDimensions)
             {
                 var best = profiles.Count > 0 ? profiles.Max(p => p!.Capabilities.GetValueOrDefault(dim)) : 0;
                 if (best > 0.3) result.Add(dim);
