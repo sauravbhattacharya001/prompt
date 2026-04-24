@@ -348,8 +348,8 @@ namespace Prompt
 
             report.Alerts = alerts;
             report.HealthScore = ComputeHealthScore(report);
-            report.Recommendations = Recommend(promptId);
-            report.AdaptationPlan = AutoAdapt(promptId);
+            report.Recommendations = RecommendInternal(promptId, all, baseline, recent);
+            report.AdaptationPlan = AutoAdaptInternal(promptId, all, baseline, recent);
 
             return report;
         }
@@ -437,22 +437,28 @@ namespace Prompt
         /// <summary>Generate proactive recommendations for a prompt.</summary>
         public List<string> Recommend(string promptId)
         {
-            var recs = new List<string>();
             if (!_store.ContainsKey(promptId) || _store[promptId].Count == 0)
-            {
-                recs.Add("Start recording observations to enable drift detection.");
-                return recs;
-            }
+                return new List<string> { "Start recording observations to enable drift detection." };
 
             var all = _store[promptId].OrderBy(o => o.Timestamp).ToList();
+            if (all.Count < _policy.MinObservationsForBaseline)
+                return new List<string> { $"Only {all.Count}/{_policy.MinObservationsForBaseline} observations recorded. Collect more data for reliable drift detection." };
+
+            var baseline = GetWindowInternal(all, _policy.WindowSizeDays * 2, _policy.WindowSizeDays);
+            var recent = GetWindowInternal(all, _policy.WindowSizeDays, 0);
+            return RecommendInternal(promptId, all, baseline, recent);
+        }
+
+        /// <summary>Internal recommendation logic using pre-computed windows — avoids
+        /// redundant sort + filter + stats when called from <see cref="Analyze"/>.</summary>
+        private List<string> RecommendInternal(string promptId, List<DriftObservation> all, DriftWindow baseline, DriftWindow recent)
+        {
+            var recs = new List<string>();
             if (all.Count < _policy.MinObservationsForBaseline)
             {
                 recs.Add($"Only {all.Count}/{_policy.MinObservationsForBaseline} observations recorded. Collect more data for reliable drift detection.");
                 return recs;
             }
-
-            var baseline = GetWindowInternal(all, _policy.WindowSizeDays * 2, _policy.WindowSizeDays);
-            var recent = GetWindowInternal(all, _policy.WindowSizeDays, 0);
 
             if (recent.MeanScore < baseline.MeanScore - _policy.ScoreDropThreshold)
             {
@@ -487,18 +493,20 @@ namespace Prompt
         /// <summary>Generate an autonomous adaptation plan based on detected drift.</summary>
         public AdaptationPlan AutoAdapt(string promptId)
         {
-            var plan = new AdaptationPlan();
             if (!_store.ContainsKey(promptId) || _store[promptId].Count < _policy.MinObservationsForBaseline)
-            {
-                plan.Priority = DriftSeverity.Info;
-                plan.EstimatedImpact = "Insufficient data for adaptation";
-                plan.AutoApplicable = false;
-                return plan;
-            }
+                return new AdaptationPlan { Priority = DriftSeverity.Info, EstimatedImpact = "Insufficient data for adaptation", AutoApplicable = false };
 
             var all = _store[promptId].OrderBy(o => o.Timestamp).ToList();
             var baseline = GetWindowInternal(all, _policy.WindowSizeDays * 2, _policy.WindowSizeDays);
             var recent = GetWindowInternal(all, _policy.WindowSizeDays, 0);
+            return AutoAdaptInternal(promptId, all, baseline, recent);
+        }
+
+        /// <summary>Internal adaptation logic using pre-computed windows — avoids
+        /// redundant sort + filter + stats when called from <see cref="Analyze"/>.</summary>
+        private AdaptationPlan AutoAdaptInternal(string promptId, List<DriftObservation> all, DriftWindow baseline, DriftWindow recent)
+        {
+            var plan = new AdaptationPlan();
 
             double scoreDrop = baseline.MeanScore - recent.MeanScore;
             bool modelChanged = DetectModelChange(all);
