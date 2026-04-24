@@ -261,7 +261,7 @@ namespace Prompt
         /// <param name="json">JSON array of canary tokens.</param>
         public void ImportRegistry(string json)
         {
-            if (string.IsNullOrEmpty(json)) throw new ArgumentException("JSON cannot be empty.", nameof(json));
+            SerializationGuards.ValidateJsonInput(json);
             var tokens = JsonSerializer.Deserialize<List<CanaryToken>>(json) ?? new();
             foreach (var token in tokens)
                 Register(token);

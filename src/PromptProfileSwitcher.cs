@@ -241,6 +241,7 @@ namespace Prompt
         /// <summary>Import profiles from JSON, optionally overwriting existing ones.</summary>
         public int ImportJson(string json, bool overwrite = false)
         {
+            SerializationGuards.ValidateJsonInput(json);
             var doc = JsonDocument.Parse(json);
             int count = 0;
 

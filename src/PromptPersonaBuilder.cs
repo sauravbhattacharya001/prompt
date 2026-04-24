@@ -217,6 +217,7 @@ namespace Prompt
         /// </summary>
         public static PersonaResult FromJson(string json)
         {
+            SerializationGuards.ValidateJsonInput(json);
             var definition = JsonSerializer.Deserialize<PersonaDefinition>(json)
                 ?? throw new ArgumentException("Invalid persona JSON.", nameof(json));
             return new PersonaResult(definition);

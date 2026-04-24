@@ -219,6 +219,7 @@ namespace Prompt
         /// </summary>
         public int ImportJson(string json)
         {
+            SerializationGuards.ValidateJsonInput(json);
             var flags = JsonSerializer.Deserialize<List<PromptFeatureFlag>>(json,
                 new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
             if (flags == null) return 0;

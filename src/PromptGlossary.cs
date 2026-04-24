@@ -409,6 +409,7 @@ namespace Prompt
         /// <returns>Number of terms imported.</returns>
         public int ImportJson(string json)
         {
+            SerializationGuards.ValidateJsonInput(json);
             var terms = JsonSerializer.Deserialize<List<GlossaryTerm>>(json);
             if (terms == null) return 0;
 

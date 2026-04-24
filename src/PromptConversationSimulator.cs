@@ -507,6 +507,7 @@ namespace Prompt
         {
             if (string.IsNullOrWhiteSpace(json))
                 throw new ArgumentException("JSON string must not be empty.", nameof(json));
+            SerializationGuards.ThrowIfPayloadTooLarge(json);
 
             var options = new JsonSerializerOptions
             {
