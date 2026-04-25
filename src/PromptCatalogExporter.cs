@@ -253,6 +253,14 @@ namespace Prompt
 
         private static string CsvField(string value)
         {
+            // Guard against CSV injection (CWE-1236): prefix formula-trigger
+            // characters with a single-quote so spreadsheet apps treat the
+            // cell as a literal text value instead of a formula.
+            if (value.Length > 0 && value[0] is '=' or '+' or '-' or '@' or '\t' or '\r')
+            {
+                value = "'" + value;
+            }
+
             if (value.Contains('"') || value.Contains(',') ||
                 value.Contains('\n') || value.Contains('\r'))
             {
