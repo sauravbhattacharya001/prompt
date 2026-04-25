@@ -317,13 +317,13 @@ namespace Prompt
         // Pre-compiled regexes for filler word removal — avoids recompiling
         // 10 Regex objects on every MutateRemoveFiller call (once per offspring).
         private static readonly (Regex pattern, string replacement)[] FillerRegexes =
-            FillerWords.Select(f => (new Regex($@"\b{Regex.Escape(f)}\b\s*", RegexOptions.IgnoreCase | RegexOptions.Compiled), "")).ToArray();
+            FillerWords.Select(f => (new Regex($@"\b{Regex.Escape(f)}\b\s*", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), "")).ToArray();
 
-        private static readonly Regex MultiSpaceRegex = new(@"\s{2,}", RegexOptions.Compiled);
+        private static readonly Regex MultiSpaceRegex = new(@"\s{2,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         // Pre-compiled regexes for synonym swap — avoids recompiling per call.
         private static readonly (Regex pattern, string synonym)[] SynonymRegexes =
-            SynonymMap.Select(kv => (new Regex($@"\b{Regex.Escape(kv.Key)}\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), kv.Value)).ToArray();
+            SynonymMap.Select(kv => (new Regex($@"\b{Regex.Escape(kv.Key)}\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)), kv.Value)).ToArray();
 
         private Random _rng;
 

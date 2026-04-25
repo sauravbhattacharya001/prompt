@@ -58,13 +58,13 @@ namespace Prompt
         private readonly List<Regex> _placeholderPatterns = new();
 
         private static readonly Regex DefaultPlaceholderPattern =
-            new(@"\{\{?\w+\}?\}", RegexOptions.Compiled);
+            new(@"\{\{?\w+\}?\}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex CodeBlockPattern =
-            new(@"```[\s\S]*?```", RegexOptions.Compiled);
+            new(@"```[\s\S]*?```", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         private static readonly Regex InlineCodePattern =
-            new(@"`[^`]+`", RegexOptions.Compiled);
+            new(@"`[^`]+`", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         /// <summary>
         /// Creates a new PromptTranslator with the given translation function.
@@ -81,7 +81,8 @@ namespace Prompt
         /// </summary>
         public PromptTranslator AddPlaceholderPattern(string regexPattern)
         {
-            _placeholderPatterns.Add(new Regex(regexPattern, RegexOptions.Compiled));
+            _placeholderPatterns.Add(new Regex(regexPattern, RegexOptions.Compiled,
+                TimeSpan.FromMilliseconds(500)));
             return this;
         }
 
