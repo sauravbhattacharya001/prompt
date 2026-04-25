@@ -582,22 +582,65 @@ namespace Prompt
             var now = sorted.Count > 0 ? sorted.Last().Timestamp : DateTime.UtcNow;
             var windowEnd = now.AddDays(-daysForward);
             var windowStart = now.AddDays(-daysBack);
-            var windowed = sorted.Where(o => o.Timestamp >= windowStart && o.Timestamp <= windowEnd).ToList();
 
-            if (windowed.Count == 0)
+            // Single pass: collect all aggregates (sum, sum-of-squares, min, max)
+            // and regression accumulators instead of 10+ separate LINQ passes.
+            int count = 0;
+            double sumScore = 0, sumScore2 = 0, minScore = double.MaxValue, maxScore = double.MinValue;
+            double sumLatency = 0, sumLatency2 = 0;
+            double sumTokens = 0, sumErrorRate = 0;
+            // Linear regression accumulators (score vs time-offset in days)
+            double sumX = 0, sumX2 = 0, sumXY = 0;
+            DateTime firstTimestamp = default;
+
+            for (int i = 0; i < sorted.Count; i++)
+            {
+                var o = sorted[i];
+                if (o.Timestamp < windowStart || o.Timestamp > windowEnd) continue;
+
+                if (count == 0) firstTimestamp = o.Timestamp;
+                count++;
+
+                double s = o.Score;
+                sumScore += s;
+                sumScore2 += s * s;
+                if (s < minScore) minScore = s;
+                if (s > maxScore) maxScore = s;
+
+                sumLatency += o.LatencyMs;
+                sumLatency2 += o.LatencyMs * o.LatencyMs;
+                sumTokens += o.TokenCount;
+                sumErrorRate += o.ErrorRate;
+
+                double x = (o.Timestamp - firstTimestamp).TotalDays;
+                sumX += x;
+                sumX2 += x * x;
+                sumXY += x * s;
+            }
+
+            if (count == 0)
                 return new DriftWindow { Start = windowStart, End = windowEnd, Direction = DriftDirection.Stable };
 
-            var scores = windowed.Select(o => o.Score).ToList();
-            double meanScore = scores.Average();
-            double stdScore = StdDev(scores);
+            double meanScore = sumScore / count;
+            double meanLatency = sumLatency / count;
+            double meanTokens = sumTokens / count;
+            double meanErrorRate = sumErrorRate / count;
 
-            // Linear regression on score over time
+            // Sample standard deviation from running sums: sqrt((sumX2 - n*mean²) / (n-1))
+            double stdScore = count >= 2
+                ? Math.Sqrt(Math.Max(0, (sumScore2 - count * meanScore * meanScore) / (count - 1)))
+                : 0;
+            double stdLatency = count >= 2
+                ? Math.Sqrt(Math.Max(0, (sumLatency2 - count * meanLatency * meanLatency) / (count - 1)))
+                : 0;
+
+            // Linear regression slope from accumulators
             double slope = 0;
-            if (windowed.Count >= 3)
+            if (count >= 3)
             {
-                var xs = windowed.Select(o => (o.Timestamp - windowed[0].Timestamp).TotalDays).ToList();
-                var ys = scores;
-                slope = LinearSlope(xs, ys);
+                double denom = count * sumX2 - sumX * sumX;
+                if (Math.Abs(denom) > 1e-10)
+                    slope = (count * sumXY - sumX * sumScore) / denom;
             }
 
             var dir = Math.Abs(slope) < 0.002 ? DriftDirection.Stable :
@@ -608,15 +651,15 @@ namespace Prompt
             {
                 Start = windowStart,
                 End = windowEnd,
-                ObservationCount = windowed.Count,
+                ObservationCount = count,
                 MeanScore = meanScore,
                 StdDevScore = stdScore,
-                MinScore = scores.Min(),
-                MaxScore = scores.Max(),
-                MeanLatency = windowed.Average(o => o.LatencyMs),
-                StdDevLatency = StdDev(windowed.Select(o => o.LatencyMs)),
-                MeanTokens = windowed.Average(o => (double)o.TokenCount),
-                MeanErrorRate = windowed.Average(o => o.ErrorRate),
+                MinScore = minScore,
+                MaxScore = maxScore,
+                MeanLatency = meanLatency,
+                StdDevLatency = stdLatency,
+                MeanTokens = meanTokens,
+                MeanErrorRate = meanErrorRate,
                 TrendSlope = slope,
                 Direction = dir
             };
