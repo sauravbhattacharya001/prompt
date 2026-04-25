@@ -347,27 +347,48 @@ namespace Prompt
                 ? _config.MaxFailoverRetries
                 : _endpoints.Count;
             Exception? lastException = null;
+            const int CapacityBackoffMs = 50;
+            int capacityRetries = 0;
 
             for (int attempt = 0; attempt < maxRetries; attempt++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
                 int idx = SelectEndpoint(tried);
-                if (idx < 0) break;
+                if (idx < 0)
+                {
+                    // All untried endpoints exhausted.  If some were skipped
+                    // only due to MaxConcurrent limits (tried < total), back
+                    // off briefly and retry — in-flight requests may complete.
+                    if (tried.Count < _endpoints.Count && capacityRetries < 3)
+                    {
+                        capacityRetries++;
+                        tried.Clear();
+                        await Task.Delay(CapacityBackoffMs * capacityRetries, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+                    break;
+                }
 
-                tried.Add(idx);
                 var state = _endpoints[idx];
                 bool isFailover = attempt > 0;
 
                 if (isFailover)
                     Interlocked.Increment(ref _failoverEvents);
 
-                // Enforce max concurrent
+                // Enforce max concurrent — do NOT add to 'tried' so the
+                // endpoint remains eligible after capacity frees up.
+                // Fix for #182: capacity-limited endpoints were permanently
+                // excluded from the retry loop.
                 if (state.Config.MaxConcurrent > 0 &&
                     Interlocked.CompareExchange(ref state.InFlight, 0, 0) >= state.Config.MaxConcurrent)
                 {
-                    continue; // skip overloaded endpoint
+                    continue; // skip without marking as tried
                 }
+
+                // Mark as tried only after passing the capacity gate —
+                // the endpoint will actually be attempted.
+                tried.Add(idx);
 
                 Interlocked.Increment(ref state.TotalRequests);
                 Interlocked.Increment(ref state.InFlight);
