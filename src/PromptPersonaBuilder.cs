@@ -228,6 +228,16 @@ namespace Prompt
         /// </summary>
         public static async Task<PersonaResult> FromFileAsync(string path, CancellationToken ct = default)
         {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("File path cannot be null or empty.", nameof(path));
+
+            path = Path.GetFullPath(path);
+
+            if (!File.Exists(path))
+                throw new FileNotFoundException($"Persona file not found: {path}", path);
+
+            SerializationGuards.ThrowIfFileTooLarge(path);
+
             var json = await File.ReadAllTextAsync(path, ct);
             return FromJson(json);
         }

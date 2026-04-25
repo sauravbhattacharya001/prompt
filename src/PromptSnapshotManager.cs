@@ -447,6 +447,7 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
 
+            filePath = Path.GetFullPath(filePath);
             string json = ToJson(true);
             await File.WriteAllTextAsync(filePath, json, cancellationToken);
         }
