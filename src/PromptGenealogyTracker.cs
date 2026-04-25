@@ -110,6 +110,8 @@ namespace Prompt
     public sealed class PromptGenealogyTracker
     {
         private readonly Dictionary<string, PromptAncestor> _ancestors = new();
+        // Pre-built parent→children index avoids O(n) scans per lookup.
+        private readonly Dictionary<string, List<string>> _childrenOf = new();
         private static readonly JsonSerializerOptions s_jsonOptions = new()
         {
             WriteIndented = true,
@@ -134,8 +136,16 @@ namespace Prompt
             if (secondParentId != null && !_ancestors.ContainsKey(secondParentId))
                 throw new ArgumentException($"Second parent '{secondParentId}' not found.", nameof(secondParentId));
 
-            _ancestors[id] = new PromptAncestor(id, text, DateTime.UtcNow, parentId, secondParentId,
+            var ancestor = new PromptAncestor(id, text, DateTime.UtcNow, parentId, secondParentId,
                 parentId == null ? GenealogyRelation.Parent : relation, metadata ?? new());
+            _ancestors[id] = ancestor;
+            _childrenOf[id] = new List<string>();
+            if (parentId != null)
+            {
+                if (!_childrenOf.ContainsKey(parentId))
+                    _childrenOf[parentId] = new List<string>();
+                _childrenOf[parentId].Add(id);
+            }
         }
 
         /// <summary>Register a root prompt with no parent.</summary>
@@ -163,16 +173,13 @@ namespace Prompt
 
         private void BuildTreeRecursive(LineageNode parent, string parentId)
         {
-            foreach (var (id, a) in _ancestors)
+            if (!_childrenOf.TryGetValue(parentId, out var childIds)) return;
+            foreach (var id in childIds)
             {
-                if (a.ParentId == parentId || a.SecondParentId == parentId)
-                {
-                    // Avoid self-reference and only primary parent drives tree structure
-                    if (a.ParentId != parentId) continue;
-                    var child = new LineageNode(a) { Depth = parent.Depth + 1, Generation = parent.Generation + 1 };
-                    parent.Children.Add(child);
-                    BuildTreeRecursive(child, id);
-                }
+                var a = _ancestors[id];
+                var child = new LineageNode(a) { Depth = parent.Depth + 1, Generation = parent.Generation + 1 };
+                parent.Children.Add(child);
+                BuildTreeRecursive(child, id);
             }
         }
 
@@ -195,9 +202,8 @@ namespace Prompt
         {
             if (!_ancestors.TryGetValue(id, out var prompt)) return new();
             if (prompt.ParentId == null) return new();
-            return _ancestors.Values
-                .Where(a => a.ParentId == prompt.ParentId && a.Id != id)
-                .ToList();
+            if (!_childrenOf.TryGetValue(prompt.ParentId, out var siblings)) return new();
+            return siblings.Where(s => s != id).Select(s => _ancestors[s]).ToList();
         }
 
         /// <summary>Compute Jaccard similarity on word trigrams between two texts.</summary>
@@ -239,15 +245,24 @@ namespace Prompt
         {
             var alerts = new List<DiversityAlert>();
             var prompts = _ancestors.Values.ToList();
+
+            // Pre-compute roots and trigrams once — avoids O(n²) repeated
+            // FindRoot walks and GetTrigrams string allocations.
+            var roots = new string[prompts.Count];
+            var trigrams = new HashSet<string>[prompts.Count];
+            for (int i = 0; i < prompts.Count; i++)
+            {
+                roots[i] = FindRoot(prompts[i].Id);
+                trigrams[i] = GetTrigrams(prompts[i].Text);
+            }
+
             for (int i = 0; i < prompts.Count; i++)
             {
                 for (int j = i + 1; j < prompts.Count; j++)
                 {
-                    var root1 = FindRoot(prompts[i].Id);
-                    var root2 = FindRoot(prompts[j].Id);
-                    if (root1 == root2) continue;
+                    if (roots[i] == roots[j]) continue;
 
-                    var sim = ComputeSimilarity(prompts[i].Text, prompts[j].Text);
+                    var sim = JaccardFromSets(trigrams[i], trigrams[j]);
                     if (sim >= threshold)
                     {
                         alerts.Add(new DiversityAlert(
@@ -262,18 +277,34 @@ namespace Prompt
             return alerts;
         }
 
+        /// <summary>Jaccard similarity between two pre-computed sets.</summary>
+        private static double JaccardFromSets(HashSet<string> a, HashSet<string> b)
+        {
+            if (a.Count == 0 && b.Count == 0) return 1.0;
+            if (a.Count == 0 || b.Count == 0) return 0.0;
+            int intersection = 0;
+            // Iterate over the smaller set for efficiency
+            var (smaller, larger) = a.Count <= b.Count ? (a, b) : (b, a);
+            foreach (var item in smaller)
+                if (larger.Contains(item)) intersection++;
+            int union = a.Count + b.Count - intersection;
+            return union == 0 ? 0.0 : (double)intersection / union;
+        }
+
         /// <summary>Compute overall portfolio diversity (average pairwise dissimilarity).</summary>
         public double ComputeDiversityScore()
         {
             var prompts = _ancestors.Values.ToList();
             if (prompts.Count < 2) return 1.0;
+            // Pre-compute trigrams once — O(n) instead of O(n²) GetTrigrams calls
+            var trigrams = prompts.Select(p => GetTrigrams(p.Text)).ToArray();
             double totalSim = 0;
             int pairs = 0;
             for (int i = 0; i < prompts.Count; i++)
             {
                 for (int j = i + 1; j < prompts.Count; j++)
                 {
-                    totalSim += ComputeSimilarity(prompts[i].Text, prompts[j].Text);
+                    totalSim += JaccardFromSets(trigrams[i], trigrams[j]);
                     pairs++;
                 }
             }
@@ -357,7 +388,7 @@ namespace Prompt
             // Check extinction risk (roots with no descendants)
             foreach (var root in GetAllRoots())
             {
-                var hasChildren = _ancestors.Values.Any(a => a.ParentId == root.Id);
+                var hasChildren = _childrenOf.TryGetValue(root.Id, out var rootChildren) && rootChildren.Count > 0;
                 if (!hasChildren && _ancestors.Count > 1)
                 {
                     allAlerts.Add(new DiversityAlert(
@@ -373,9 +404,9 @@ namespace Prompt
                 .GroupBy(a => a.Relation.ToString())
                 .ToDictionary(g => g.Key, g => g.Count());
 
-            // Branching factor
-            var childCounts = _ancestors.Keys
-                .Select(id => _ancestors.Values.Count(a => a.ParentId == id))
+            // Branching factor — uses pre-built children index (O(n) vs O(n²))
+            var childCounts = _childrenOf.Values
+                .Select(children => children.Count)
                 .Where(c => c > 0)
                 .ToList();
             var avgBranching = childCounts.Count > 0 ? childCounts.Average() : 0.0;
@@ -407,8 +438,9 @@ namespace Prompt
 
         private int CountDescendants(string id)
         {
-            var children = _ancestors.Values.Where(a => a.ParentId == id).ToList();
-            return children.Count + children.Sum(c => CountDescendants(c.Id));
+            if (!_childrenOf.TryGetValue(id, out var children) || children.Count == 0)
+                return 0;
+            return children.Count + children.Sum(c => CountDescendants(c));
         }
 
         /// <summary>Get all root prompts (no parent).</summary>
@@ -439,7 +471,7 @@ namespace Prompt
             sb.AppendLine("  node [shape=box, style=filled, fontsize=10];");
 
             var roots = new HashSet<string>(GetAllRoots().Select(r => r.Id));
-            var leaves = new HashSet<string>(_ancestors.Keys.Where(id => !_ancestors.Values.Any(a => a.ParentId == id)));
+            var leaves = new HashSet<string>(_ancestors.Keys.Where(id => !_childrenOf.TryGetValue(id, out var ch) || ch.Count == 0));
 
             foreach (var (id, a) in _ancestors)
             {
