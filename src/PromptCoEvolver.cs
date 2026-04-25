@@ -314,6 +314,17 @@ namespace Prompt
             ["good"] = "effective"
         };
 
+        // Pre-compiled regexes for filler word removal — avoids recompiling
+        // 10 Regex objects on every MutateRemoveFiller call (once per offspring).
+        private static readonly (Regex pattern, string replacement)[] FillerRegexes =
+            FillerWords.Select(f => (new Regex($@"\b{Regex.Escape(f)}\b\s*", RegexOptions.IgnoreCase | RegexOptions.Compiled), "")).ToArray();
+
+        private static readonly Regex MultiSpaceRegex = new(@"\s{2,}", RegexOptions.Compiled);
+
+        // Pre-compiled regexes for synonym swap — avoids recompiling per call.
+        private static readonly (Regex pattern, string synonym)[] SynonymRegexes =
+            SynonymMap.Select(kv => (new Regex($@"\b{Regex.Escape(kv.Key)}\b", RegexOptions.IgnoreCase | RegexOptions.Compiled), kv.Value)).ToArray();
+
         private Random _rng;
 
         public PromptCoEvolver()
@@ -452,12 +463,15 @@ namespace Prompt
             var sentA = SplitSentences(a);
             var sentB = SplitSentences(b);
             var result = new List<string>();
+            // O(1) duplicate check instead of O(n) List.Contains per sentence
+            var seen = new HashSet<string>(StringComparer.Ordinal);
 
             int maxLen = Math.Max(sentA.Count, sentB.Count);
             for (int i = 0; i < maxLen; i++)
             {
-                if (i < sentA.Count) result.Add(sentA[i]);
-                if (i < sentB.Count && !result.Contains(sentB[i]))
+                if (i < sentA.Count && seen.Add(sentA[i]))
+                    result.Add(sentA[i]);
+                if (i < sentB.Count && seen.Add(sentB[i]))
                     result.Add(sentB[i]);
             }
 
@@ -627,11 +641,9 @@ namespace Prompt
 
         private string MutateRemoveFiller(string text)
         {
-            foreach (var filler in FillerWords)
-            {
-                text = Regex.Replace(text, $@"\b{Regex.Escape(filler)}\b\s*", "", RegexOptions.IgnoreCase);
-            }
-            return Regex.Replace(text.Trim(), @"\s{2,}", " ");
+            foreach (var (pattern, replacement) in FillerRegexes)
+                text = pattern.Replace(text, replacement);
+            return MultiSpaceRegex.Replace(text.Trim(), " ");
         }
 
         private string MutateReorder(string text)
@@ -664,13 +676,12 @@ namespace Prompt
         private string MutateSynonymSwap(string text)
         {
             int swaps = 0;
-            foreach (var (word, synonym) in SynonymMap)
+            foreach (var (pattern, synonym) in SynonymRegexes)
             {
                 if (swaps >= 2) break;
-                var pattern = $@"\b{Regex.Escape(word)}\b";
-                if (Regex.IsMatch(text, pattern, RegexOptions.IgnoreCase))
+                if (pattern.IsMatch(text))
                 {
-                    text = Regex.Replace(text, pattern, synonym, RegexOptions.IgnoreCase);
+                    text = pattern.Replace(text, synonym);
                     swaps++;
                 }
             }
