@@ -153,6 +153,15 @@ namespace Prompt
         private int _maxTotalAttempts = 10;
 
         /// <summary>
+        /// Process-wide lock that serializes environment-variable mutations in
+        /// <see cref="ExecuteTierAsync"/>.  Without this, concurrent
+        /// <c>ExecuteAsync</c> calls from different threads race on the shared
+        /// process environment, allowing one chain to read another chain's
+        /// API key / endpoint / model (CWE-362 + CWE-522).
+        /// </summary>
+        private static readonly SemaphoreSlim EnvVarLock = new(1, 1);
+
+        /// <summary>
         /// Creates an empty fallback chain.  Add tiers with <see cref="AddTier"/>.
         /// </summary>
         public PromptFallbackChain() { }
@@ -340,6 +349,15 @@ namespace Prompt
             string? systemPrompt,
             CancellationToken cancellationToken)
         {
+            // Acquire process-wide lock before touching environment variables.
+            // Environment.SetEnvironmentVariable is process-global: without
+            // serialization, concurrent ExecuteAsync calls race on these
+            // shared variables, causing one chain to read another chain's
+            // AZURE_OPENAI_API_KEY — a credential-leakage / cross-tenant
+            // data exposure risk (CWE-362, CWE-522).
+            await EnvVarLock.WaitAsync(cancellationToken);
+            try
+            {
             // Store originals
             var origUri = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_URI");
             var origKey = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_KEY");
@@ -398,6 +416,11 @@ namespace Prompt
                 Environment.SetEnvironmentVariable("AZURE_OPENAI_API_KEY", origKey);
                 Environment.SetEnvironmentVariable("AZURE_OPENAI_API_MODEL", origModel);
                 Main.ResetClient();
+            }
+            }
+            finally
+            {
+                EnvVarLock.Release();
             }
         }
 
