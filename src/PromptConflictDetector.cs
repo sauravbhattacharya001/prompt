@@ -165,6 +165,10 @@ namespace Prompt
     /// </example>
     public class PromptConflictDetector
     {
+        // Antonym index: word → set of its antonyms (bidirectional)
+        // Enables O(|wordsA|) antonym lookup per instruction pair instead of O(|AntonymPairs|).
+        private static readonly Dictionary<string, HashSet<string>> AntonymIndex;
+
         // Antonym pairs that signal direct contradictions
         private static readonly (string, string)[] AntonymPairs = new[]
         {
@@ -190,6 +194,21 @@ namespace Prompt
             ("minimal", "comprehensive"), ("minimal", "exhaustive"),
             ("succinct", "elaborate"), ("succinct", "verbose"),
         };
+
+        static PromptConflictDetector()
+        {
+            AntonymIndex = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (a, b) in AntonymPairs)
+            {
+                if (!AntonymIndex.TryGetValue(a, out var setA))
+                    AntonymIndex[a] = setA = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                setA.Add(b);
+
+                if (!AntonymIndex.TryGetValue(b, out var setB))
+                    AntonymIndex[b] = setB = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                setB.Add(a);
+            }
+        }
 
         // Patterns that extract numeric constraints
         private static readonly Regex NumericConstraintPattern = new(
@@ -298,17 +317,23 @@ namespace Prompt
             var wordsA = NormalizeWords(instA);
             var wordsB = NormalizeWords(instB);
 
-            foreach (var (wordX, wordY) in AntonymPairs)
+            // Use AntonymIndex for O(|wordsA|) lookup instead of iterating all pairs
+            foreach (var wordA in wordsA)
             {
-                bool aHasX = wordsA.Contains(wordX);
-                bool aHasY = wordsA.Contains(wordY);
-                bool bHasX = wordsB.Contains(wordX);
-                bool bHasY = wordsB.Contains(wordY);
+                if (!AntonymIndex.TryGetValue(wordA, out var antonymsOfA))
+                    continue;
 
-                if ((aHasX && bHasY) || (aHasY && bHasX))
+                // Find first antonym of wordA that appears in wordsB
+                string? matchedB = null;
+                foreach (var ant in antonymsOfA)
                 {
-                    var matchedA = aHasX ? wordX : wordY;
-                    var matchedB = bHasX ? wordX : wordY;
+                    if (wordsB.Contains(ant)) { matchedB = ant; break; }
+                }
+                if (matchedB == null)
+                    continue;
+
+                {
+                    var matchedA = wordA;
 
                     report.Conflicts.Add(new PromptConflict
                     {
@@ -445,9 +470,19 @@ namespace Prompt
                         var aWords = new HashSet<string>(a.tone.Split(' ', StringSplitOptions.RemoveEmptyEntries));
                         var bWords = new HashSet<string>(b.tone.Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
-                        bool isContradictory = AntonymPairs.Any(pair =>
-                            (aWords.Contains(pair.Item1) && bWords.Contains(pair.Item2)) ||
-                            (aWords.Contains(pair.Item2) && bWords.Contains(pair.Item1)));
+                        // Use AntonymIndex for O(|aWords|) check instead of O(|AntonymPairs|)
+                        bool isContradictory = false;
+                        foreach (var w in aWords)
+                        {
+                            if (AntonymIndex.TryGetValue(w, out var ants))
+                            {
+                                foreach (var ant in ants)
+                                {
+                                    if (bWords.Contains(ant)) { isContradictory = true; break; }
+                                }
+                                if (isContradictory) break;
+                            }
+                        }
 
                         if (isContradictory)
                         {
