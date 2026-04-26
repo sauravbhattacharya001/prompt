@@ -110,6 +110,10 @@ namespace Prompt
         // Field tracking for matched-field reporting
         private readonly Dictionary<string, Dictionary<string, HashSet<string>>> _fieldTerms = new();
 
+        // Inverted index: term → set of document names containing that term.
+        // Enables O(posting_size) candidate selection instead of O(D) full scan.
+        private readonly Dictionary<string, HashSet<string>> _postingLists = new(StringComparer.Ordinal);
+
         // Pre-compiled regex for tokenization (avoids recompilation each call)
         private static readonly Regex TokenizerRegex = new(@"[^a-z0-9]+",
             RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
@@ -228,11 +232,18 @@ namespace Prompt
             _tfVectors[entry.Name] = tf;
             _documentLengths[entry.Name] = allTerms.Count;
 
-            // Update document frequency
+            // Update document frequency and posting lists
             foreach (var term in tf.Keys)
             {
                 _documentFrequency.TryGetValue(term, out var df);
                 _documentFrequency[term] = df + 1;
+
+                if (!_postingLists.TryGetValue(term, out var postings))
+                {
+                    postings = new HashSet<string>(StringComparer.Ordinal);
+                    _postingLists[term] = postings;
+                }
+                postings.Add(entry.Name);
             }
 
             _totalDocuments++;
@@ -260,7 +271,7 @@ namespace Prompt
             if (string.IsNullOrEmpty(name) || !_entries.ContainsKey(name))
                 return false;
 
-            // Decrement document frequency for all terms in this doc
+            // Decrement document frequency and posting lists for all terms in this doc
             if (_tfVectors.TryGetValue(name, out var tf))
             {
                 foreach (var term in tf.Keys)
@@ -271,6 +282,13 @@ namespace Prompt
                             _documentFrequency.Remove(term);
                         else
                             _documentFrequency[term] = df - 1;
+                    }
+
+                    if (_postingLists.TryGetValue(term, out var postings))
+                    {
+                        postings.Remove(name);
+                        if (postings.Count == 0)
+                            _postingLists.Remove(term);
                     }
                 }
             }
@@ -299,6 +317,7 @@ namespace Prompt
             _documentFrequency.Clear();
             _documentLengths.Clear();
             _fieldTerms.Clear();
+            _postingLists.Clear();
             _totalDocuments = 0;
             _totalDocumentLength = 0;
             _avgDocumentLength = 0;
@@ -385,12 +404,31 @@ namespace Prompt
                 }
             }
 
+            // Build candidate set from inverted index posting lists.
+            // Only documents containing at least one query/expanded/prefix/fuzzy
+            // term are scored — avoids O(D) full scan when D >> candidates.
+            var candidates = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var termKvp in expandedTerms)
+            {
+                if (_postingLists.TryGetValue(termKvp.Key, out var postings))
+                    candidates.UnionWith(postings);
+            }
+            foreach (var prefixKvp in prefixExpansions)
+            {
+                if (prefixKvp.Value != null && _postingLists.TryGetValue(prefixKvp.Value, out var postings))
+                    candidates.UnionWith(postings);
+            }
+            foreach (var fuzzyKvp in fuzzyExpansions)
+            {
+                if (fuzzyKvp.Value != null && _postingLists.TryGetValue(fuzzyKvp.Value.Value.term, out var postings))
+                    candidates.UnionWith(postings);
+            }
+
             var results = new List<SearchResult>();
 
-            foreach (var kvp in _entries)
+            foreach (var name in candidates)
             {
-                var name = kvp.Key;
-                var entry = kvp.Value;
+                var entry = _entries[name];
                 var tf = _tfVectors[name];
                 var docLen = _documentLengths[name];
 
