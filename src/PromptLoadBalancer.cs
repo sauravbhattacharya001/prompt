@@ -349,10 +349,13 @@ namespace Prompt
             Exception? lastException = null;
             const int CapacityBackoffMs = 50;
             int capacityRetries = 0;
+            int capacitySkips = 0;
+            int actualAttempts = 0;
 
-            for (int attempt = 0; attempt < maxRetries; attempt++)
+            for (int attempt = 0; attempt < maxRetries + _endpoints.Count * 4; attempt++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (actualAttempts >= maxRetries) break;
 
                 int idx = SelectEndpoint(tried);
                 if (idx < 0)
@@ -364,6 +367,7 @@ namespace Prompt
                     {
                         capacityRetries++;
                         tried.Clear();
+                        capacitySkips = 0;
                         await Task.Delay(CapacityBackoffMs * capacityRetries, cancellationToken).ConfigureAwait(false);
                         continue;
                     }
@@ -371,10 +375,6 @@ namespace Prompt
                 }
 
                 var state = _endpoints[idx];
-                bool isFailover = attempt > 0;
-
-                if (isFailover)
-                    Interlocked.Increment(ref _failoverEvents);
 
                 // Enforce max concurrent — do NOT add to 'tried' so the
                 // endpoint remains eligible after capacity frees up.
@@ -383,12 +383,34 @@ namespace Prompt
                 if (state.Config.MaxConcurrent > 0 &&
                     Interlocked.CompareExchange(ref state.InFlight, 0, 0) >= state.Config.MaxConcurrent)
                 {
-                    continue; // skip without marking as tried
+                    capacitySkips++;
+                    // If we've cycled through all endpoints and all are at
+                    // capacity, back off before retrying.  Without this,
+                    // capacity skips silently consumed the entire retry
+                    // budget without making any real requests.
+                    if (capacitySkips > _endpoints.Count)
+                    {
+                        if (capacityRetries >= 3) break;
+                        capacityRetries++;
+                        capacitySkips = 0;
+                        tried.Clear();
+                        await Task.Delay(CapacityBackoffMs * capacityRetries, cancellationToken).ConfigureAwait(false);
+                    }
+                    continue; // skip without marking as tried or consuming a real attempt
                 }
+
+                capacitySkips = 0;
 
                 // Mark as tried only after passing the capacity gate —
                 // the endpoint will actually be attempted.
                 tried.Add(idx);
+
+                bool isFailover = actualAttempts > 0;
+
+                if (isFailover)
+                    Interlocked.Increment(ref _failoverEvents);
+
+                actualAttempts++;
 
                 Interlocked.Increment(ref state.TotalRequests);
                 Interlocked.Increment(ref state.InFlight);
