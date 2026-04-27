@@ -26,3 +26,8 @@ jobs:
 
       - name: Run tests
         run: dotnet test Prompt.sln --no-build --configuration Release --verbosity normal
+
+      - name: Verify XML documentation generation
+        run: |
+          # Ensure XML docs are generated (catches missing XML doc comments)
+          test -f src/bin/Release/net8.0/Prompt.xml
