@@ -1,15 +1,21 @@
 # Labeler configuration — maps file path patterns to PR labels.
-# Used by actions/labeler@v5 in the auto-label workflow.
+# Used by actions/labeler@v6 in the auto-label workflow.
 
 core:
   - changed-files:
     - any-glob-to-any-file: 'src/**'
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file: 'tests/**'
 
 documentation:
   - changed-files:
     - any-glob-to-any-file:
       - 'README.md'
       - 'CHANGELOG.md'
+      - 'CONTRIBUTING.md'
+      - 'SECURITY.md'
       - 'docs/**'
       - '**/*.md'
 
@@ -29,12 +35,15 @@ security:
     - any-glob-to-any-file:
       - '.github/workflows/codeql.yml'
       - '.github/dependabot.yml'
+      - '.github/codeql/**'
+      - 'SECURITY.md'
 
 config:
   - changed-files:
     - any-glob-to-any-file:
       - '*.sln'
       - 'src/*.csproj'
+      - 'tests/*.csproj'
       - '.editorconfig'
       - '.gitignore'
       - 'NuGet.Config'
@@ -43,3 +52,10 @@ dependencies:
   - changed-files:
     - any-glob-to-any-file:
       - 'src/*.csproj'
+      - 'tests/*.csproj'
+
+github-config:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/**'
+      - '!.github/workflows/**'

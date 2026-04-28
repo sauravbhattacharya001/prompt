@@ -2,14 +2,24 @@
 # Used by github/issue-labeler@v3.4 in the auto-label workflow.
 
 bug:
-  - "(bug|error|crash|fail|broken|not working|exception|issue)"
+  - "(bug|error|crash|fail(s|ed|ure)?|broken|not working|exception|issue|regression|panic|segfault|deadlock)"
 enhancement:
-  - "(feature|request|enhancement|add support|improve|suggest)"
+  - "(feature|request|enhancement|add support|improve|suggest|proposal|new|wishlist)"
 question:
-  - "(question|how to|how do|is it possible|can i|help)"
+  - "(question|how to|how do|is it possible|can i|help|confused|explain|clarify)"
 documentation:
-  - "(doc|documentation|readme|typo|spelling)"
+  - "(doc(s|umentation)?|readme|typo|spelling|example|tutorial|guide)"
 security:
-  - "(security|vulnerability|cve|exploit|injection|xss)"
+  - "(security|vulnerability|cve|exploit|injection|xss|csrf|ssrf|auth(n|z)|privilege|escalation)"
 dependencies:
-  - "(dependency|dependencies|update|upgrade|package|nuget|version)"
+  - "(dependency|dependencies|update|upgrade|package|nuget|version|bump|outdated)"
+performance:
+  - "(perf(ormance)?|slow|latency|memory leak|throughput|optimize|bottleneck|profil(e|ing))"
+testing:
+  - "(test(s|ing)?|coverage|unit test|integration test|flaky|assertion|mock)"
+refactoring:
+  - "(refactor|cleanup|clean up|technical debt|tech debt|simplify|reorganize|restructure)"
+"priority:critical":
+  - "(critical|urgent|blocker|showstopper|p0|production down|data loss|security breach)"
+"good first issue":
+  - "(good first issue|beginner|newcomer|starter|easy fix|low hanging)"
