@@ -2,13 +2,13 @@
 
 ## Project Overview
 
-**Prompt** is a comprehensive C# (.NET 8) prompt engineering library for Azure OpenAI. It started as a simple chat completion wrapper (`Main.cs`) and has grown into a full-featured toolkit with 155+ classes spanning prompt management, security, testing, analytics, chaining, caching, and workflow orchestration.
+**Prompt** is a comprehensive C# (.NET 8) prompt engineering library for Azure OpenAI. It started as a simple chat completion wrapper (`Main.cs`) and has grown into a full-featured toolkit with 166+ source files spanning prompt management, security, testing, analytics, chaining, caching, and workflow orchestration.
 
 ## Solution Structure
 
 ```
 Prompt.sln
-├── src/Prompt.csproj          # Main library (155+ source files)
+├── src/Prompt.csproj          # Main library (166+ source files)
 │   ├── Main.cs                # Core API — static AzureOpenAI chat completions
 │   ├── Conversation.cs        # Multi-turn conversation management
 │   ├── FewShotBuilder.cs      # Few-shot example construction
