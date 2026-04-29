@@ -686,17 +686,6 @@ namespace Prompt
             return Math.Sqrt(sumSq / (list.Count - 1));
         }
 
-        private static double LinearSlope(List<double> xs, List<double> ys)
-        {
-            int n = xs.Count;
-            if (n < 2) return 0;
-            double sumX = xs.Sum(), sumY = ys.Sum();
-            double sumXY = xs.Zip(ys, (x, y) => x * y).Sum();
-            double sumX2 = xs.Sum(x => x * x);
-            double denom = n * sumX2 - sumX * sumX;
-            return Math.Abs(denom) < 1e-10 ? 0 : (n * sumXY - sumX * sumY) / denom;
-        }
-
         private bool DetectModelChange(List<DriftObservation> sorted)
         {
             if (sorted.Count < 2) return false;

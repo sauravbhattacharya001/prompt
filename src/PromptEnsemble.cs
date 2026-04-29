@@ -358,7 +358,5 @@ namespace Prompt
         private static double JaccardSimilarity(string a, string b) =>
             TextAnalysisHelpers.JaccardSimilarity(a, b);
 
-        private static IEnumerable<string> Tokenize(string s) =>
-            TextAnalysisHelpers.TokenizeToWordList(s);
     }
 }

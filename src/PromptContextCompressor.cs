@@ -579,20 +579,6 @@ namespace Prompt
             return groups;
         }
 
-        private static double ComputeSimilarity(string a, string b)
-        {
-            if (string.IsNullOrEmpty(a) && string.IsNullOrEmpty(b)) return 1.0;
-            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return 0.0;
-
-            // Normalize
-            a = NormalizeForComparison(a);
-            b = NormalizeForComparison(b);
-
-            return ComputeSimilarityFromNgrams(
-                a, GetWordNgrams(a, 2),
-                b, GetWordNgrams(b, 2));
-        }
-
         /// <summary>
         /// Computes Jaccard similarity from pre-computed normalized strings and n-gram sets.
         /// Avoids redundant normalization/tokenization when comparing many pairs.

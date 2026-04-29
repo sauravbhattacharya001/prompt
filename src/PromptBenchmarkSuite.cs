@@ -479,9 +479,6 @@ namespace Prompt
         private static double ComputeWordOverlap(string a, string b) =>
             TextAnalysisHelpers.WordOverlap(a, b);
 
-        private static HashSet<string> Tokenize(string text) =>
-            TextAnalysisHelpers.TokenizeToWordSetUnfiltered(text);
-
         /// <summary>
         /// Delegates to <see cref="TextAnalysisHelpers.NgramCosineSimilarity"/>.
         /// </summary>

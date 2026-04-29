@@ -612,9 +612,6 @@ namespace Prompt
         private static HashSet<string> TokenizeToSet(string text) =>
             TextAnalysisHelpers.TokenizeToWordSet(text);
 
-        private static List<string> Tokenize(string text) =>
-            TextAnalysisHelpers.TokenizeToWordList(text);
-
         internal List<OptimizationRecommendation> DetectFillerWords(string prompt)
         {
             var recs = new List<OptimizationRecommendation>();
