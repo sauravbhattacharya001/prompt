@@ -14,7 +14,7 @@ These are major features with no corresponding article in `docs/articles/`:
 | Prompt Linting & Quality | `PromptLinter`, `PromptQualityGate`, `PromptComplianceChecker` | `linting.md` |
 | Workflow & Pipelines | `PromptWorkflow`, `PromptPipeline`, `PromptDependencyGraph` | `workflows.md` |
 | Template Inheritance | `PromptInheritance`, `PromptConditional`, `PromptInterpolator` | `advanced-templates.md` |
-| Caching & Performance | `PromptCache`, `PromptRateLimiter`, `PromptPerformanceProfiler` | `caching.md` |
+| Caching & Performance | `PromptCache`, `PromptRateLimiter`, `PromptPerformanceProfiler` | ✅ `caching.md` |
 | Snapshot & Promotion | `PromptSnapshotManager`, `PromptPromotionManager` | `lifecycle.md` |
 | Resilience | `PromptFallbackChain`, `PromptRetryPolicy`, `PromptEnsemble` | `resilience.md` |
 
