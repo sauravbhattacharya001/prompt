@@ -1,0 +1,143 @@
+name: ⚡ Performance Issue
+description: Report a performance regression, memory leak, or scalability bottleneck
+title: "[Perf]: "
+labels: ["performance", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to report performance problems — slow API calls, excessive memory usage, token waste, or scalability issues under load.
+
+  - type: dropdown
+    id: perf-category
+    attributes:
+      label: Performance Category
+      description: What type of performance issue is this?
+      options:
+        - "High latency / slow response times"
+        - "Excessive memory allocation"
+        - "Token waste (prompt/completion inefficiency)"
+        - "CPU-bound bottleneck"
+        - "Concurrency / thread contention"
+        - "Startup / initialization time"
+        - "Serialization / deserialization overhead"
+        - "Rate limiting / throttling issues"
+        - "Other (describe below)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: Which component or class is affected?
+      options:
+        - "Main (core API client)"
+        - "PromptTemplateEngine"
+        - "PromptChain / ChainOrchestrator"
+        - "ContentFilter / PromptSanitizer"
+        - "TokenManager / TokenCounter"
+        - "ResponseCache"
+        - "PromptAdversary (red-teaming)"
+        - "Batch processing"
+        - "PromptVersionControl"
+        - "Other (specify in description)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the performance issue and its observable impact.
+      placeholder: |
+        When processing a PromptChain with 8+ steps, each step takes ~3s
+        instead of the expected ~500ms. Total chain execution is 25s+.
+    validations:
+      required: true
+
+  - type: textarea
+    id: benchmark
+    attributes:
+      label: Benchmark / Measurements
+      description: |
+        Include any measurements, profiler output, or before/after comparisons.
+        Use `BenchmarkDotNet`, `dotnet-trace`, or simple `Stopwatch` timings.
+      placeholder: |
+        ```
+        BenchmarkDotNet:
+        | Method        | Mean      | Allocated |
+        |---------------|-----------|-----------|
+        | ChainExecute  | 25.3 s    | 482 MB    |
+        | SinglePrompt  |  0.5 s    |  12 MB    |
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Minimal code or steps to reproduce the performance issue.
+      placeholder: |
+        ```csharp
+        var chain = new PromptChain();
+        for (int i = 0; i < 10; i++)
+            chain.AddStep($"Step {i}: Summarize the previous output");
+
+        var sw = Stopwatch.StartNew();
+        await chain.ExecuteAsync();
+        Console.WriteLine($"Elapsed: {sw.Elapsed}");
+        // Output: Elapsed: 00:00:25.123
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Performance
+      description: What performance level do you expect or what was it before the regression?
+      placeholder: |
+        Chain execution should complete in <5s for 10 steps.
+        Previous version (v3.1.0) completed the same chain in ~3s.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: version
+    attributes:
+      label: Package Version
+      options:
+        - "3.3.0 (latest)"
+        - "3.2.x"
+        - "3.1.x"
+        - "3.0.x"
+        - "2.x"
+        - "1.x"
+        - "Built from source"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: dotnet-version
+    attributes:
+      label: .NET Version
+      options:
+        - ".NET 8.0"
+        - ".NET 9.0"
+        - "Other (specify in description)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: Any relevant details about your deployment (cloud, local, container, etc.).
+      placeholder: |
+        - OS: Windows 11 / Ubuntu 22.04
+        - Azure Region: West US 2
+        - Deployment: Azure App Service / Docker container
+        - Memory: 8 GB
+        - CPU: 4 cores

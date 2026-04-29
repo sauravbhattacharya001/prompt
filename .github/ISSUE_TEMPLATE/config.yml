@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: 🚨 Report a Critical Security Vulnerability (Private)
+    url: https://github.com/sauravbhattacharya001/prompt/security/advisories/new
+    about: For critical vulnerabilities (RCE, credential theft), use private reporting. Do NOT open a public issue.
   - name: 💬 Questions & Discussions
     url: https://github.com/sauravbhattacharya001/prompt/issues
     about: For general questions, open an issue with [Question] in the title.
