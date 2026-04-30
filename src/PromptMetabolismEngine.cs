@@ -381,22 +381,38 @@ namespace Prompt
                 TotalCostUsd = relevantSamples.Sum(s => s.CostUsd ?? 0)
             };
 
-            // Per-prompt profiles
-            var groups = relevantSamples.GroupBy(s => s.PromptId);
-            foreach (var g in groups)
+            // Pre-group samples by PromptId once — eliminates redundant O(N)
+            // GroupBy calls in BuildProfile and each Detect* method.
+            var groupedByPrompt = relevantSamples
+                .GroupBy(s => s.PromptId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            // Pre-compute per-group base scores for percentile calculation,
+            // avoiding O(N×G) re-grouping inside each ComputeEfficiency call.
+            var precomputedScores = new List<double>(groupedByPrompt.Count);
+            foreach (var g in groupedByPrompt.Values)
             {
-                var profile = BuildProfile(g.Key, g.ToList(), relevantSamples);
+                var a = g.Average(s => (double)s.TotalTokens);
+                var sr = g.Count(s => s.Success) / (double)g.Count;
+                precomputedScores.Add(sr * 60 + (1 - Math.Min(a / 10000.0, 1)) * 40);
+            }
+            precomputedScores.Sort();
+
+            // Per-prompt profiles
+            foreach (var (promptId, samples) in groupedByPrompt)
+            {
+                var profile = BuildProfile(promptId, samples, precomputedScores);
                 report.Profiles.Add(profile);
             }
 
             // Portfolio efficiency
-            report.PortfolioEfficiency = ComputePortfolioEfficiency(relevantSamples);
+            report.PortfolioEfficiency = ComputePortfolioEfficiency(relevantSamples, precomputedScores);
 
             // Classify overall state
             report.OverallState = ClassifyPortfolioState(report);
 
-            // Detect disorders
-            report.Disorders = DetectDisorders(relevantSamples, report.Profiles);
+            // Detect disorders — pass pre-grouped dictionary to avoid re-scanning
+            report.Disorders = DetectDisorders(groupedByPrompt, report.Profiles);
 
             // Generate recommendations
             report.Recommendations = GenerateRecommendations(report.Disorders, report.Profiles);
@@ -538,7 +554,7 @@ namespace Prompt
 
         // ── Private Implementation ──────────────────────────────
 
-        private PromptMetabolicProfile BuildProfile(string promptId, List<ConsumptionSample> samples, List<ConsumptionSample> allSamples)
+        private PromptMetabolicProfile BuildProfile(string promptId, List<ConsumptionSample> samples, List<double> precomputedScores)
         {
             var profile = new PromptMetabolicProfile
             {
@@ -547,7 +563,7 @@ namespace Prompt
                 AvgTokensPerCall = samples.Average(s => s.TotalTokens),
                 AvgCostPerCall = samples.Average(s => s.CostUsd ?? 0),
                 State = ClassifyState(samples),
-                Efficiency = ComputeEfficiency(samples, allSamples),
+                Efficiency = ComputeEfficiency(samples, precomputedScores),
                 ConsumptionTrend = ComputeTrend(samples)
             };
 
@@ -598,7 +614,11 @@ namespace Prompt
             return MetabolicState.Gorging;
         }
 
-        private EfficiencyRatio ComputeEfficiency(List<ConsumptionSample> samples, List<ConsumptionSample> allSamples)
+        /// <summary>
+        /// Computes efficiency ratio using pre-sorted portfolio scores for O(log G)
+        /// percentile calculation via binary search, replacing the prior O(N) re-grouping.
+        /// </summary>
+        private EfficiencyRatio ComputeEfficiency(List<ConsumptionSample> samples, List<double> sortedPortfolioScores)
         {
             var ratio = new EfficiencyRatio();
             var avgTokens = samples.Average(s => (double)s.TotalTokens);
@@ -620,28 +640,22 @@ namespace Prompt
             var score = (ratio.QualityPerKToken * 0.4) + (ratio.SuccessRate * 60 * 0.4) + ((1 - Math.Min(avgTokens / 10000.0, 1)) * 40 * 0.2);
             ratio.Grade = score >= 45 ? "A+" : score >= 40 ? "A" : score >= 35 ? "B+" : score >= 30 ? "B" : score >= 25 ? "C+" : score >= 20 ? "C" : score >= 15 ? "D" : "F";
 
-            // Percentile within portfolio
-            if (allSamples.Count > 0)
+            // Percentile within portfolio — O(log G) binary search on pre-sorted scores
+            if (sortedPortfolioScores.Count > 0)
             {
-                var allGroups = allSamples.GroupBy(s => s.PromptId).ToList();
-                var scores = allGroups.Select(g =>
-                {
-                    var a = g.Average(s => (double)s.TotalTokens);
-                    var sr = g.Count(s => s.Success) / (double)g.Count();
-                    return sr * 60 + (1 - Math.Min(a / 10000.0, 1)) * 40;
-                }).OrderBy(x => x).ToList();
-
                 var thisScore = successRate * 60 + (1 - Math.Min(avgTokens / 10000.0, 1)) * 40;
-                var below = scores.Count(s => s < thisScore);
-                ratio.Percentile = scores.Count > 0 ? (below / (double)scores.Count) * 100 : 50;
+                // BinarySearch returns index if found, or ~index of first larger element
+                int idx = sortedPortfolioScores.BinarySearch(thisScore);
+                int below = idx >= 0 ? idx : ~idx;
+                ratio.Percentile = (below / (double)sortedPortfolioScores.Count) * 100;
             }
 
             return ratio;
         }
 
-        private EfficiencyRatio ComputePortfolioEfficiency(List<ConsumptionSample> samples)
+        private EfficiencyRatio ComputePortfolioEfficiency(List<ConsumptionSample> samples, List<double> sortedPortfolioScores)
         {
-            return ComputeEfficiency(samples, samples);
+            return ComputeEfficiency(samples, sortedPortfolioScores);
         }
 
         private double ComputeTrend(List<ConsumptionSample> samples)
@@ -676,27 +690,26 @@ namespace Prompt
             return MetabolicState.Balanced;
         }
 
-        private List<DisorderDiagnosis> DetectDisorders(List<ConsumptionSample> samples, List<PromptMetabolicProfile> profiles)
+        private List<DisorderDiagnosis> DetectDisorders(Dictionary<string, List<ConsumptionSample>> groupedByPrompt, List<PromptMetabolicProfile> profiles)
         {
             var disorders = new List<DisorderDiagnosis>();
 
-            disorders.AddRange(DetectCostSpikes(samples));
-            disorders.AddRange(DetectDiminishingReturns(samples));
+            disorders.AddRange(DetectCostSpikes(groupedByPrompt));
+            disorders.AddRange(DetectDiminishingReturns(groupedByPrompt));
             disorders.AddRange(DetectTokenBloat(profiles));
-            disorders.AddRange(DetectBingeStarveCycle(samples));
-            disorders.AddRange(DetectOverfeeding(samples));
-            disorders.AddRange(DetectCapacityExhaustion(samples));
-            disorders.AddRange(DetectRedundancyWaste(samples));
+            disorders.AddRange(DetectBingeStarveCycle(groupedByPrompt));
+            disorders.AddRange(DetectOverfeeding(groupedByPrompt));
+            disorders.AddRange(DetectCapacityExhaustion(groupedByPrompt));
+            disorders.AddRange(DetectRedundancyWaste(groupedByPrompt));
 
             return disorders;
         }
 
-        private List<DisorderDiagnosis> DetectCostSpikes(List<ConsumptionSample> samples)
+        private List<DisorderDiagnosis> DetectCostSpikes(Dictionary<string, List<ConsumptionSample>> groupedByPrompt)
         {
             var results = new List<DisorderDiagnosis>();
-            var groups = samples.GroupBy(s => s.PromptId);
 
-            foreach (var g in groups)
+            foreach (var (promptId, g) in groupedByPrompt)
             {
                 var ordered = g.OrderBy(s => s.Timestamp).ToList();
                 if (ordered.Count < 5) continue;
@@ -715,7 +728,7 @@ namespace Prompt
                         Disorder = MetabolicDisorder.CostSpike,
                         Severity = recent > baseline * 5 ? DisorderSeverity.Critical : recent > baseline * 3 ? DisorderSeverity.Severe : DisorderSeverity.Moderate,
                         Confidence = Math.Min(0.9, 0.5 + (ordered.Count / 20.0)),
-                        AffectedPrompts = new List<string> { g.Key },
+                        AffectedPrompts = new List<string> { promptId },
                         Evidence = new List<string> { $"Recent avg cost ${recent:F4} is {recent / baseline:F1}x baseline ${baseline:F4}" },
                         EstimatedMonthlyCostImpact = (recent - baseline) * dailyRate * 30,
                         FirstDetected = ordered.Last().Timestamp,
@@ -727,16 +740,16 @@ namespace Prompt
             return results;
         }
 
-        private List<DisorderDiagnosis> DetectDiminishingReturns(List<ConsumptionSample> samples)
+        private List<DisorderDiagnosis> DetectDiminishingReturns(Dictionary<string, List<ConsumptionSample>> groupedByPrompt)
         {
             var results = new List<DisorderDiagnosis>();
-            var groups = samples.Where(s => s.QualityScore.HasValue).GroupBy(s => s.PromptId);
 
-            foreach (var g in groups)
+            foreach (var (promptId, samples) in groupedByPrompt)
             {
-                var ordered = g.OrderBy(s => s.Timestamp).ToList();
-                if (ordered.Count < 6) continue;
+                var qualitySamples = samples.Where(s => s.QualityScore.HasValue).ToList();
+                if (qualitySamples.Count < 6) continue;
 
+                var ordered = qualitySamples.OrderBy(s => s.Timestamp).ToList();
                 int half = ordered.Count / 2;
                 var firstTokens = ordered.Take(half).Average(s => (double)s.TotalTokens);
                 var secondTokens = ordered.Skip(half).Average(s => (double)s.TotalTokens);
@@ -751,7 +764,7 @@ namespace Prompt
                         Disorder = MetabolicDisorder.DiminishingReturns,
                         Severity = secondTokens > firstTokens * 2 ? DisorderSeverity.Severe : DisorderSeverity.Moderate,
                         Confidence = 0.7,
-                        AffectedPrompts = new List<string> { g.Key },
+                        AffectedPrompts = new List<string> { promptId },
                         Evidence = new List<string> { $"Tokens grew {(secondTokens / firstTokens - 1):P0} but quality only {(secondQuality / firstQuality - 1):+P0;-P0;unchanged}" },
                         EstimatedMonthlyCostImpact = (secondTokens - firstTokens) / 1000.0 * 0.01 * 30,
                         FirstDetected = ordered[half].Timestamp
@@ -786,12 +799,11 @@ namespace Prompt
             return results;
         }
 
-        private List<DisorderDiagnosis> DetectBingeStarveCycle(List<ConsumptionSample> samples)
+        private List<DisorderDiagnosis> DetectBingeStarveCycle(Dictionary<string, List<ConsumptionSample>> groupedByPrompt)
         {
             var results = new List<DisorderDiagnosis>();
-            var groups = samples.GroupBy(s => s.PromptId);
 
-            foreach (var g in groups)
+            foreach (var (promptId, g) in groupedByPrompt)
             {
                 var tokens = g.Select(s => (double)s.TotalTokens).ToList();
                 if (tokens.Count < 5) continue;
@@ -816,7 +828,7 @@ namespace Prompt
                         Disorder = MetabolicDisorder.BingeStarveCycle,
                         Severity = cv > 1.2 ? DisorderSeverity.Severe : DisorderSeverity.Moderate,
                         Confidence = Math.Min(0.8, cv * 0.5),
-                        AffectedPrompts = new List<string> { g.Key },
+                        AffectedPrompts = new List<string> { promptId },
                         Evidence = new List<string> { $"CV={cv:F2}, oscillation rate={oscillationRate:P0} — inconsistent consumption" },
                         EstimatedMonthlyCostImpact = avg * cv * 0.001 * 30
                     });
@@ -826,16 +838,14 @@ namespace Prompt
             return results;
         }
 
-        private List<DisorderDiagnosis> DetectOverfeeding(List<ConsumptionSample> samples)
+        private List<DisorderDiagnosis> DetectOverfeeding(Dictionary<string, List<ConsumptionSample>> groupedByPrompt)
         {
             var results = new List<DisorderDiagnosis>();
             var expensiveModels = new HashSet<string> { "gpt-4", "claude-3-opus" };
 
-            var groups = samples.Where(s => expensiveModels.Contains(s.Model)).GroupBy(s => s.PromptId);
-
-            foreach (var g in groups)
+            foreach (var (promptId, samples) in groupedByPrompt)
             {
-                var lowComplexity = g.Where(s => s.InputTokens < 500 && (s.QualityScore ?? 80) > 70).ToList();
+                var lowComplexity = samples.Where(s => expensiveModels.Contains(s.Model) && s.InputTokens < 500 && (s.QualityScore ?? 80) > 70).ToList();
                 if (lowComplexity.Count >= 3)
                 {
                     var wastedCost = lowComplexity.Sum(s => s.CostUsd ?? 0) * 0.8; // 80% could be saved with cheaper model
@@ -844,8 +854,8 @@ namespace Prompt
                         Disorder = MetabolicDisorder.Overfeeding,
                         Severity = lowComplexity.Count > 10 ? DisorderSeverity.Severe : DisorderSeverity.Moderate,
                         Confidence = 0.75,
-                        AffectedPrompts = new List<string> { g.Key },
-                        Evidence = new List<string> { $"{lowComplexity.Count} simple tasks routed to expensive model ({g.First().Model})" },
+                        AffectedPrompts = new List<string> { promptId },
+                        Evidence = new List<string> { $"{lowComplexity.Count} simple tasks routed to expensive model ({lowComplexity.First().Model})" },
                         EstimatedMonthlyCostImpact = wastedCost * 4 // roughly monthly extrapolation
                     });
                 }
@@ -854,41 +864,42 @@ namespace Prompt
             return results;
         }
 
-        private List<DisorderDiagnosis> DetectCapacityExhaustion(List<ConsumptionSample> samples)
+        private List<DisorderDiagnosis> DetectCapacityExhaustion(Dictionary<string, List<ConsumptionSample>> groupedByPrompt)
         {
             var results = new List<DisorderDiagnosis>();
-            var groups = samples.Where(s => !string.IsNullOrEmpty(s.Model)).GroupBy(s => $"{s.PromptId}|{s.Model}");
 
-            foreach (var g in groups)
+            foreach (var (promptId, samples) in groupedByPrompt)
             {
-                var model = g.First().Model;
-                if (!_modelContextLimits.TryGetValue(model, out var limit)) continue;
-
-                var highUsage = g.Where(s => s.TotalTokens > limit * 0.8).ToList();
-                if (highUsage.Count >= 2)
+                // Sub-group by model within each prompt group
+                var modelGroups = samples.Where(s => !string.IsNullOrEmpty(s.Model)).GroupBy(s => s.Model);
+                foreach (var mg in modelGroups)
                 {
-                    results.Add(new DisorderDiagnosis
+                    if (!_modelContextLimits.TryGetValue(mg.Key, out var limit)) continue;
+
+                    var highUsage = mg.Where(s => s.TotalTokens > limit * 0.8).ToList();
+                    if (highUsage.Count >= 2)
                     {
-                        Disorder = MetabolicDisorder.CapacityExhaustion,
-                        Severity = highUsage.Any(s => s.TotalTokens > limit * 0.95) ? DisorderSeverity.Critical : DisorderSeverity.Severe,
-                        Confidence = 0.85,
-                        AffectedPrompts = new List<string> { g.First().PromptId },
-                        Evidence = new List<string> { $"{highUsage.Count} calls used >{(highUsage.Average(s => (double)s.TotalTokens) / limit):P0} of {model} context ({limit:N0} tokens)" },
-                        EstimatedMonthlyCostImpact = highUsage.Average(s => s.CostUsd ?? 0) * 30
-                    });
+                        results.Add(new DisorderDiagnosis
+                        {
+                            Disorder = MetabolicDisorder.CapacityExhaustion,
+                            Severity = highUsage.Any(s => s.TotalTokens > limit * 0.95) ? DisorderSeverity.Critical : DisorderSeverity.Severe,
+                            Confidence = 0.85,
+                            AffectedPrompts = new List<string> { promptId },
+                            Evidence = new List<string> { $"{highUsage.Count} calls used >{(highUsage.Average(s => (double)s.TotalTokens) / limit):P0} of {mg.Key} context ({limit:N0} tokens)" },
+                            EstimatedMonthlyCostImpact = highUsage.Average(s => s.CostUsd ?? 0) * 30
+                        });
+                    }
                 }
             }
 
             return results;
         }
 
-        private List<DisorderDiagnosis> DetectRedundancyWaste(List<ConsumptionSample> samples)
+        private List<DisorderDiagnosis> DetectRedundancyWaste(Dictionary<string, List<ConsumptionSample>> groupedByPrompt)
         {
             var results = new List<DisorderDiagnosis>();
-            // Detect prompts with very similar input token counts and same model (likely repeated verbatim)
-            var groups = samples.GroupBy(s => s.PromptId);
 
-            foreach (var g in groups)
+            foreach (var (promptId, g) in groupedByPrompt)
             {
                 var ordered = g.OrderBy(s => s.Timestamp).ToList();
                 if (ordered.Count < 4) continue;
@@ -907,7 +918,7 @@ namespace Prompt
                         Disorder = MetabolicDisorder.RedundancyWaste,
                         Severity = identicalRate > 0.95 ? DisorderSeverity.Moderate : DisorderSeverity.Mild,
                         Confidence = identicalRate,
-                        AffectedPrompts = new List<string> { g.Key },
+                        AffectedPrompts = new List<string> { promptId },
                         Evidence = new List<string> { $"{identicalRate:P0} of calls have nearly identical input tokens (~{avgInput:F0}) — likely cacheable" },
                         EstimatedMonthlyCostImpact = potentialSavings
                     });
