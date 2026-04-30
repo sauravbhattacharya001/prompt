@@ -208,14 +208,10 @@ namespace Prompt
             };
         }
 
-        private static int CountMatches(Regex pattern, string text)
-        {
-            return pattern.Matches(text).Count;
-        }
-
         private ComplexityDimension ScoreInstructionDensity(string prompt, int tokens)
         {
-            int count = CountMatches(InstructionPattern, prompt);
+            var matches = InstructionPattern.Matches(prompt);
+            int count = matches.Count;
             double per100 = tokens > 0 ? (count * 100.0) / tokens : 0;
             double score = Math.Min(10, per100 * 3.0);
             if (count >= 10) score = Math.Max(score, 7);
@@ -227,21 +223,21 @@ namespace Prompt
                 Score = Math.Round(score, 1),
                 Weight = 1.5,
                 Explanation = $"Found {count} instruction markers (~{per100:F1} per 100 tokens).",
-                Evidence = InstructionPattern.Matches(prompt).Cast<Match>()
-                    .Take(5).Select(m => m.Value.Trim()).ToList()
+                Evidence = ExtractEvidence(matches, 5)
             };
         }
 
         /// <summary>
         /// Shared scoring helper for dimensions that follow a simple
         /// "count regex matches → scale → cap at 10" pattern.
-        /// Eliminates repeated boilerplate across dimension scorers.
+        /// Runs the regex once and reuses the MatchCollection for both count and evidence.
         /// </summary>
         private static ComplexityDimension ScoreByPattern(
             Regex pattern, string prompt, string name, double weight,
             double multiplier, string unit)
         {
-            int count = CountMatches(pattern, prompt);
+            var matches = pattern.Matches(prompt);
+            int count = matches.Count;
             double score = Math.Round(Math.Min(10, count * multiplier), 1);
             return new ComplexityDimension
             {
@@ -249,9 +245,21 @@ namespace Prompt
                 Score = score,
                 Weight = weight,
                 Explanation = $"Found {count} {unit}.",
-                Evidence = pattern.Matches(prompt).Cast<Match>()
-                    .Take(5).Select(m => m.Value.Trim()).ToList()
+                Evidence = ExtractEvidence(matches, 5)
             };
+        }
+
+        /// <summary>
+        /// Extracts up to <paramref name="max"/> trimmed match values from
+        /// an already-computed MatchCollection, avoiding a redundant regex pass.
+        /// </summary>
+        private static List<string> ExtractEvidence(MatchCollection matches, int max)
+        {
+            var evidence = new List<string>(Math.Min(matches.Count, max));
+            int limit = Math.Min(matches.Count, max);
+            for (int i = 0; i < limit; i++)
+                evidence.Add(matches[i].Value.Trim());
+            return evidence;
         }
 
         private ComplexityDimension ScoreNestingDepth(string prompt) =>
@@ -262,7 +270,8 @@ namespace Prompt
 
         private ComplexityDimension ScoreAmbiguity(string prompt, int tokens)
         {
-            int count = CountMatches(AmbiguityPattern, prompt);
+            var matches = AmbiguityPattern.Matches(prompt);
+            int count = matches.Count;
             double per100 = tokens > 0 ? (count * 100.0) / tokens : 0;
             double score = Math.Min(10, per100 * 5.0);
 
@@ -272,24 +281,30 @@ namespace Prompt
                 Score = Math.Round(score, 1),
                 Weight = 1.0,
                 Explanation = $"Found {count} ambiguous/vague term(s) (~{per100:F1} per 100 tokens).",
-                Evidence = AmbiguityPattern.Matches(prompt).Cast<Match>()
-                    .Take(5).Select(m => m.Value.Trim()).ToList()
+                Evidence = ExtractEvidence(matches, 5)
             };
         }
 
         private ComplexityDimension ScoreDomainSpecificity(string prompt)
         {
             var matches = DomainPattern.Matches(prompt);
-            var unique = matches.Cast<Match>().Select(m => m.Value.ToUpperInvariant()).Distinct().ToList();
-            double score = Math.Min(10, unique.Count * 1.5);
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var evidence = new List<string>(5);
+            foreach (Match m in matches)
+            {
+                var val = m.Value.ToUpperInvariant();
+                if (seen.Add(val) && evidence.Count < 5)
+                    evidence.Add(val);
+            }
+            double score = Math.Min(10, seen.Count * 1.5);
 
             return new ComplexityDimension
             {
                 Name = "Domain Specificity",
                 Score = Math.Round(score, 1),
                 Weight = 1.0,
-                Explanation = $"Found {unique.Count} domain-specific term(s).",
-                Evidence = unique.Take(5).ToList()
+                Explanation = $"Found {seen.Count} domain-specific term(s).",
+                Evidence = evidence
             };
         }
 
