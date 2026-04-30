@@ -706,6 +706,10 @@ namespace Prompt
 
                 if (baseline > 0 && recent > baseline * 2.5)
                 {
+                    // Estimate daily call rate from sample time span for accurate monthly projection
+                    var spanDays = (ordered.Last().Timestamp - ordered.First().Timestamp).TotalDays;
+                    var dailyRate = spanDays > 0 ? ordered.Count / spanDays : 1.0;
+
                     results.Add(new DisorderDiagnosis
                     {
                         Disorder = MetabolicDisorder.CostSpike,
@@ -713,7 +717,7 @@ namespace Prompt
                         Confidence = Math.Min(0.9, 0.5 + (ordered.Count / 20.0)),
                         AffectedPrompts = new List<string> { g.Key },
                         Evidence = new List<string> { $"Recent avg cost ${recent:F4} is {recent / baseline:F1}x baseline ${baseline:F4}" },
-                        EstimatedMonthlyCostImpact = (recent - baseline) * 30,
+                        EstimatedMonthlyCostImpact = (recent - baseline) * dailyRate * 30,
                         FirstDetected = ordered.Last().Timestamp,
                         IsProgressing = true
                     });
@@ -1007,7 +1011,7 @@ namespace Prompt
             }
 
             // Additional recommendations from profiles (high-spend prompts without disorders)
-            foreach (var p in profiles.Where(pr => pr.ProjectedMonthlySpend > 1.0 && pr.Efficiency.Grade.StartsWith("D") || pr.Efficiency.Grade == "F"))
+            foreach (var p in profiles.Where(pr => pr.ProjectedMonthlySpend > 1.0 && (pr.Efficiency.Grade.StartsWith("D") || pr.Efficiency.Grade == "F")))
             {
                 if (!recs.Any(r => r.TargetPrompts.Contains(p.PromptId)))
                 {
