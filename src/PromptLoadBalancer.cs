@@ -126,6 +126,9 @@ namespace Prompt
 
         /// <summary>Enable request logging for diagnostics.</summary>
         public bool EnableLogging { get; set; } = false;
+
+        /// <summary>Maximum number of log entries to retain. Oldest entries are evicted when exceeded. 0 = unlimited.</summary>
+        public int MaxLogEntries { get; set; } = 10_000;
     }
 
     /// <summary>
@@ -518,6 +521,14 @@ namespace Prompt
         public List<LoadBalancerLogEntry> GetLog() => _log.ToArray().ToList();
 
         /// <summary>
+        /// Clears the diagnostic log without resetting endpoint statistics.
+        /// </summary>
+        public void ClearLog()
+        {
+            while (_log.TryDequeue(out _)) { }
+        }
+
+        /// <summary>
         /// Resets all endpoint statistics and health states.
         /// </summary>
         public void Reset()
@@ -657,6 +668,7 @@ namespace Prompt
                     LatencyMs = Math.Round(latencyMs, 2),
                     IsFailover = isFailover
                 });
+                TrimLog();
             }
         }
 
@@ -687,6 +699,15 @@ namespace Prompt
                     IsFailover = isFailover,
                     Error = ex.Message
                 });
+                TrimLog();
+            }
+        }
+
+        private void TrimLog()
+        {
+            if (_config.MaxLogEntries > 0)
+            {
+                while (_log.Count > _config.MaxLogEntries && _log.TryDequeue(out _)) { }
             }
         }
 
