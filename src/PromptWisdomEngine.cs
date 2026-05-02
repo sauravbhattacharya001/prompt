@@ -481,11 +481,8 @@ namespace Prompt
         /// <summary>Restore engine state from JSON.</summary>
         public static PromptWisdomEngine ImportJson(string json)
         {
-            var opts = new JsonSerializerOptions
-            {
-                Converters = { new JsonStringEnumConverter() }
-            };
-            var state = JsonSerializer.Deserialize<WisdomEngineState>(json, opts)
+            SerializationGuards.ValidateJsonInput(json, nameof(json));
+            var state = JsonSerializer.Deserialize<WisdomEngineState>(json, SerializationGuards.ReadWithEnums)
                         ?? new WisdomEngineState();
             var engine = new PromptWisdomEngine();
             engine._outcomes.AddRange(state.Outcomes);

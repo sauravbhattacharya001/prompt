@@ -160,10 +160,9 @@ namespace Prompt
         /// <summary>Loads scorecard configuration from JSON (auto-scorers are not restored).</summary>
         public static PromptScorecardBuilder FromJson(string json)
         {
-            if (string.IsNullOrWhiteSpace(json))
-                throw new ArgumentException("JSON cannot be empty.", nameof(json));
+            SerializationGuards.ValidateJsonInput(json, nameof(json));
 
-            var dto = JsonSerializer.Deserialize<ScorecardDto>(json)
+            var dto = JsonSerializer.Deserialize<ScorecardDto>(json, SerializationGuards.ReadCamelCase)
                 ?? throw new ArgumentException("Invalid scorecard JSON.", nameof(json));
 
             var builder = new PromptScorecardBuilder(dto.Name)

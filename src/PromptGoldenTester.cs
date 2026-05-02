@@ -176,9 +176,9 @@ namespace Prompt
         /// <exception cref="ArgumentException">Thrown when JSON is empty or malformed.</exception>
         public int ImportJson(string json)
         {
-            if (string.IsNullOrWhiteSpace(json)) throw new ArgumentException("JSON must not be empty.", nameof(json));
+            SerializationGuards.ValidateJsonInput(json, nameof(json));
             GoldenExport? export;
-            try { export = JsonSerializer.Deserialize<GoldenExport>(json); }
+            try { export = JsonSerializer.Deserialize<GoldenExport>(json, SerializationGuards.ReadCamelCase); }
             catch (JsonException ex) { throw new ArgumentException($"Invalid JSON: {ex.Message}", nameof(json)); }
             if (export?.Entries == null) return 0;
             int count = 0;

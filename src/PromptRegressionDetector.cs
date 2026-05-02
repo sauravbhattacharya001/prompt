@@ -403,8 +403,9 @@ namespace Prompt
         /// </summary>
         public int ImportBaselines(string json)
         {
+            SerializationGuards.ValidateJsonInput(json, nameof(json));
             var data = JsonSerializer.Deserialize<Dictionary<string, List<PromptBaseline>>>(json,
-                new JsonSerializerOptions { Converters = { new JsonStringEnumConverter() } });
+                SerializationGuards.ReadWithEnums);
 
             if (data == null) return 0;
 
