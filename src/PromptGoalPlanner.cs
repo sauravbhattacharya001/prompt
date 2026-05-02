@@ -468,6 +468,7 @@ namespace Prompt
             if (plan == null) throw new ArgumentNullException(nameof(plan));
 
             var advancement = new PlanAdvancement();
+            var lookup = BuildTaskLookup(plan);
 
             // Skip tasks whose dependencies failed
             bool changed;
@@ -476,13 +477,7 @@ namespace Prompt
                 changed = false;
                 foreach (var task in plan.Tasks.Where(t => t.Status == PlanTaskStatus.Pending))
                 {
-                    var depsFailed = task.DependsOn.Any(depId =>
-                    {
-                        var dep = plan.Tasks.FirstOrDefault(t => t.Id == depId);
-                        return dep != null && (dep.Status == PlanTaskStatus.Failed || dep.Status == PlanTaskStatus.Skipped);
-                    });
-
-                    if (depsFailed)
+                    if (AnyDependencyFailed(task, lookup))
                     {
                         task.Status = PlanTaskStatus.Skipped;
                         task.Error = "Skipped: dependency failed";
@@ -495,13 +490,7 @@ namespace Prompt
             // Unlock newly ready tasks
             foreach (var task in plan.Tasks.Where(t => t.Status == PlanTaskStatus.Pending))
             {
-                var allDepsDone = task.DependsOn.All(depId =>
-                {
-                    var dep = plan.Tasks.FirstOrDefault(t => t.Id == depId);
-                    return dep != null && dep.Status == PlanTaskStatus.Done;
-                });
-
-                if (allDepsDone)
+                if (AllDependenciesDone(task, lookup))
                 {
                     task.Status = PlanTaskStatus.Ready;
                     advancement.NewlyReady.Add(task);
@@ -937,6 +926,7 @@ namespace Prompt
 
         private void RefreshReadyTasks(ExecutionPlan plan)
         {
+            var lookup = BuildTaskLookup(plan);
             foreach (var task in plan.Tasks.Where(t => t.Status == PlanTaskStatus.Pending))
             {
                 if (task.DependsOn.Count == 0)
@@ -945,13 +935,7 @@ namespace Prompt
                     continue;
                 }
 
-                var allDone = task.DependsOn.All(depId =>
-                {
-                    var dep = plan.Tasks.FirstOrDefault(t => t.Id == depId);
-                    return dep != null && dep.Status == PlanTaskStatus.Done;
-                });
-
-                if (allDone)
+                if (AllDependenciesDone(task, lookup))
                     task.Status = PlanTaskStatus.Ready;
             }
         }
@@ -960,6 +944,33 @@ namespace Prompt
         {
             return plan.Tasks.FirstOrDefault(t => t.Id == taskId)
                 ?? throw new ArgumentException($"Task '{taskId}' not found in plan.");
+        }
+
+        /// <summary>Build an O(1) lookup dictionary from task ID to PlanTask.</summary>
+        private static Dictionary<string, PlanTask> BuildTaskLookup(ExecutionPlan plan)
+            => plan.Tasks.ToDictionary(t => t.Id);
+
+        /// <summary>Returns true if all dependencies are in Done state (O(D) with dictionary lookup).</summary>
+        private static bool AllDependenciesDone(PlanTask task, Dictionary<string, PlanTask> lookup)
+        {
+            foreach (var depId in task.DependsOn)
+            {
+                if (!lookup.TryGetValue(depId, out var dep) || dep.Status != PlanTaskStatus.Done)
+                    return false;
+            }
+            return true;
+        }
+
+        /// <summary>Returns true if any dependency is Failed or Skipped (O(D) with dictionary lookup).</summary>
+        private static bool AnyDependencyFailed(PlanTask task, Dictionary<string, PlanTask> lookup)
+        {
+            foreach (var depId in task.DependsOn)
+            {
+                if (lookup.TryGetValue(depId, out var dep) &&
+                    (dep.Status == PlanTaskStatus.Failed || dep.Status == PlanTaskStatus.Skipped))
+                    return true;
+            }
+            return false;
         }
 
         private bool HasCycle(ExecutionPlan plan)
