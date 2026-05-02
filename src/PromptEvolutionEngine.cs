@@ -235,7 +235,7 @@ namespace Prompt
             ["look"] = new[] { "examine", "review", "inspect" },
         };
 
-        private static readonly string[] FillerWords = new[]
+        private static readonly HashSet<string> FillerWords = new(StringComparer.OrdinalIgnoreCase)
         {
             "just", "really", "very", "quite", "basically", "actually",
             "simply", "literally", "honestly", "clearly", "obviously",
@@ -262,6 +262,8 @@ namespace Prompt
             "write", "design", "implement", "calculate", "optimize",
             "review", "suggest", "recommend", "outline", "provide"
         };
+
+        private static readonly HashSet<string> ActionVerbSet = new(ActionVerbs, StringComparer.OrdinalIgnoreCase);
 
         // ── Public API ───────────────────────────────────────────────
 
@@ -294,7 +296,7 @@ namespace Prompt
             EvaluatePopulation(population);
 
             var history = new List<GenerationStats>();
-            PromptOrganism globalBest = population.OrderByDescending(o => o.Fitness).First();
+            PromptOrganism globalBest = MaxByFitness(population);
             double currentMutationRate = _config.MutationRate;
             bool reachedTarget = false;
 
@@ -304,8 +306,8 @@ namespace Prompt
                 var stats = BuildStats(population, gen, currentMutationRate);
                 history.Add(stats);
 
-                // Track global best
-                var genBest = population.OrderByDescending(o => o.Fitness).First();
+                // Track global best (stats already computed the gen best)
+                var genBest = MaxByFitness(population);
                 if (genBest.Fitness > globalBest.Fitness)
                     globalBest = genBest;
 
@@ -328,7 +330,7 @@ namespace Prompt
             // Final stats if didn't early-stop
             if (!reachedTarget)
             {
-                var finalBest = population.OrderByDescending(o => o.Fitness).First();
+                var finalBest = MaxByFitness(population);
                 if (finalBest.Fitness > globalBest.Fitness)
                     globalBest = finalBest;
             }
@@ -397,9 +399,16 @@ namespace Prompt
             else if (len > 0)
                 score += 0.05;
 
-            // Action verbs presence
+            // Action verbs presence — split words once, look up in HashSet
             var lower = text.ToLowerInvariant();
-            int verbCount = ActionVerbs.Count(v => lower.Contains(v));
+            var words = lower.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            int verbCount = 0;
+            foreach (var w in words)
+            {
+                // Strip trailing punctuation for matching
+                var clean = w.TrimEnd('.', ',', '!', '?', ';', ':');
+                if (ActionVerbSet.Contains(clean)) verbCount++;
+            }
             score += Math.Min(0.25, verbCount * 0.05);
 
             // Specificity: numbers and concrete nouns (capitalized words)
@@ -691,8 +700,8 @@ namespace Prompt
         private static string MutateCompress(string text)
         {
             var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
-            // Remove filler words
-            words.RemoveAll(w => FillerWords.Contains(w.TrimEnd('.', ',', '!', '?').ToLower()));
+            // Remove filler words — FillerWords is now a HashSet with OrdinalIgnoreCase
+            words.RemoveAll(w => FillerWords.Contains(w.TrimEnd('.', ',', '!', '?')));
             return string.Join(" ", words);
         }
 
@@ -712,8 +721,8 @@ namespace Prompt
             var sentences = SplitSentences(text);
             for (int i = 0; i < sentences.Count; i++)
             {
-                var firstWord = sentences[i].Split(' ')[0].TrimEnd('.', ',').ToLower();
-                if (ActionVerbs.Contains(firstWord))
+                var firstWord = sentences[i].Split(' ')[0].TrimEnd('.', ',');
+                if (ActionVerbSet.Contains(firstWord))
                 {
                     // Rephrase: "Analyze X" → "You should analyze X"
                     sentences[i] = "You should " + sentences[i][..1].ToLower() + sentences[i][1..];
@@ -791,18 +800,27 @@ namespace Prompt
             if (population.Count <= 1) return 0.0;
 
             // Average pairwise Jaccard distance on word sets
+            // Reuse a single scratch set for intersection counting to avoid
+            // allocating two temporary HashSets per pair (was Intersect + Union LINQ).
             double totalDistance = 0;
             int pairs = 0;
-            var wordSets = population.Select(o =>
-                new HashSet<string>(o.Text.ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            ).ToList();
+            var wordSets = new HashSet<string>[population.Count];
+            for (int k = 0; k < population.Count; k++)
+                wordSets[k] = new HashSet<string>(
+                    population[k].Text.ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
-            for (int i = 0; i < wordSets.Count; i++)
+            var scratch = new HashSet<string>();
+            for (int i = 0; i < wordSets.Length; i++)
             {
-                for (int j = i + 1; j < wordSets.Count; j++)
+                for (int j = i + 1; j < wordSets.Length; j++)
                 {
-                    int intersection = wordSets[i].Intersect(wordSets[j]).Count();
-                    int union = wordSets[i].Union(wordSets[j]).Count();
+                    // Intersection count via the smaller set
+                    var smaller = wordSets[i].Count <= wordSets[j].Count ? wordSets[i] : wordSets[j];
+                    var larger  = ReferenceEquals(smaller, wordSets[i]) ? wordSets[j] : wordSets[i];
+                    int intersection = 0;
+                    foreach (var w in smaller)
+                        if (larger.Contains(w)) intersection++;
+                    int union = wordSets[i].Count + wordSets[j].Count - intersection;
                     double jaccard = union > 0 ? (double)intersection / union : 1.0;
                     totalDistance += 1.0 - jaccard;
                     pairs++;
@@ -837,15 +855,35 @@ namespace Prompt
             return parts.Count > 0 ? parts : new List<string> { text.Trim() };
         }
 
+        /// <summary>Single-pass O(n) max-by-fitness, replacing O(n log n) OrderByDescending().First().</summary>
+        private static PromptOrganism MaxByFitness(List<PromptOrganism> population)
+        {
+            var best = population[0];
+            for (int i = 1; i < population.Count; i++)
+                if (population[i].Fitness > best.Fitness)
+                    best = population[i];
+            return best;
+        }
+
         private GenerationStats BuildStats(List<PromptOrganism> population, int gen, double mutationRate)
         {
-            var best = population.OrderByDescending(o => o.Fitness).First();
+            // Single pass for best, sum, and worst — avoids 3 separate LINQ enumerations.
+            var best = population[0];
+            var worst = population[0];
+            double sum = population[0].Fitness;
+            for (int i = 1; i < population.Count; i++)
+            {
+                double f = population[i].Fitness;
+                sum += f;
+                if (f > best.Fitness) best = population[i];
+                if (f < worst.Fitness) worst = population[i];
+            }
             return new GenerationStats
             {
                 Generation = gen,
                 BestFitness = best.Fitness,
-                AvgFitness = population.Average(o => o.Fitness),
-                WorstFitness = population.Min(o => o.Fitness),
+                AvgFitness = sum / population.Count,
+                WorstFitness = worst.Fitness,
                 Diversity = CalculateDiversity(population),
                 BestOrganismId = best.Id,
                 PopulationSize = population.Count,
