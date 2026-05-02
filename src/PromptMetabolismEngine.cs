@@ -381,11 +381,17 @@ namespace Prompt
                 TotalCostUsd = relevantSamples.Sum(s => s.CostUsd ?? 0)
             };
 
-            // Pre-group samples by PromptId once — eliminates redundant O(N)
-            // GroupBy calls in BuildProfile and each Detect* method.
+            // Pre-group samples by PromptId once AND sort each group by
+            // Timestamp — eliminates redundant O(N) GroupBy calls in
+            // BuildProfile and each Detect* method, plus 4 redundant
+            // O(G log G) re-sorts in ComputeTrend, DetectCostSpikes,
+            // DetectDiminishingReturns, and DetectRedundancyWaste.
+            // Also fixes DetectBingeStarveCycle which was measuring
+            // oscillations in arbitrary insertion order instead of
+            // temporal order.
             var groupedByPrompt = relevantSamples
                 .GroupBy(s => s.PromptId)
-                .ToDictionary(g => g.Key, g => g.ToList());
+                .ToDictionary(g => g.Key, g => g.OrderBy(s => s.Timestamp).ToList());
 
             // Pre-compute per-group base scores for percentile calculation,
             // avoiding O(N×G) re-grouping inside each ComputeEfficiency call.
@@ -658,15 +664,20 @@ namespace Prompt
             return ComputeEfficiency(samples, sortedPortfolioScores);
         }
 
+        /// <summary>
+        /// Computes consumption trend from pre-sorted samples.
+        /// Callers must pass samples already sorted by Timestamp
+        /// (guaranteed by groupedByPrompt in Analyze).
+        /// </summary>
         private double ComputeTrend(List<ConsumptionSample> samples)
         {
             if (samples.Count < 3) return 0;
 
-            var ordered = samples.OrderBy(s => s.Timestamp).ToList();
-            int n = ordered.Count;
+            // samples are pre-sorted by Timestamp — no re-sort needed
+            int n = samples.Count;
             int half = n / 2;
-            var firstHalf = ordered.Take(half).Average(s => (double)s.TotalTokens);
-            var secondHalf = ordered.Skip(n - half).Average(s => (double)s.TotalTokens);
+            var firstHalf = samples.Take(half).Average(s => (double)s.TotalTokens);
+            var secondHalf = samples.Skip(n - half).Average(s => (double)s.TotalTokens);
 
             if (firstHalf == 0) return 0;
             return (secondHalf - firstHalf) / firstHalf;
@@ -711,27 +722,27 @@ namespace Prompt
 
             foreach (var (promptId, g) in groupedByPrompt)
             {
-                var ordered = g.OrderBy(s => s.Timestamp).ToList();
-                if (ordered.Count < 5) continue;
+                // g is pre-sorted by Timestamp — no re-sort needed
+                if (g.Count < 5) continue;
 
-                var baseline = ordered.Take(ordered.Count - 2).Average(s => s.CostUsd ?? 0);
-                var recent = ordered.Skip(ordered.Count - 2).Average(s => s.CostUsd ?? 0);
+                var baseline = g.Take(g.Count - 2).Average(s => s.CostUsd ?? 0);
+                var recent = g.Skip(g.Count - 2).Average(s => s.CostUsd ?? 0);
 
                 if (baseline > 0 && recent > baseline * 2.5)
                 {
                     // Estimate daily call rate from sample time span for accurate monthly projection
-                    var spanDays = (ordered.Last().Timestamp - ordered.First().Timestamp).TotalDays;
-                    var dailyRate = spanDays > 0 ? ordered.Count / spanDays : 1.0;
+                    var spanDays = (g.Last().Timestamp - g.First().Timestamp).TotalDays;
+                    var dailyRate = spanDays > 0 ? g.Count / spanDays : 1.0;
 
                     results.Add(new DisorderDiagnosis
                     {
                         Disorder = MetabolicDisorder.CostSpike,
                         Severity = recent > baseline * 5 ? DisorderSeverity.Critical : recent > baseline * 3 ? DisorderSeverity.Severe : DisorderSeverity.Moderate,
-                        Confidence = Math.Min(0.9, 0.5 + (ordered.Count / 20.0)),
+                        Confidence = Math.Min(0.9, 0.5 + (g.Count / 20.0)),
                         AffectedPrompts = new List<string> { promptId },
                         Evidence = new List<string> { $"Recent avg cost ${recent:F4} is {recent / baseline:F1}x baseline ${baseline:F4}" },
                         EstimatedMonthlyCostImpact = (recent - baseline) * dailyRate * 30,
-                        FirstDetected = ordered.Last().Timestamp,
+                        FirstDetected = g.Last().Timestamp,
                         IsProgressing = true
                     });
                 }
@@ -746,15 +757,15 @@ namespace Prompt
 
             foreach (var (promptId, samples) in groupedByPrompt)
             {
+                // samples are pre-sorted by Timestamp; Where preserves order
                 var qualitySamples = samples.Where(s => s.QualityScore.HasValue).ToList();
                 if (qualitySamples.Count < 6) continue;
 
-                var ordered = qualitySamples.OrderBy(s => s.Timestamp).ToList();
-                int half = ordered.Count / 2;
-                var firstTokens = ordered.Take(half).Average(s => (double)s.TotalTokens);
-                var secondTokens = ordered.Skip(half).Average(s => (double)s.TotalTokens);
-                var firstQuality = ordered.Take(half).Average(s => s.QualityScore!.Value);
-                var secondQuality = ordered.Skip(half).Average(s => s.QualityScore!.Value);
+                int half = qualitySamples.Count / 2;
+                var firstTokens = qualitySamples.Take(half).Average(s => (double)s.TotalTokens);
+                var secondTokens = qualitySamples.Skip(half).Average(s => (double)s.TotalTokens);
+                var firstQuality = qualitySamples.Take(half).Average(s => s.QualityScore!.Value);
+                var secondQuality = qualitySamples.Skip(half).Average(s => s.QualityScore!.Value);
 
                 // Tokens grew significantly but quality didn't
                 if (secondTokens > firstTokens * 1.3 && secondQuality <= firstQuality * 1.05)
@@ -767,7 +778,7 @@ namespace Prompt
                         AffectedPrompts = new List<string> { promptId },
                         Evidence = new List<string> { $"Tokens grew {(secondTokens / firstTokens - 1):P0} but quality only {(secondQuality / firstQuality - 1):+P0;-P0;unchanged}" },
                         EstimatedMonthlyCostImpact = (secondTokens - firstTokens) / 1000.0 * 0.01 * 30,
-                        FirstDetected = ordered[half].Timestamp
+                        FirstDetected = qualitySamples[half].Timestamp
                     });
                 }
             }
@@ -901,18 +912,18 @@ namespace Prompt
 
             foreach (var (promptId, g) in groupedByPrompt)
             {
-                var ordered = g.OrderBy(s => s.Timestamp).ToList();
-                if (ordered.Count < 4) continue;
+                // g is pre-sorted by Timestamp — no re-sort needed
+                if (g.Count < 4) continue;
 
                 // Check if input tokens are nearly identical (±5%) across most calls
-                var avgInput = ordered.Average(s => (double)s.InputTokens);
+                var avgInput = g.Average(s => (double)s.InputTokens);
                 if (avgInput == 0) continue;
-                var identicalCount = ordered.Count(s => Math.Abs(s.InputTokens - avgInput) / avgInput < 0.05);
-                var identicalRate = identicalCount / (double)ordered.Count;
+                var identicalCount = g.Count(s => Math.Abs(s.InputTokens - avgInput) / avgInput < 0.05);
+                var identicalRate = identicalCount / (double)g.Count;
 
-                if (identicalRate > 0.8 && ordered.Count >= 5)
+                if (identicalRate > 0.8 && g.Count >= 5)
                 {
-                    var potentialSavings = avgInput * 0.001 * 0.005 * ordered.Count * 0.7; // ~70% cacheable
+                    var potentialSavings = avgInput * 0.001 * 0.005 * g.Count * 0.7; // ~70% cacheable
                     results.Add(new DisorderDiagnosis
                     {
                         Disorder = MetabolicDisorder.RedundancyWaste,
