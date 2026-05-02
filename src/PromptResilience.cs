@@ -539,6 +539,8 @@ namespace Prompt
         private PerturbationTrial ApplyTypo(string prompt, List<string> keyTokens)
         {
             var chars = prompt.ToCharArray();
+            if (chars.Length == 0)
+                return new PerturbationTrial { MutatedPrompt = prompt, IntentRetention = 1.0, KeyTokensSurvived = true, Explanation = "Empty prompt — no typos applied" };
             int numTypos = Math.Max(1, chars.Length / 30);
             var typoPositions = new List<int>();
 
@@ -691,6 +693,8 @@ namespace Prompt
         private PerturbationTrial ApplyCaseFlip(string prompt, List<string> keyTokens)
         {
             var chars = prompt.ToCharArray();
+            if (chars.Length == 0)
+                return new PerturbationTrial { MutatedPrompt = prompt, IntentRetention = 1.0, KeyTokensSurvived = true, Explanation = "Empty prompt — no case flips applied" };
             int flips = Math.Max(1, chars.Length / 15);
             for (int i = 0; i < flips; i++)
             {
