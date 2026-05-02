@@ -1,0 +1,110 @@
+name: "🔄 Regression / Breaking Change"
+description: Report a regression or breaking change after upgrading to a newer version.
+title: "[Regression] "
+labels: ["bug", "regression"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Regression / Breaking Change Report
+        Something that previously worked is now broken after an update. Help us track down what changed.
+
+  - type: input
+    id: working-version
+    attributes:
+      label: Last Known Working Version
+      description: The last version where this feature worked correctly.
+      placeholder: "e.g., 3.14.0"
+    validations:
+      required: true
+
+  - type: input
+    id: broken-version
+    attributes:
+      label: Broken Version
+      description: The version where the regression was introduced.
+      placeholder: "e.g., 3.15.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected Area
+      description: Which part of the library is affected?
+      options:
+        - Core (Main, PromptManager, PromptBuilder)
+        - Templates & Chains (PromptChain, PromptTemplate)
+        - Safety (PromptAdversary, injection detection)
+        - Token Management (TokenBudget, TokenCounter)
+        - Quality & Scoring (PromptQualityScorer)
+        - A/B Testing (PromptAbTester)
+        - Caching (PromptCache)
+        - Observability (PromptObserver, diagnostics)
+        - NuGet Package / Installation
+        - Docker Image
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What Regressed?
+      description: Describe the behavior that changed. Include the expected vs actual behavior.
+      placeholder: |
+        **Before (working):** `PromptChain.ExecuteAsync()` returned results in under 200ms.
+        **After (broken):** Same call now throws `TimeoutException` after 30s.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal Reproduction
+      description: Provide the smallest code snippet that demonstrates the regression.
+      render: csharp
+      placeholder: |
+        // Code that worked before but is now broken
+        var chain = new PromptChain();
+        chain.AddStep("summarize", "Summarize: {{input}}");
+        var result = await chain.ExecuteAsync(input); // throws in v3.15.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: stacktrace
+    attributes:
+      label: Stack Trace / Error Output
+      description: Paste any exception details or unexpected output.
+      render: text
+    validations:
+      required: false
+
+  - type: dropdown
+    id: dotnet-version
+    attributes:
+      label: .NET Version
+      options:
+        - ".NET 8.0"
+        - ".NET 9.0"
+        - ".NET 10.0"
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround
+      description: Have you found any workaround? If so, describe it here.
+    validations:
+      required: false
+
+  - type: textarea
+    id: bisect
+    attributes:
+      label: Bisect Results
+      description: "If you've narrowed down the commit or PR that introduced the regression, link it here."
+    validations:
+      required: false

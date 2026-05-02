@@ -1,0 +1,95 @@
+name: "🔌 Integration / Compatibility Request"
+description: Request support for a new AI model, provider, or framework integration.
+title: "[Integration] "
+labels: ["enhancement", "integration"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Integration / Compatibility Request
+        Request support for a new AI provider, model, or framework integration with the Prompt library.
+
+  - type: dropdown
+    id: request-type
+    attributes:
+      label: Request Type
+      description: What kind of integration are you looking for?
+      options:
+        - New AI Provider (e.g., Anthropic, Google Gemini, AWS Bedrock)
+        - New Model Support (within Azure OpenAI)
+        - Framework Integration (e.g., Semantic Kernel, LangChain.NET)
+        - Output Format (e.g., structured output, function calling schema)
+        - Authentication Method (e.g., managed identity, workload identity)
+        - Observability Integration (e.g., OpenTelemetry, Application Insights)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: provider-or-tool
+    attributes:
+      label: Provider / Tool Name
+      description: The specific provider, model, or tool you want integrated.
+      placeholder: "e.g., Anthropic Claude 4, Google Gemini 2.5, Semantic Kernel v1.x"
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Describe your use case and why this integration is valuable.
+      placeholder: |
+        We're migrating from Azure OpenAI to a multi-provider setup and need
+        Prompt to work with Anthropic's Claude API alongside our existing
+        Azure OpenAI workflows. Key requirements:
+        - Same PromptChain/PromptTemplate abstractions across providers
+        - Unified token counting and budgeting
+        - Provider-specific safety guardrails
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority for Your Workflow
+      description: How critical is this integration for your project?
+      options:
+        - "Critical — Blocking adoption/migration"
+        - "High — Major feature gap, using workarounds"
+        - "Medium — Would improve our workflow significantly"
+        - "Low — Nice to have, no immediate need"
+    validations:
+      required: true
+
+  - type: textarea
+    id: api-surface
+    attributes:
+      label: Suggested API Surface
+      description: If you have ideas about how this should look from a developer's perspective, share them here.
+      render: csharp
+      placeholder: |
+        // Example of what the integration API could look like
+        var provider = new AnthropicProvider(apiKey, model: "claude-4");
+        var manager = new PromptManager(provider);
+        var result = await manager.GetResponseAsync("...");
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Current Alternatives / Workarounds
+      description: How are you currently handling this? Any libraries or patterns you're using?
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      description: Would you be willing to contribute to this integration?
+      options:
+        - label: I'd be willing to submit a PR for this integration
+        - label: I can help with testing / code review
+        - label: I can provide access to the target service for testing
