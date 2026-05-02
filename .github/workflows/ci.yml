@@ -26,10 +26,35 @@ jobs:
           dotnet-version: "8.0.x"
       - run: dotnet format --verify-no-changes --verbosity diagnostic
 
-  build-and-test:
-    name: Build, Test & Coverage
+  vulnerability-audit:
+    name: Dependency Vulnerability Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
+      - name: Restore packages
+        run: dotnet restore
+      - name: Check for vulnerable packages
+        run: |
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee audit.txt
+          if grep -qi "has the following vulnerable packages" audit.txt; then
+            echo "::warning::Vulnerable dependencies detected — review audit output above"
+          fi
+      - name: Check for deprecated packages
+        run: dotnet list package --deprecated --include-transitive
+        continue-on-error: true
+
+  build-and-test:
+    name: Build, Test & Coverage (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
 
     steps:
       - name: Checkout repository
@@ -40,6 +65,14 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
       - name: Restore dependencies
         run: dotnet restore
 
@@ -47,22 +80,10 @@ jobs:
         run: dotnet build --no-restore -c Release
 
       - name: Run tests with coverage
-        run: |
-          dotnet test tests/Prompt.Tests.csproj \
-            --no-build \
-            -c Release \
-            --logger "trx;LogFileName=results.trx" \
-            /p:CollectCoverage=true \
-            /p:CoverletOutputFormat="cobertura%2cjson" \
-            /p:CoverletOutput=./coverage/ \
-            /p:Include="[Prompt]*" \
-            /p:ExcludeByAttribute="GeneratedCodeAttribute" \
-            /p:Threshold=50 \
-            /p:ThresholdType=line \
-            /p:ThresholdStat=total
+        run: dotnet test tests/Prompt.Tests.csproj --no-build -c Release --logger "trx;LogFileName=results.trx" /p:CollectCoverage=true /p:CoverletOutputFormat="cobertura%2cjson" /p:CoverletOutput=./coverage/ /p:Include="[Prompt]*" /p:ExcludeByAttribute="GeneratedCodeAttribute" /p:Threshold=50 /p:ThresholdType=line /p:ThresholdStat=total
 
       - name: Generate HTML coverage report
-        if: always()
+        if: always() && runner.os == 'Linux'
         run: |
           dotnet tool install -g dotnet-reportgenerator-globaltool || true
           export PATH="$PATH:$HOME/.dotnet/tools"
@@ -75,7 +96,7 @@ jobs:
           fi
 
       - name: Generate coverage summary
-        if: always()
+        if: always() && runner.os == 'Linux'
         run: |
           if [ -f tests/coverage/coverage.cobertura.xml ]; then
             LINE_RATE=$(grep -oP 'line-rate="\K[^"]+' tests/coverage/coverage.cobertura.xml | head -1)
@@ -93,7 +114,6 @@ jobs:
                 echo "| Threshold | 50% (line) |"
                 echo ""
               } >> "$GITHUB_STEP_SUMMARY"
-              # Append ReportGenerator markdown if available
               if [ -f tests/coverage/html/SummaryGithub.md ]; then
                 cat tests/coverage/html/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
               fi
@@ -101,7 +121,7 @@ jobs:
           fi
 
       - name: Add PR coverage comment
-        if: github.event_name == 'pull_request' && always()
+        if: github.event_name == 'pull_request' && always() && runner.os == 'Linux'
         uses: marocchino/sticky-pull-request-comment@v3
         with:
           header: coverage
@@ -109,7 +129,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload coverage to Codecov
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && runner.os == 'Linux'
         uses: codecov/codecov-action@v6
         with:
           files: tests/coverage/coverage.cobertura.xml
@@ -120,11 +140,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: test-results
+          name: test-results-${{ matrix.os }}
           path: tests/TestResults/results.trx
 
       - name: Upload coverage report
-        if: always()
+        if: always() && runner.os == 'Linux'
         uses: actions/upload-artifact@v7
         with:
           name: coverage-report
