@@ -12,7 +12,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/ci.yml?style=flat-square&label=CI&logo=github)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/ci.yml)
 [![Publish](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/nuget-publish.yml?style=flat-square&label=Publish&logo=github)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/nuget-publish.yml)
 [![codecov](https://img.shields.io/codecov/c/github/sauravbhattacharya001/prompt?style=flat-square&logo=codecov)](https://codecov.io/gh/sauravbhattacharya001/prompt)
-![Tests](https://img.shields.io/badge/tests-1011%20passed-brightgreen?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-5727%20passed-brightgreen?style=flat-square)
 [![Docker](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/docker.yml?style=flat-square&label=Docker&logo=docker)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/docker.yml)
 [![Pages](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/pages.yml?style=flat-square&label=Docs&logo=github)](https://sauravbhattacharya001.github.io/prompt/)
 [![GitHub Release](https://img.shields.io/github/v/release/sauravbhattacharya001/prompt?style=flat-square&logo=github&color=blue)](https://github.com/sauravbhattacharya001/prompt/releases)
@@ -38,8 +38,8 @@ Most Azure OpenAI wrappers give you a thin HTTP client and call it a day. **Prom
 - **One line to start** — `await Main.GetResponseAsync("...")` handles auth, retries, and connection pooling
 - **Templates + Chains** — build reusable, composable prompt pipelines without string concatenation
 - **Safety built in** — injection detection, token budgeting, and quality scoring out of the box
-- **100+ specialized classes** — from A/B testing to workflow orchestration, every prompt engineering pattern is covered
-- **Production-ready** — 1,000+ tests, NuGet package, Docker image, full docs site
+- **170+ specialized classes** — from A/B testing to workflow orchestration, every prompt engineering pattern is covered
+- **Production-ready** — 5,700+ tests, NuGet package, Docker image, full docs site
 
 If you've ever copy-pasted prompt strings across files, hand-rolled retry logic, or wondered if your prompt is vulnerable to injection — this library exists so you don't have to.
 
@@ -74,7 +74,7 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 - **Serialization** — All classes support JSON round-trip (ToJson/FromJson/SaveToFileAsync/LoadFromFileAsync)
 
 ### Infrastructure
-- **1,000+ tests** — Comprehensive xUnit test suite
+- **5,700+ tests** — Comprehensive xUnit test suite
 - **Cross-platform** — Environment variable resolution on Windows, Linux, and macOS
 - **NuGet ready** — Published as [`prompt-llm-aoi`](https://www.nuget.org/packages/prompt-llm-aoi)
 
@@ -114,6 +114,7 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 | `PromptConditional` | Conditional logic for prompt templates |
 | `PromptContextBuilder` | Priority-based prompt context assembly with token budgeting |
 | `PromptContextCompressor` | Intelligent conversation context compression with 4 strategies |
+| `PromptContextAllocator` | Priority-based token allocation across multiple context sources |
 | `PromptInheritance` | Block-based template inheritance with `{{super}}` support |
 | `PromptInterpolator` | Pipe-based template variable transformations |
 | `PromptMerger` | Merge and combine multiple prompt templates |
@@ -142,6 +143,9 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 | `PromptSanitizer` | Prompt cleaning and normalization utility |
 | `PromptComplianceChecker` | Policy and regulatory compliance validation for prompts |
 | `PromptQualityGate` | Configurable pass/fail gate for prompt validation |
+| `PromptSentinel` | Advanced threat detection with categorized attack pattern matching |
+| `PromptSecretScanner` | Detect and redact secrets, API keys, and credentials in prompts |
+| `PromptAdversary` | Adversarial attack strategy generation for red-team testing |
 | `PromptOutputValidator` | LLM response validation against configurable rules |
 | `PromptGrammarValidator` | Response format validation with 11 rule types (regex, JSON, length, structure) |
 | `PromptLinter` | Rule-based static analysis for LLM prompts |
@@ -168,6 +172,12 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 | `PromptDatasetBuilder` | Evaluation and fine-tuning dataset builder |
 | `PromptVariantGenerator` | Automated prompt variant generation for testing |
 | `PromptCoverageAnalyzer` | Library coverage analysis with health scoring |
+| `PromptContractTester` | Contract-based prompt testing with input/output assertions |
+| `PromptRegressionDetector` | Detect prompt output regressions across versions |
+| `PromptMutationLab` | Mutation testing for prompt robustness via zone-targeted transformations |
+| `PromptTournament` | Tournament-style prompt variant comparison and ranking |
+| `PromptShadowRunner` | Shadow execution for safe prompt change validation |
+| `PromptComparator` | Side-by-side prompt output comparison |
 
 </details>
 
@@ -186,6 +196,11 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 | `PromptHealthCheck` | Library-wide quality analysis and health scoring |
 | `PromptHeatmap` | Visual prompt usage and performance heatmaps |
 | `PromptCanary` | Canary deployment monitoring for prompt changes |
+| `PromptDriftMonitor` | Multi-dimensional output drift detection with alerting |
+| `PromptSLAMonitor` | SLA monitoring for prompt latency, quality, and availability |
+| `PromptMetabolismEngine` | Prompt lifecycle metabolism tracking (usage, decay, renewal) |
+| `PromptTokenCounter` | Token estimation and counting for prompt budgeting |
+| `PromptUsageDashboard` | Unified usage dashboard with aggregated metrics |
 
 </details>
 
@@ -204,6 +219,10 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 | `PromptDiffEngine` | Advanced diff computation engine |
 | `PromptDiffViewer` | Visual diff rendering |
 | `PromptMigrationAssistant` | Cross-provider prompt adaptation assistant |
+| `PromptRollbackManager` | Safe rollback to previous prompt versions with validation |
+| `PromptGenealogyTracker` | Track prompt lineage, ancestry, and evolution history |
+| `PromptStaleDetector` | Detect stale and outdated prompts |
+| `PromptMaturityModel` | Assess prompt maturity across development lifecycle stages |
 | `PromptFeatureFlag` | Feature-flagged prompt variants |
 
 </details>
@@ -226,7 +245,16 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 | `PromptCompatibilityChecker` | Cross-provider prompt portability analysis |
 | `PromptRefactorer` | Automated prompt refactoring and optimization suggestions |
 | `PromptCoEvolver` | Co-evolutionary prompt improvement |
+| `PromptEvolutionEngine` | Evolutionary optimization for prompt populations |
+| `PromptReadabilityAnalyzer` | Readability scoring and grade-level analysis for prompts |
+| `PromptToneAnalyzer` | Tone and sentiment analysis for prompt calibration |
+| `PromptSentimentAnalyzer` | Granular sentiment classification for prompt content |
+| `PromptWisdomEngine` | Outcome-driven prompt wisdom distillation and pattern learning |
+| `PromptRiskForecaster` | Predictive risk scoring with trend analysis |
+| `PromptSituationRoom` | Multi-signal operational awareness for prompt systems |
+| `PromptSupplyChainAuditor` | Audit prompt supply chain dependencies and supplier risk |
 | `PromptStyleTransfer` | Heuristic prompt tone and style rewriting |
+| `PromptStyleTransformer` | Rule-based style transformations across registers and formats |
 | `PromptNegotiator` | Iterative prompt refinement with validation feedback loops |
 
 </details>
@@ -255,7 +283,35 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 | `PromptAutopilot` | Automated prompt improvement loops |
 | `PromptErrorRecovery` | Graceful error handling and recovery strategies |
 | `PromptArchetypeLibrary` | Pre-built prompt archetypes and patterns |
+| `PromptMemory` | Tiered memory with importance-based retention for multi-turn context |
+| `PromptMemoryIndex` | Indexed memory retrieval for semantic prompt context |
+| `PromptSwarm` | Multi-agent swarm execution with consensus strategies |
+| `PromptSelfTuningEngine` | Autonomous parameter optimization via UCB1 multi-armed bandit |
+| `PromptSelfHealer` | Self-healing prompt execution with automatic error correction |
+| `PromptCircuitBreakerEngine` | Circuit breaker pattern for prompt execution resilience |
+| `PromptResilience` | Resilience policies (retry, timeout, bulkhead) for prompt execution |
+| `PromptFeedbackLoop` | Feedback-driven prompt improvement loops |
+| `PromptCachingOptimizer` | Intelligent caching strategy optimization |
+| `PromptTokenBudgetPlanner` | Multi-model token budget planning and allocation |
+| `PromptForgettingCurveEngine` | Spaced-repetition forgetting curve for prompt memory management |
+| `PromptTranslator` | Cross-language prompt translation and localization |
+| `PromptTagManager` | Taxonomy-based prompt tagging and categorization |
+| `PromptGoalPlanner` | Goal-decomposition planning for complex prompt tasks |
+| `PromptMixtureOfExperts` | Mixture-of-experts routing for specialized prompt handling |
+| `PromptSymbiosis` | Symbiotic prompt pairing for complementary execution |
+| `PromptEcosystem` | Ecosystem management for interconnected prompt systems |
+| `PromptTriageEngine` | Automated prompt triage and priority routing |
+| `PromptWatermark` | Invisible watermarking for prompt provenance tracking |
 | `PromptConflictDetector` | Detect conflicting prompt instructions |
+| `PromptAutoImprover` | Automated prompt improvement via iterative refinement |
+| `PromptNormalizer` | Prompt normalization and canonical form conversion |
+| `PromptPersonaBuilder` | Structured persona construction for system prompts |
+| `PromptPlayground` | Interactive prompt experimentation environment |
+| `PromptRecipe` | Composable prompt recipe templates with parameterized steps |
+| `PromptShareFormatter` | Format prompts for sharing across platforms |
+| `PromptProfileSwitcher` | Switch between prompt configuration profiles |
+| `PromptOrchestrator` | DAG-based multi-node prompt orchestration with gates and routing |
+| `PromptScheduler` | Scheduled and deferred prompt execution |
 
 </details>
 
