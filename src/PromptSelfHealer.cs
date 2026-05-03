@@ -202,6 +202,7 @@ namespace Prompt
 
         /// <summary>
         /// Analyze a prompt execution and detect any failure modes.
+        /// Delegates to individual detector methods for each failure category.
         /// </summary>
         public List<PromptFailure> Detect(string prompt, string output, Dictionary<string, string>? metadata = null)
         {
@@ -213,81 +214,112 @@ namespace Prompt
             var key = ComputePromptKey(prompt);
             _promptExecutionCount[key] = _promptExecutionCount.GetValueOrDefault(key) + 1;
 
-            var detected = new List<PromptFailure>();
             var meta = metadata ?? new Dictionary<string, string>();
+            var detected = new List<PromptFailure>();
 
-            // Refusal detection
+            DetectRefusal(prompt, output, meta, detected);
+            DetectRepetitionLoop(prompt, output, meta, detected);
+            DetectTruncation(prompt, output, meta, detected);
+            DetectHallucination(prompt, output, meta, detected);
+            DetectFormatViolation(prompt, output, meta, detected);
+            DetectLowSpecificity(prompt, output, meta, detected);
+            DetectConstraintViolation(prompt, output, meta, detected);
+            DetectOffTopicDrift(prompt, output, meta, detected);
+
+            if (detected.Count > 0)
+                _promptFailureCount[key] = _promptFailureCount.GetValueOrDefault(key) + detected.Count;
+            _failures.AddRange(detected);
+
+            return detected;
+        }
+
+        // ── Individual Detectors ───────────────────────
+
+        private void DetectRefusal(string prompt, string output, Dictionary<string, string> meta, List<PromptFailure> detected)
+        {
             if (RefusalPattern.IsMatch(output))
-            {
                 detected.Add(CreateFailure(HealerFailureMode.Refusal, FailureSeverity.High, prompt, output,
                     "Output contains refusal language", 0.85, meta));
-            }
+        }
 
-            // Repetition loop detection
+        private void DetectRepetitionLoop(string prompt, string output, Dictionary<string, string> meta, List<PromptFailure> detected)
+        {
             if (RepetitionPattern.IsMatch(output))
-            {
                 detected.Add(CreateFailure(HealerFailureMode.RepetitionLoop, FailureSeverity.Medium, prompt, output,
                     "Output contains repeated text blocks", 0.90, meta));
-            }
+        }
 
-            // Truncation detection
+        private static void DetectTruncation(string prompt, string output, Dictionary<string, string> meta, List<PromptFailure> detected)
+        {
             if (output.Length > 100 && TruncationPattern.IsMatch(output) && !output.TrimEnd().EndsWith("..."))
-            {
                 detected.Add(CreateFailure(HealerFailureMode.Truncation, FailureSeverity.Medium, prompt, output,
                     "Output appears to end mid-sentence", 0.70, meta));
-            }
+        }
 
-            // Hallucination markers
+        private static void DetectHallucination(string prompt, string output, Dictionary<string, string> meta, List<PromptFailure> detected)
+        {
             if (HallucinationMarkers.IsMatch(output))
-            {
                 detected.Add(CreateFailure(HealerFailureMode.Hallucination, FailureSeverity.High, prompt, output,
                     "Output contains hallucination markers (unverifiable claims)", 0.65, meta));
-            }
+        }
 
-            // Format violation: check if prompt asks for JSON but output isn't JSON
-            if (Regex.IsMatch(prompt, @"(?i)(respond\s+(?:in|with)\s+JSON|JSON\s+format|output.*JSON|```json)", RegexOptions.Compiled))
+        private static readonly Regex JsonFormatRequest = new(
+            @"(?i)(respond\s+(?:in|with)\s+JSON|JSON\s+format|output.*JSON|```json)",
+            RegexOptions.Compiled);
+
+        private static readonly Regex ListFormatRequest = new(
+            @"(?i)(list\s+(?:the|all|each)|bullet\s+points?|numbered\s+list)",
+            RegexOptions.Compiled);
+
+        private static readonly Regex ListMarkerPattern = new(
+            @"(?m)^[\s]*[-•*\d]+[.)\s]",
+            RegexOptions.Compiled);
+
+        private static void DetectFormatViolation(string prompt, string output, Dictionary<string, string> meta, List<PromptFailure> detected)
+        {
+            if (JsonFormatRequest.IsMatch(prompt))
             {
                 var trimmed = output.Trim();
                 if (!trimmed.StartsWith("{") && !trimmed.StartsWith("["))
-                {
                     detected.Add(CreateFailure(HealerFailureMode.FormatViolation, FailureSeverity.High, prompt, output,
                         "Prompt requests JSON but output is not JSON", 0.90, meta));
-                }
             }
 
-            // Format violation: check if prompt asks for list/bullets
-            if (Regex.IsMatch(prompt, @"(?i)(list\s+(?:the|all|each)|bullet\s+points?|numbered\s+list)", RegexOptions.Compiled))
-            {
-                if (!Regex.IsMatch(output, @"(?m)^[\s]*[-•*\d]+[.)\s]"))
-                {
-                    detected.Add(CreateFailure(HealerFailureMode.FormatViolation, FailureSeverity.Medium, prompt, output,
-                        "Prompt requests list format but output lacks list markers", 0.70, meta));
-                }
-            }
+            if (ListFormatRequest.IsMatch(prompt) && !ListMarkerPattern.IsMatch(output))
+                detected.Add(CreateFailure(HealerFailureMode.FormatViolation, FailureSeverity.Medium, prompt, output,
+                    "Prompt requests list format but output lacks list markers", 0.70, meta));
+        }
 
-            // Low specificity: very short output for complex prompts
+        private static void DetectLowSpecificity(string prompt, string output, Dictionary<string, string> meta, List<PromptFailure> detected)
+        {
             var promptWords = prompt.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
             var outputWords = output.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
             if (promptWords > 30 && outputWords < 15 && output.Length < 100)
-            {
                 detected.Add(CreateFailure(HealerFailureMode.LowSpecificity, FailureSeverity.Medium, prompt, output,
                     $"Output ({outputWords} words) is disproportionately short for prompt ({promptWords} words)", 0.75, meta));
-            }
+        }
 
-            // Constraint violation: explicit "do not" or "must not" instructions ignored
-            var constraints = Regex.Matches(prompt, @"(?i)(?:do\s+not|must\s+not|never|avoid)\s+(.{5,50?})(?=[.,;!]|$)");
-            foreach (Match m in constraints)
+        private static readonly Regex ConstraintPattern = new(
+            @"(?i)(?:do\s+not|must\s+not|never|avoid)\s+(.{5,50?})(?=[.,;!]|$)",
+            RegexOptions.Compiled);
+
+        private static void DetectConstraintViolation(string prompt, string output, Dictionary<string, string> meta, List<PromptFailure> detected)
+        {
+            var outputLower = output.ToLowerInvariant();
+            foreach (Match m in ConstraintPattern.Matches(prompt))
             {
                 var forbidden = m.Groups[1].Value.Trim().ToLowerInvariant();
-                if (forbidden.Length > 5 && output.ToLowerInvariant().Contains(forbidden))
+                if (forbidden.Length > 5 && outputLower.Contains(forbidden))
                 {
                     detected.Add(CreateFailure(HealerFailureMode.ConstraintViolation, FailureSeverity.High, prompt, output,
                         $"Output violates constraint: '{m.Value.Trim()}'", 0.80, meta));
                     break;
                 }
             }
+        }
 
-            // Off-topic drift: keyword overlap check
+        private static void DetectOffTopicDrift(string prompt, string output, Dictionary<string, string> meta, List<PromptFailure> detected)
+        {
             var promptKeywords = ExtractKeywords(prompt);
             var outputKeywords = ExtractKeywords(output);
             if (promptKeywords.Count >= 5 && outputKeywords.Count >= 5)
@@ -295,20 +327,9 @@ namespace Prompt
                 var overlap = promptKeywords.Intersect(outputKeywords).Count();
                 var overlapRatio = (double)overlap / promptKeywords.Count;
                 if (overlapRatio < 0.1)
-                {
                     detected.Add(CreateFailure(HealerFailureMode.OffTopicDrift, FailureSeverity.Medium, prompt, output,
                         $"Keyword overlap is only {overlapRatio:P0} — output may be off-topic", 0.60, meta));
-                }
             }
-
-            // Track failures
-            if (detected.Count > 0)
-            {
-                _promptFailureCount[key] = _promptFailureCount.GetValueOrDefault(key) + detected.Count;
-            }
-            _failures.AddRange(detected);
-
-            return detected;
         }
 
         // ── Patch Generation ───────────────────────────
@@ -578,7 +599,7 @@ namespace Prompt
 
         // ── Private Helpers ────────────────────────────
 
-        private PromptFailure CreateFailure(HealerFailureMode mode, FailureSeverity severity, string prompt,
+        private static PromptFailure CreateFailure(HealerFailureMode mode, FailureSeverity severity, string prompt,
             string output, string evidence, double confidence, Dictionary<string, string> meta)
         {
             return new PromptFailure
@@ -750,37 +771,36 @@ namespace Prompt
             return sb.Length > 0 ? sb.ToString() : "  • Follow all instructions precisely.";
         }
 
+        /// <summary>Threshold-based recommendation rules keyed by failure mode.</summary>
+        private static readonly (HealerFailureMode Mode, int MinCount, string Advice)[] RecommendationRules =
+        {
+            (HealerFailureMode.Refusal, 2, "Recurring refusals detected. Consider reframing sensitive prompts with professional/educational context framing."),
+            (HealerFailureMode.Hallucination, 2, "Multiple hallucination events. Add explicit grounding instructions and 'cite sources or say unsure' directives."),
+            (HealerFailureMode.FormatViolation, 2, "Format violations recurring. Use stronger format enforcement (e.g., 'Output ONLY valid JSON, nothing else')."),
+            (HealerFailureMode.Truncation, 2, "Truncation is common. Reduce prompt complexity or add 'be concise but complete' instructions."),
+            (HealerFailureMode.RepetitionLoop, 1, "Repetition loops detected. Lower temperature or add diversity instructions."),
+            (HealerFailureMode.OffTopicDrift, 2, "Off-topic drift recurring. Add explicit scope boundaries and 'stay on topic' guardrails."),
+            (HealerFailureMode.ConstraintViolation, 2, "Constraints being ignored. Move critical constraints to the beginning of the prompt and use ALL CAPS or bullet formatting."),
+            (HealerFailureMode.LowSpecificity, 2, "Low specificity outputs. Add 'provide concrete examples' or 'include specific numbers/steps' to prompts."),
+        };
+
         private List<string> GenerateProactiveRecommendations()
         {
             var recs = new List<string>();
-            var summary = new Dictionary<HealerFailureMode, int>();
+
+            // Build per-mode counts once
+            var modeCounts = new Dictionary<HealerFailureMode, int>();
             foreach (var f in _failures)
-                summary[f.Mode] = summary.GetValueOrDefault(f.Mode) + 1;
+                modeCounts[f.Mode] = modeCounts.GetValueOrDefault(f.Mode) + 1;
 
-            if (summary.GetValueOrDefault(HealerFailureMode.Refusal) >= 2)
-                recs.Add("Recurring refusals detected. Consider reframing sensitive prompts with professional/educational context framing.");
+            // Evaluate declarative threshold rules
+            foreach (var (mode, minCount, advice) in RecommendationRules)
+            {
+                if (modeCounts.GetValueOrDefault(mode) >= minCount)
+                    recs.Add(advice);
+            }
 
-            if (summary.GetValueOrDefault(HealerFailureMode.Hallucination) >= 2)
-                recs.Add("Multiple hallucination events. Add explicit grounding instructions and 'cite sources or say unsure' directives.");
-
-            if (summary.GetValueOrDefault(HealerFailureMode.FormatViolation) >= 2)
-                recs.Add("Format violations recurring. Use stronger format enforcement (e.g., 'Output ONLY valid JSON, nothing else').");
-
-            if (summary.GetValueOrDefault(HealerFailureMode.Truncation) >= 2)
-                recs.Add("Truncation is common. Reduce prompt complexity or add 'be concise but complete' instructions.");
-
-            if (summary.GetValueOrDefault(HealerFailureMode.RepetitionLoop) >= 1)
-                recs.Add("Repetition loops detected. Lower temperature or add diversity instructions.");
-
-            if (summary.GetValueOrDefault(HealerFailureMode.OffTopicDrift) >= 2)
-                recs.Add("Off-topic drift recurring. Add explicit scope boundaries and 'stay on topic' guardrails.");
-
-            if (summary.GetValueOrDefault(HealerFailureMode.ConstraintViolation) >= 2)
-                recs.Add("Constraints being ignored. Move critical constraints to the beginning of the prompt and use ALL CAPS or bullet formatting.");
-
-            if (summary.GetValueOrDefault(HealerFailureMode.LowSpecificity) >= 2)
-                recs.Add("Low specificity outputs. Add 'provide concrete examples' or 'include specific numbers/steps' to prompts.");
-
+            // Systemic health checks
             var totalExec = _promptExecutionCount.Values.Sum();
             if (totalExec > 10 && _failures.Count > totalExec * 0.3)
                 recs.Add("Overall failure rate exceeds 30%. Consider a fundamental prompt redesign rather than incremental patches.");
