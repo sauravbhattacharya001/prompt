@@ -344,20 +344,8 @@ namespace Prompt
         /// <summary>Topological sort (Kahn's algorithm). Throws if cycles exist.</summary>
         public IReadOnlyList<string> TopologicalSort()
         {
+            // inDegree[node] = count of its unresolved dependencies
             var inDegree = new Dictionary<string, int>();
-            foreach (var id in _nodes.Keys) inDegree[id] = 0;
-            foreach (var node in _nodes.Values)
-                foreach (var dep in node.Dependencies)
-                    if (_nodes.ContainsKey(dep))
-                        if (inDegree.ContainsKey(dep)) { } // dep has dependents; track fromId
-            // Recompute: inDegree[X] = number of dependencies X has
-            // Actually for execution order: inDegree = number of unresolved deps
-            foreach (var id in _nodes.Keys) inDegree[id] = 0;
-            foreach (var node in _nodes.Values)
-                foreach (var dep in node.Dependencies)
-                    if (_nodes.ContainsKey(dep))
-                        ; // edge: node depends on dep → dep must come first
-            // Use reverse: inDegree[node] = count of its dependencies
             foreach (var node in _nodes.Values)
                 inDegree[node.Id] = node.Dependencies.Count(d => _nodes.ContainsKey(d));
 

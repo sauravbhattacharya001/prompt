@@ -43,7 +43,7 @@ namespace Prompt
         /// <summary>Gets the number of hotspots (segments with heat > 0.7).</summary>
         public int HotspotCount { get; init; }
 
-        /// <summary>Gets identified cold zones (segments with heat < 0.2).</summary>
+        /// <summary>Gets identified cold zones (segments with heat less than 0.2).</summary>
         public int ColdZoneCount { get; init; }
     }
 

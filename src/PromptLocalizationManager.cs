@@ -114,7 +114,7 @@ namespace Prompt
         /// following the fallback chain if needed.
         /// </summary>
         /// <returns>The template string, or null if not found in any fallback.</returns>
-        public string GetPrompt(string key, string locale = null)
+        public string? GetPrompt(string key, string? locale = null)
         {
             locale = NormalizeLocale(locale ?? _defaultLocale);
 
@@ -156,7 +156,7 @@ namespace Prompt
         /// Gets and renders a prompt with variable substitution.
         /// Uses <c>{{variable}}</c> syntax.
         /// </summary>
-        public string RenderPrompt(string key, string locale, IDictionary<string, string> variables = null)
+        public string RenderPrompt(string key, string locale, IDictionary<string, string>? variables = null)
         {
             var template = GetPrompt(key, locale);
             if (template == null)

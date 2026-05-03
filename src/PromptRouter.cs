@@ -194,7 +194,7 @@ namespace Prompt
                 int patternHits = 0;
                 if (_compiledPatterns.TryGetValue(name, out var patterns) && patterns.Length > 0)
                 {
-                    patternHits = patterns.Count(p => SafeIsMatch(input, p));
+                    patternHits = patterns.Count(p => SafeIsMatch(lowerInput, p));
                     score += (double)patternHits / patterns.Length * 0.4;
                 }
 

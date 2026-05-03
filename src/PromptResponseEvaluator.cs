@@ -758,10 +758,10 @@ namespace Prompt
         public double ScoreStdDev { get; set; }
 
         [JsonPropertyName("bestResponse")]
-        public EvaluationResult BestResponse { get; set; }
+        public EvaluationResult BestResponse { get; set; } = default!;
 
         [JsonPropertyName("worstResponse")]
-        public EvaluationResult WorstResponse { get; set; }
+        public EvaluationResult WorstResponse { get; set; } = default!;
 
         [JsonPropertyName("formatConsistency")]
         public double FormatConsistency { get; set; }
@@ -779,10 +779,10 @@ namespace Prompt
     public class ComparisonResult
     {
         [JsonPropertyName("evaluationA")]
-        public EvaluationResult EvaluationA { get; set; }
+        public EvaluationResult EvaluationA { get; set; } = default!;
 
         [JsonPropertyName("evaluationB")]
-        public EvaluationResult EvaluationB { get; set; }
+        public EvaluationResult EvaluationB { get; set; } = default!;
 
         [JsonPropertyName("scoreDelta")]
         public double ScoreDelta { get; set; }

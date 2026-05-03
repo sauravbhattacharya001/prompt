@@ -90,7 +90,7 @@ namespace Prompt
     public class AllocationResult
     {
         [JsonPropertyName("name")]
-        public string Name { get; set; }
+        public string Name { get; set; } = "";
 
         [JsonPropertyName("requestedTokens")]
         public int RequestedTokens { get; set; }
@@ -99,13 +99,13 @@ namespace Prompt
         public int AllocatedTokens { get; set; }
 
         [JsonPropertyName("finalContent")]
-        public string FinalContent { get; set; }
+        public string FinalContent { get; set; } = "";
 
         [JsonPropertyName("wasModified")]
         public bool WasModified { get; set; }
 
         [JsonPropertyName("action")]
-        public string Action { get; set; } // "kept", "truncated", "compressed", "summarized", "dropped"
+        public string Action { get; set; } = "kept"; // "kept", "truncated", "compressed", "summarized", "dropped"
 
         [JsonPropertyName("priority")]
         public AllocationPriority Priority { get; set; }
@@ -117,10 +117,10 @@ namespace Prompt
     public class AllocationInsight
     {
         [JsonPropertyName("severity")]
-        public string Severity { get; set; } // "info", "warning", "critical"
+        public string Severity { get; set; } = "info"; // "info", "warning", "critical"
 
         [JsonPropertyName("message")]
-        public string Message { get; set; }
+        public string Message { get; set; } = "";
     }
 
     /// <summary>

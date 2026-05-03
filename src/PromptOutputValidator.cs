@@ -54,7 +54,7 @@ namespace Prompt
         public string Name { get; set; } = "";
 
         /// <summary>Gets the validation function. Returns null if valid, or a violation message.</summary>
-        public Func<string, string> Validate { get; set; } = _ => null;
+        public Func<string, string?> Validate { get; set; } = _ => null;
 
         /// <summary>Gets the severity for violations of this rule.</summary>
         public ViolationSeverity Severity { get; set; } = ViolationSeverity.Error;
@@ -159,7 +159,7 @@ namespace Prompt
         }
 
         /// <summary>Output must match the given regex pattern.</summary>
-        public PromptOutputValidator MustMatchRegex(string pattern, string description = null)
+        public PromptOutputValidator MustMatchRegex(string pattern, string? description = null)
         {
             var regex = new Regex(pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
             _rules.Add(new OutputRule
@@ -173,7 +173,7 @@ namespace Prompt
         }
 
         /// <summary>Output must NOT match the given regex pattern.</summary>
-        public PromptOutputValidator MustNotMatchRegex(string pattern, string description = null)
+        public PromptOutputValidator MustNotMatchRegex(string pattern, string? description = null)
         {
             var regex = new Regex(pattern, RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
             _rules.Add(new OutputRule
@@ -352,14 +352,14 @@ namespace Prompt
         }
 
         /// <summary>Add a custom validation rule.</summary>
-        public PromptOutputValidator AddRule(string name, Func<string, string> validate, ViolationSeverity severity = ViolationSeverity.Error)
+        public PromptOutputValidator AddRule(string name, Func<string, string?> validate, ViolationSeverity severity = ViolationSeverity.Error)
         {
             _rules.Add(new OutputRule { Name = name, Validate = validate, Severity = severity });
             return this;
         }
 
         /// <summary>Add a warning-level rule (does not fail validation unless strict mode is on).</summary>
-        public PromptOutputValidator AddWarning(string name, Func<string, string> validate)
+        public PromptOutputValidator AddWarning(string name, Func<string, string?> validate)
         {
             return AddRule(name, validate, ViolationSeverity.Warning);
         }
@@ -383,7 +383,7 @@ namespace Prompt
 
             foreach (var rule in _rules)
             {
-                string violation = rule.Validate(processed);
+                string? violation = rule.Validate(processed);
                 if (violation != null)
                 {
                     var severity = rule.Severity;
@@ -436,7 +436,7 @@ namespace Prompt
         // ── Helpers ─────────────────────────────────────────────────────
 
         private static int WordCount(string s) =>
-            string.IsNullOrWhiteSpace(s) ? 0 : s.Split((char[])null, StringSplitOptions.RemoveEmptyEntries).Length;
+            string.IsNullOrWhiteSpace(s) ? 0 : s.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
 
         private static int LineCount(string s) =>
             string.IsNullOrWhiteSpace(s) ? 0 : s.Split('\n').Length;

@@ -85,10 +85,10 @@ namespace Prompt
         public PlanTaskStatus Status { get; set; } = PlanTaskStatus.Pending;
 
         /// <summary>Output/result text from execution (null if not executed).</summary>
-        public string Result { get; set; }
+        public string? Result { get; set; }
 
         /// <summary>Error message if failed.</summary>
-        public string Error { get; set; }
+        public string? Error { get; set; }
 
         /// <summary>Estimated token cost for this task's prompt.</summary>
         public int EstimatedTokens { get; set; }

@@ -93,7 +93,7 @@ namespace Prompt
             OverallRisk = Findings.Count == 0
                 ? InjectionRisk.Low
                 : Findings.Max(f => f.Rule.Risk);
-            RiskScore = ComputeScore(findings);
+            RiskScore = ComputeScore(Findings);
         }
 
         private static double ComputeScore(IReadOnlyList<InjectionFinding> findings)

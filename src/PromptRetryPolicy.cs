@@ -295,9 +295,9 @@ namespace Prompt
             // the shared retry loop.  Thread.Sleep is used for backoff via
             // the synchronous delay callback overload of ExecuteRetryLoop.
             return ExecuteRetryLoop(
-                async (attempt, _) =>
+                (attempt, _) =>
                 {
-                    return operation(attempt);
+                    return Task.FromResult(operation(attempt));
                 },
                 delay => Thread.Sleep(delay),
                 CancellationToken.None);
