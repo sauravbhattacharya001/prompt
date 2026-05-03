@@ -31,6 +31,31 @@ Send prompts to Azure OpenAI and get responses — with templates, chains, safet
 
 ---
 
+## 📑 Table of Contents
+
+- [Why Prompt?](#-why-prompt)
+- [Features](#-features)
+  - [Full Class Library](#full-class-library) (175 classes across 9 categories)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Quick Start](#quick-start)
+- [Multi-Turn Conversations](#multi-turn-conversations)
+- [Prompt Templates](#prompt-templates)
+- [Prompt Chains](#prompt-chains)
+- [Usage Examples](#usage-examples)
+- [API Reference](#api-reference)
+  - [`Main.GetResponseAsync()`](#maingettresponseasync)
+  - [`Conversation` Class](#conversation-class)
+  - [`PromptTemplate` Class](#prompttemplate-class)
+  - [`PromptChain` Class](#promptchain-class)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
 ## 🚀 Why Prompt?
 
 Most Azure OpenAI wrappers give you a thin HTTP client and call it a day. **Prompt** gives you the full toolkit:
@@ -953,47 +978,83 @@ Multi-step prompt pipeline where each step's output feeds into subsequent steps 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                 Your Application                    │
-└──────────────────────┬──────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────┐
-│              Prompt Library (this)                   │
-│                                                     │
-│  ┌─── Prompt Engineering ─────────────────────────┐ │
-│  │ PromptTemplate  PromptChain   PromptComposer   │ │
-│  │ FewShotBuilder  PromptLibrary PromptRouter     │ │
-│  └────────────────────────────────────────────────┘ │
-│                                                     │
-│  ┌─── Safety & Quality ───────────────────────────┐ │
-│  │ PromptGuard  TokenBudget  PromptTestSuite      │ │
-│  └────────────────────────────────────────────────┘ │
-│                                                     │
-│  ┌─── Management ─────────────────────────────────┐ │
-│  │ PromptVersionManager  ResponseParser           │ │
-│  └────────────────────────────────────────────────┘ │
-│                                                     │
-│  ┌─── Runtime ────────────────────────────────────┐ │
-│  │ Main (Singleton)  Conversation  PromptOptions  │ │
-│  │ Env Config        Retry Pipeline               │ │
-│  └────────────────────────────────────────────────┘ │
-└──────────────────────┬──────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────┐
-│            Azure OpenAI Service                     │
-│        Chat Completions API (GPT-4)                 │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                       Your Application                          │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────┐
+│                    Prompt Library (175 classes)                  │
+│                                                                 │
+│  ┌─── 🔧 Core Runtime ───────────────────────────────────────┐ │
+│  │ Main · Conversation · PromptOptions · PromptRetryPolicy   │ │
+│  │ PromptCache · PromptRateLimiter · PromptFallbackChain     │ │
+│  │ PromptLoadBalancer · TokenBudget · ResponseParser          │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌─── ✏️ Prompt Engineering ──────────────────────────────────┐ │
+│  │ PromptTemplate · PromptChain · PromptComposer             │ │
+│  │ FewShotBuilder · PromptLibrary · PromptRouter             │ │
+│  │ PromptPipeline · PromptWorkflow · PromptSignature         │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌─── 🛡️ Safety & Quality ────────────────────────────────────┐ │
+│  │ PromptGuard · PromptSentinel · PromptSecretScanner        │ │
+│  │ PromptInjectionDetector · PromptComplianceChecker         │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌─── 🧪 Testing & Evaluation ────────────────────────────────┐ │
+│  │ PromptTestSuite · PromptBenchmarkSuite · PromptFuzzer     │ │
+│  │ PromptAntifragileEngine · PromptMutationLab               │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌─── 📊 Analytics & Observability ───────────────────────────┐ │
+│  │ PromptAnalytics · PromptAuditLog · PromptDriftMonitor     │ │
+│  │ PromptSLAMonitor · PromptBlackSwanEngine · PromptCanary   │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌─── 🔄 Versioning & Lifecycle ──────────────────────────────┐ │
+│  │ PromptVersionManager · PromptSnapshotManager              │ │
+│  │ PromptPromotionManager · PromptGenealogyTracker           │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌─── 🔍 Analysis & Intelligence ─────────────────────────────┐ │
+│  │ PromptDebugger · PromptExplainer · PromptRefactorer       │ │
+│  │ PromptEvolutionEngine · PromptWisdomEngine                │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌─── 📦 Import/Export & Tooling ─────────────────────────────┐ │
+│  │ PromptCatalogExporter · PromptDocGenerator · PromptSwarm  │ │
+│  │ PromptBatchProcessor · PromptEnsemble · PromptMemory      │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌─── ⚙️ Advanced Orchestration ──────────────────────────────┐ │
+│  │ PromptOrchestrator · PromptMixtureOfExperts               │ │
+│  │ PromptGoalPlanner · PromptTriageEngine · PromptEcosystem  │ │
+│  └───────────────────────────────────────────────────────────┘ │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────┐
+│                    Azure OpenAI Service                         │
+│              Chat Completions API (GPT-4 / GPT-4o)              │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Contributing
 
-Contributions are welcome! Please:
+Contributions are welcome! See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the full guide, including the complete 175-module catalog organized by functional area, CI/CD pipeline details, code style conventions, and test categories.
+
+**Quick start:**
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+3. Write tests — the project maintains 5,846+ xUnit tests
+4. Ensure CI passes (`dotnet build && dotnet test`)
 5. Open a Pull Request
+
+**Key conventions:**
+- One class per file in `src/`, matching test file in `tests/`
+- All public classes must have JSON serialization (`ToJson`/`FromJson`/`SaveToFileAsync`/`LoadFromFileAsync`)
+- Zero external runtime dependencies beyond `Azure.AI.OpenAI`
 
 ## License
 
