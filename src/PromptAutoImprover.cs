@@ -198,6 +198,27 @@ namespace Prompt
         // ── Anti-patterns ──
         private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(2);
 
+        // ── Pre-compiled regexes for scoring / passes (eliminates per-call Regex allocations) ──
+        private static readonly Regex RxDigits = new(@"\b\d+\b", RegexOptions.None, RegexTimeout);
+        private static readonly Regex RxQuotedExamples = new(@"""[^""]+""", RegexOptions.None, RegexTimeout);
+        private static readonly Regex RxImperativeStart = new(@"^(?:Analyze|Write|Create|Explain|List|Describe|Use|Include|Provide|Ensure|Generate|Return|Format)", RegexOptions.IgnoreCase, RegexTimeout);
+        private static readonly Regex RxPassiveVoice = new(@"\b(?:is|are|was|were|be|been|being)\s+\w+ed\b", RegexOptions.IgnoreCase, RegexTimeout);
+        private static readonly Regex RxMarkdownHeading = new(@"^#+\s", RegexOptions.Multiline, RegexTimeout);
+        private static readonly Regex RxExcessiveNewlines = new(@"\n{3,}", RegexOptions.None, RegexTimeout);
+        private static readonly Regex RxActionVerbs = new(@"\b(?:analyze|write|create|explain|summarize|compare|list|describe|evaluate|generate|translate|review|classify|extract|calculate|design|implement|optimize)\b", RegexOptions.IgnoreCase, RegexTimeout);
+        private static readonly Regex RxOutputGuidance = new(@"\b(?:format|output|respond|return|provide)\b", RegexOptions.IgnoreCase, RegexTimeout);
+        private static readonly Regex RxLengthGuidance = new(@"\b(?:\d+\s*(?:words?|sentences?|paragraphs?|lines?|pages?|tokens?)|brief|concise|detailed|comprehensive|short|long)\b", RegexOptions.IgnoreCase, RegexTimeout);
+        private static readonly Regex RxExamples = new(@"(?:example|e\.g\.|such as|for instance)", RegexOptions.IgnoreCase, RegexTimeout);
+        private static readonly Regex RxSentenceSplit = new(@"(?<=[.!?])\s+(?=[A-Z])", RegexOptions.None, RegexTimeout);
+        private static readonly Regex RxNormalizeSpaces = new(@"\s+", RegexOptions.None, RegexTimeout);
+        private static readonly Regex RxTrailingLineSpaces = new(@"[ \t]+\n", RegexOptions.None, RegexTimeout);
+        private static readonly Regex RxExcessiveSpaces = new(@"[ \t]{2,}", RegexOptions.None, RegexTimeout);
+        private static readonly Regex RxConjunction = new(@"\s+(and|but|however|additionally|furthermore|moreover)\s+", RegexOptions.IgnoreCase, RegexTimeout);
+        private static readonly Regex RxListRequest = new(@"\b(?:list|enumerate|give me|provide)\s+(?:the|all|some|a few)?\s*\w+", RegexOptions.IgnoreCase, RegexTimeout);
+        private static readonly Regex RxFormatSpec = new(@"(?:numbered|bulleted|bullet|markdown|json|csv|table|format)", RegexOptions.IgnoreCase, RegexTimeout);
+        private static readonly Regex RxGenerationIndicator = new(@"\b(?:write|create|generate|compose|draft|produce)\b", RegexOptions.IgnoreCase, RegexTimeout);
+        private static readonly Regex RxHasGuardrails = new(@"\b(?:do not|don't|never|avoid|refrain|must not)\b", RegexOptions.IgnoreCase, RegexTimeout);
+
         private static readonly List<(string Name, Regex Pattern, string Replacement, string Rationale, ImprovementCategory Category)> AntiPatterns = new()
         {
             ("Politeness filler", new Regex(@"\b(please|kindly|if you could|would you mind|I'd appreciate if you)\b", RegexOptions.IgnoreCase, RegexTimeout),
@@ -616,8 +637,7 @@ namespace Prompt
                 if (confidence < _config.MinConfidence) continue;
 
                 // Split at conjunctions
-                var conjunctionPattern = new Regex(@"\s+(and|but|however|additionally|furthermore|moreover)\s+", RegexOptions.IgnoreCase, RegexTimeout);
-                var splitResult = conjunctionPattern.Replace(longSentence, m =>
+                var splitResult = RxConjunction.Replace(longSentence, m =>
                     $".\n{char.ToUpper(m.Groups[1].Value[0])}{m.Groups[1].Value.Substring(1)} ");
 
                 if (splitResult != longSentence)
@@ -636,8 +656,7 @@ namespace Prompt
             }
 
             // Detect passive voice and suggest active
-            var passivePattern = new Regex(@"\b(is|are|was|were|be|been|being)\s+(\w+ed)\b", RegexOptions.IgnoreCase, RegexTimeout);
-            var passiveMatches = passivePattern.Matches(working);
+            var passiveMatches = RxPassiveVoice.Matches(working);
             if (passiveMatches.Count > 2 && _config.Intensity != ImprovementIntensity.Light)
             {
                 improvements.Add(new ImprovementAction
@@ -721,10 +740,7 @@ namespace Prompt
             var working = prompt;
 
             // Detect if user asks for a list but doesn't specify format
-            var listRequest = new Regex(@"\b(?:list|enumerate|give me|provide)\s+(?:the|all|some|a few)?\s*\w+", RegexOptions.IgnoreCase, RegexTimeout);
-            var formatSpec = new Regex(@"(?:numbered|bulleted|bullet|markdown|json|csv|table|format)", RegexOptions.IgnoreCase, RegexTimeout);
-
-            if (listRequest.IsMatch(working) && !formatSpec.IsMatch(working) && _config.Intensity != ImprovementIntensity.Light)
+            if (RxListRequest.IsMatch(working) && !RxFormatSpec.IsMatch(working) && _config.Intensity != ImprovementIntensity.Light)
             {
                 var confidence = 0.6;
                 if (confidence >= _config.MinConfidence)
@@ -753,10 +769,7 @@ namespace Prompt
             // Only add guardrails in Deep mode when generating content
             if (_config.Intensity != ImprovementIntensity.Deep) return working;
 
-            var generationIndicators = new Regex(@"\b(?:write|create|generate|compose|draft|produce)\b", RegexOptions.IgnoreCase, RegexTimeout);
-            var hasGuardrails = new Regex(@"\b(?:do not|don't|never|avoid|refrain|must not)\b", RegexOptions.IgnoreCase, RegexTimeout);
-
-            if (generationIndicators.IsMatch(working) && !hasGuardrails.IsMatch(working))
+            if (RxGenerationIndicator.IsMatch(working) && !RxHasGuardrails.IsMatch(working))
             {
                 var confidence = 0.55;
                 if (confidence >= _config.MinConfidence)
@@ -784,11 +797,8 @@ namespace Prompt
 
             // Remove redundant whitespace and normalize
             var beforeLen = working.Length;
-            var excessiveNewlines = new Regex(@"\n{3,}", RegexOptions.None, RegexTimeout);
-            working = excessiveNewlines.Replace(working, "\n\n");
-
-            var excessiveSpaces = new Regex(@"[ \t]{2,}", RegexOptions.None, RegexTimeout);
-            working = excessiveSpaces.Replace(working, " ");
+            working = RxExcessiveNewlines.Replace(working, "\n\n");
+            working = RxExcessiveSpaces.Replace(working, " ");
 
             if (working.Length < beforeLen)
             {
@@ -840,8 +850,7 @@ namespace Prompt
             var working = prompt;
 
             // Check if there's a clear task/action verb
-            var actionVerbs = new Regex(@"\b(?:analyze|write|create|explain|summarize|compare|list|describe|evaluate|generate|translate|review|classify|extract|calculate|design|implement|optimize)\b", RegexOptions.IgnoreCase, RegexTimeout);
-            if (!actionVerbs.IsMatch(working))
+            if (!RxActionVerbs.IsMatch(working))
             {
                 improvements.Add(new ImprovementAction
                 {
@@ -855,8 +864,7 @@ namespace Prompt
             }
 
             // Check for output length guidance
-            var lengthGuidance = new Regex(@"\b(?:\d+\s*(?:words?|sentences?|paragraphs?|lines?|pages?|tokens?)|brief|concise|detailed|comprehensive|short|long)\b", RegexOptions.IgnoreCase, RegexTimeout);
-            if (!lengthGuidance.IsMatch(working) && working.Length > 50)
+            if (!RxLengthGuidance.IsMatch(working) && working.Length > 50)
             {
                 improvements.Add(new ImprovementAction
                 {
@@ -881,12 +889,10 @@ namespace Prompt
             var score = 50; // Base
 
             // Positive: contains numbers, measurements, specific terms
-            var specificTerms = new Regex(@"\b\d+\b", RegexOptions.None, RegexTimeout);
-            score += Math.Min(20, specificTerms.Matches(prompt).Count * 5);
+            score += Math.Min(20, RxDigits.Matches(prompt).Count * 5);
 
             // Positive: contains quoted examples or specific names
-            var quotedExamples = new Regex(@"""[^""]+""", RegexOptions.None, RegexTimeout);
-            score += Math.Min(15, quotedExamples.Matches(prompt).Count * 5);
+            score += Math.Min(15, RxQuotedExamples.Matches(prompt).Count * 5);
 
             // Negative: vague terms
             foreach (var (pattern, _, _) in VagueToSpecific)
@@ -910,14 +916,12 @@ namespace Prompt
             else if (avgWords > 30) score -= 5;
 
             // Consistent use of imperative mood (good for instructions)
-            var imperativeStarts = new Regex(@"^(?:Analyze|Write|Create|Explain|List|Describe|Use|Include|Provide|Ensure|Generate|Return|Format)", RegexOptions.IgnoreCase, RegexTimeout);
-            var imperativeCount = sentences.Count(s => imperativeStarts.IsMatch(s.TrimStart()));
+            var imperativeCount = sentences.Count(s => RxImperativeStart.IsMatch(s.TrimStart()));
             if (sentences.Count > 0 && (double)imperativeCount / sentences.Count > 0.3)
                 score += 10;
 
             // Penalty for passive voice
-            var passivePattern = new Regex(@"\b(?:is|are|was|were|be|been|being)\s+\w+ed\b", RegexOptions.IgnoreCase, RegexTimeout);
-            var passiveCount = passivePattern.Matches(prompt).Count;
+            var passiveCount = RxPassiveVoice.Matches(prompt).Count;
             score -= Math.Min(15, passiveCount * 3);
 
             return Math.Clamp(score, 0, 100);
@@ -933,7 +937,7 @@ namespace Prompt
             }
 
             // Bonus for markdown structure
-            if (Regex.IsMatch(prompt, @"^#+\s", RegexOptions.Multiline, RegexTimeout)) score += 5;
+            if (RxMarkdownHeading.IsMatch(prompt)) score += 5;
             if (prompt.Contains('\n')) score += 5; // Multi-line is structured
 
             return Math.Clamp(score, 0, 100);
@@ -944,8 +948,7 @@ namespace Prompt
             var score = 70;
 
             // Penalty for excessive whitespace
-            var excessWhitespace = new Regex(@"\n{3,}", RegexOptions.None, RegexTimeout);
-            score -= Math.Min(15, excessWhitespace.Matches(prompt).Count * 5);
+            score -= Math.Min(15, RxExcessiveNewlines.Matches(prompt).Count * 5);
 
             // Penalty for duplicate sentences
             var sentences = SplitSentences(prompt);
@@ -969,20 +972,16 @@ namespace Prompt
             var score = 40;
 
             // Has action verb
-            var actionVerbs = new Regex(@"\b(?:analyze|write|create|explain|summarize|compare|list|describe|evaluate|generate|translate|review|classify|extract|calculate|design|implement|optimize)\b", RegexOptions.IgnoreCase, RegexTimeout);
-            if (actionVerbs.IsMatch(prompt)) score += 20;
+            if (RxActionVerbs.IsMatch(prompt)) score += 20;
 
             // Has output guidance
-            var outputGuidance = new Regex(@"\b(?:format|output|respond|return|provide)\b", RegexOptions.IgnoreCase, RegexTimeout);
-            if (outputGuidance.IsMatch(prompt)) score += 15;
+            if (RxOutputGuidance.IsMatch(prompt)) score += 15;
 
             // Has length guidance
-            var lengthGuidance = new Regex(@"\b(?:\d+\s*(?:words?|sentences?|paragraphs?)|brief|concise|detailed|comprehensive)\b", RegexOptions.IgnoreCase, RegexTimeout);
-            if (lengthGuidance.IsMatch(prompt)) score += 15;
+            if (RxLengthGuidance.IsMatch(prompt)) score += 15;
 
             // Has examples
-            var examples = new Regex(@"(?:example|e\.g\.|such as|for instance)", RegexOptions.IgnoreCase, RegexTimeout);
-            if (examples.IsMatch(prompt)) score += 10;
+            if (RxExamples.IsMatch(prompt)) score += 10;
 
             return Math.Clamp(score, 0, 100);
         }
@@ -1016,8 +1015,7 @@ namespace Prompt
         private static List<string> SplitSentences(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return new List<string>();
-            var sentencePattern = new Regex(@"(?<=[.!?])\s+(?=[A-Z])", RegexOptions.None, RegexTimeout);
-            return sentencePattern.Split(text)
+            return RxSentenceSplit.Split(text)
                 .Select(s => s.Trim())
                 .Where(s => s.Length > 0)
                 .ToList();
@@ -1025,7 +1023,7 @@ namespace Prompt
 
         private static string NormalizeSentence(string sentence)
         {
-            return Regex.Replace(sentence.ToLowerInvariant().Trim(), @"\s+", " ", RegexOptions.None, RegexTimeout);
+            return RxNormalizeSpaces.Replace(sentence.ToLowerInvariant().Trim(), " ");
         }
 
         private static string RemoveFirstOccurrence(string text, string sentence)
@@ -1038,8 +1036,8 @@ namespace Prompt
         private static string NormalizeWhitespace(string text)
         {
             // Collapse 3+ newlines to 2, trim trailing whitespace per line
-            text = Regex.Replace(text, @"\n{3,}", "\n\n", RegexOptions.None, RegexTimeout);
-            text = Regex.Replace(text, @"[ \t]+\n", "\n", RegexOptions.None, RegexTimeout);
+            text = RxExcessiveNewlines.Replace(text, "\n\n");
+            text = RxTrailingLineSpaces.Replace(text, "\n");
             return text.Trim();
         }
 
