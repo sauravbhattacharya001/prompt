@@ -12,7 +12,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/ci.yml?style=flat-square&label=CI&logo=github)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/ci.yml)
 [![Publish](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/nuget-publish.yml?style=flat-square&label=Publish&logo=github)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/nuget-publish.yml)
 [![codecov](https://img.shields.io/codecov/c/github/sauravbhattacharya001/prompt?style=flat-square&logo=codecov)](https://codecov.io/gh/sauravbhattacharya001/prompt)
-![Tests](https://img.shields.io/badge/tests-5727%20passed-brightgreen?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-5846%20passed-brightgreen?style=flat-square)
 [![Docker](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/docker.yml?style=flat-square&label=Docker&logo=docker)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/docker.yml)
 [![Pages](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/pages.yml?style=flat-square&label=Docs&logo=github)](https://sauravbhattacharya001.github.io/prompt/)
 [![GitHub Release](https://img.shields.io/github/v/release/sauravbhattacharya001/prompt?style=flat-square&logo=github&color=blue)](https://github.com/sauravbhattacharya001/prompt/releases)
@@ -38,8 +38,8 @@ Most Azure OpenAI wrappers give you a thin HTTP client and call it a day. **Prom
 - **One line to start** — `await Main.GetResponseAsync("...")` handles auth, retries, and connection pooling
 - **Templates + Chains** — build reusable, composable prompt pipelines without string concatenation
 - **Safety built in** — injection detection, token budgeting, and quality scoring out of the box
-- **170+ specialized classes** — from A/B testing to workflow orchestration, every prompt engineering pattern is covered
-- **Production-ready** — 5,700+ tests, NuGet package, Docker image, full docs site
+- **175+ specialized classes** — from A/B testing to workflow orchestration, every prompt engineering pattern is covered
+- **Production-ready** — 5,800+ tests, NuGet package, Docker image, full docs site
 
 If you've ever copy-pasted prompt strings across files, hand-rolled retry logic, or wondered if your prompt is vulnerable to injection — this library exists so you don't have to.
 
@@ -74,7 +74,7 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 - **Serialization** — All classes support JSON round-trip (ToJson/FromJson/SaveToFileAsync/LoadFromFileAsync)
 
 ### Infrastructure
-- **5,700+ tests** — Comprehensive xUnit test suite
+- **5,800+ tests** — Comprehensive xUnit test suite
 - **Cross-platform** — Environment variable resolution on Windows, Linux, and macOS
 - **NuGet ready** — Published as [`prompt-llm-aoi`](https://www.nuget.org/packages/prompt-llm-aoi)
 
@@ -164,6 +164,7 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 | `PromptBenchmarkSuite` | Benchmark prompt variants against test scenarios |
 | `PromptGoldenTester` | Snapshot testing for prompt outputs |
 | `PromptFuzzer` | Robustness testing — generates prompt variants via 7 mutation strategies |
+| `PromptAntifragileEngine` | Taleb-inspired antifragility analysis — stress-tests prompts under graduated stressor intensity and classifies them on the Fragile → Robust → Resilient → Antifragile spectrum |
 | `PromptABTester` | A/B testing framework for comparing prompt variant performance |
 | `PromptMatrix` | Combinatorial template variable testing |
 | `PromptResponseEvaluator` | Heuristic quality scoring across 5 dimensions |
@@ -198,6 +199,7 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 | `PromptCanary` | Canary deployment monitoring for prompt changes |
 | `PromptDriftMonitor` | Multi-dimensional output drift detection with alerting |
 | `PromptSLAMonitor` | SLA monitoring for prompt latency, quality, and availability |
+| `PromptBlackSwanEngine` | Taleb-inspired rare catastrophic failure detection — fat-tail analysis, cascade chain detection, and antecedent pattern mining for high-impact events |
 | `PromptMetabolismEngine` | Prompt lifecycle metabolism tracking (usage, decay, renewal) |
 | `PromptTokenCounter` | Token estimation and counting for prompt budgeting |
 | `PromptUsageDashboard` | Unified usage dashboard with aggregated metrics |
