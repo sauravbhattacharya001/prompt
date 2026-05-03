@@ -1,0 +1,120 @@
+name: "☁️ Azure OpenAI API Compatibility"
+description: Report issues with Azure OpenAI API changes, model deprecations, or response format incompatibilities
+title: "[API Compat] "
+labels: ["api-compatibility", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for issues caused by Azure OpenAI API changes — model deprecations,
+        new API versions, response format changes, rate limit behavior changes, or
+        authentication/endpoint issues. For general bugs, use **Bug Report** instead.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Compatibility Issue Type
+      options:
+        - Model deprecation (model no longer available or behaves differently)
+        - API version change (new api-version breaks existing calls)
+        - Response format change (JSON structure, field names, new/removed fields)
+        - Rate limiting / throttling behavior change
+        - Authentication / managed identity issue
+        - Endpoint URL / deployment naming change
+        - Token counting discrepancy (tiktoken vs actual usage)
+        - Streaming format change (SSE / chunked response)
+        - Content filter behavior change (false blocks, new categories)
+        - New model capability not supported (structured outputs, vision, etc.)
+    validations:
+      required: true
+
+  - type: input
+    id: api-version
+    attributes:
+      label: Azure OpenAI API Version
+      description: The api-version you're using (e.g., 2024-12-01-preview)
+      placeholder: "2024-12-01-preview"
+    validations:
+      required: true
+
+  - type: input
+    id: model-deployment
+    attributes:
+      label: Model / Deployment Name
+      description: The model and deployment name affected
+      placeholder: "gpt-4o (deployment: my-gpt4o-prod)"
+    validations:
+      required: true
+
+  - type: input
+    id: library-version
+    attributes:
+      label: prompt-llm-aoi Version
+      description: NuGet package version
+      placeholder: "1.x.x"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Issue Description
+      description: Describe the compatibility issue. When did it start? What changed on Azure's side?
+      placeholder: |
+        After Azure upgraded to api-version 2025-xx-xx, the response JSON now includes
+        a `usage.completion_tokens_details` field that breaks ResponseParser deserialization...
+    validations:
+      required: true
+
+  - type: textarea
+    id: error
+    attributes:
+      label: Error Output / Response
+      description: Include error messages, HTTP status codes, or unexpected response bodies.
+      placeholder: |
+        ```
+        System.Text.Json.JsonException: The JSON value could not be converted to ...
+        ```
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected-modules
+    attributes:
+      label: Affected Library Modules
+      description: Which Prompt library classes/methods fail due to this API change?
+      placeholder: |
+        - `PromptPipeline.ExecuteAsync()` — throws on new response format
+        - `PromptTokenCounter.Count()` — token count mismatch vs billing
+        - `PromptStreamParser.ParseAsync()` — stream chunks have new structure
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Azure Environment
+      description: Which Azure environment is affected?
+      options:
+        - Azure Commercial (Global)
+        - Azure Government (US Gov)
+        - Azure China (21Vianet)
+        - Azure OpenAI Proxy / Gateway
+        - Local development (emulator/mock)
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround (if any)
+      description: Have you found a workaround? Share it to help others.
+      placeholder: "Pinning to api-version 2024-10-01-preview avoids the issue but loses new features..."
+
+  - type: textarea
+    id: references
+    attributes:
+      label: Azure Documentation / Changelog References
+      description: Links to Azure docs, changelogs, or announcements about the API change.
+      placeholder: |
+        - https://learn.microsoft.com/en-us/azure/ai-services/openai/whats-new
+        - https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation

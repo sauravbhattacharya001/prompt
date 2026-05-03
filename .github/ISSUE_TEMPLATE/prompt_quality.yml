@@ -1,0 +1,120 @@
+name: "🎯 Prompt Quality / Output Issue"
+description: Report issues with prompt quality, unexpected LLM outputs, bias detection, or scoring accuracy
+title: "[Quality] "
+labels: ["quality", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when the library produces unexpected prompt outputs, incorrect quality scores,
+        false positives/negatives in detection modules (bias, injection, sentiment), or when auto-improvement
+        generates worse prompts. For general bugs unrelated to output quality, use **Bug Report** instead.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: Which module is producing unexpected results?
+      options:
+        - PromptAutoImprover (auto-improvement generates worse prompts)
+        - PromptBiasDetector (false positive / false negative)
+        - PromptInjectionDetector (missed injection / false alarm)
+        - PromptSentimentAnalyzer (incorrect sentiment)
+        - PromptToneAnalyzer (incorrect tone classification)
+        - PromptReadabilityAnalyzer (incorrect readability score)
+        - PromptComplexityScorer (incorrect complexity score)
+        - PromptQualityGate (wrong pass/fail decision)
+        - PromptResponseEvaluator (incorrect evaluation)
+        - PromptLinter (false positive rule / missing rule)
+        - PromptFuzzer (doesn't catch known weakness)
+        - PromptAdversary (attack generation issue)
+        - PromptGrammarValidator (false positive / false negative)
+        - PromptSecretScanner (missed secret / false alarm)
+        - Other (specify in description)
+    validations:
+      required: true
+
+  - type: textarea
+    id: input
+    attributes:
+      label: Input Prompt / Configuration
+      description: The exact prompt text and configuration that produced the unexpected result.
+      placeholder: |
+        ```csharp
+        var scorer = new PromptComplexityScorer();
+        var result = scorer.Score("Your prompt text here...");
+        ```
+      render: csharp
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Output
+      description: What the library returned (score, classification, improved prompt, etc.)
+      placeholder: "e.g., Score: 12 (LOW), but the prompt contains 3 nested conditionals and chain-of-thought..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Output
+      description: What you expected and why. Include reasoning if possible.
+      placeholder: "Expected Score: 45+ (MEDIUM) because the prompt uses nested conditionals, multi-step reasoning..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: model
+    attributes:
+      label: Target LLM Model
+      description: Which model were you targeting when the quality issue occurred?
+      options:
+        - GPT-4o
+        - GPT-4o-mini
+        - GPT-4 Turbo
+        - GPT-4
+        - GPT-3.5 Turbo
+        - o1 / o1-mini / o1-preview
+        - o3 / o3-mini
+        - Claude (via Azure)
+        - Model-agnostic (scoring/analysis only)
+        - Other (specify in description)
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction Steps
+      description: Minimal code to reproduce. Include NuGet version.
+      placeholder: |
+        1. Install `prompt-llm-aoi` v1.x.x
+        2. Create instance with default config
+        3. Call method with the input above
+        4. Observe output
+      render: markdown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Impact Severity
+      description: How much does this affect your use case?
+      options:
+        - Critical — security/injection detection bypass
+        - High — consistently wrong scores affecting production decisions
+        - Medium — occasional incorrect results, workaround exists
+        - Low — minor scoring inaccuracy, cosmetic
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Sample prompt corpus size, frequency of issue, workarounds tried, etc.
+      placeholder: "Happens with ~30% of prompts containing code blocks. Workaround: pre-strip code fences..."
