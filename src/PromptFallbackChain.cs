@@ -153,6 +153,15 @@ namespace Prompt
         private int _maxTotalAttempts = 10;
 
         /// <summary>
+        /// Process-wide lock that serialises tier executions which mutate
+        /// global environment variables (<c>AZURE_OPENAI_API_URI/KEY/MODEL</c>).
+        /// Without this, concurrent <see cref="ExecuteAsync"/> calls race on
+        /// the same env-var slots, causing CWE-362 credential cross-contamination
+        /// (tier A reads tier B's API key) and CWE-200 information exposure.
+        /// </summary>
+        private static readonly SemaphoreSlim _envMutex = new(1, 1);
+
+        /// <summary>
         /// Creates an empty fallback chain.  Add tiers with <see cref="AddTier"/>.
         /// </summary>
         public PromptFallbackChain() { }
@@ -340,64 +349,75 @@ namespace Prompt
             string? systemPrompt,
             CancellationToken cancellationToken)
         {
-            // Store originals
-            var origUri = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_URI");
-            var origKey = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_KEY");
-            var origModel = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_MODEL");
-
+            // Acquire the process-wide mutex before touching environment
+            // variables.  This prevents CWE-362: concurrent ExecuteAsync
+            // calls can no longer observe each other's API keys/endpoints.
+            await _envMutex.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                // Override env vars if tier provides custom values
-                if (tier.EndpointUri != null)
-                    Environment.SetEnvironmentVariable("AZURE_OPENAI_API_URI", tier.EndpointUri);
-                if (tier.ApiKey != null)
-                    Environment.SetEnvironmentVariable("AZURE_OPENAI_API_KEY", tier.ApiKey);
-                if (tier.Model != null)
-                    Environment.SetEnvironmentVariable("AZURE_OPENAI_API_MODEL", tier.Model);
-
-                // Force client recreation so it picks up the new env vars
-                Main.ResetClient();
-
-                var options = tier.Options ?? _defaultOptions;
-
-                // Apply per-tier timeout if configured
-                CancellationToken token = cancellationToken;
-                CancellationTokenSource? cts = null;
-                if (tier.Timeout.HasValue)
-                {
-                    cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    cts.CancelAfter(tier.Timeout.Value);
-                    token = cts.Token;
-                }
+                // Store originals
+                var origUri = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_URI");
+                var origKey = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_KEY");
+                var origModel = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_MODEL");
 
                 try
                 {
-                    return await Main.GetResponseAsync(
-                        prompt,
-                        systemPrompt,
-                        maxRetries: tier.MaxRetries,
-                        options: options,
-                        cancellationToken: token);
-                }
-                catch (OperationCanceledException) when (
-                    cts != null && cts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
-                {
-                    // Per-tier timeout — convert to a descriptive exception
-                    throw new TimeoutException(
-                        $"Tier '{tier.Name}' timed out after {tier.Timeout.Value.TotalSeconds:F1}s.");
+                    // Override env vars if tier provides custom values
+                    if (tier.EndpointUri != null)
+                        Environment.SetEnvironmentVariable("AZURE_OPENAI_API_URI", tier.EndpointUri);
+                    if (tier.ApiKey != null)
+                        Environment.SetEnvironmentVariable("AZURE_OPENAI_API_KEY", tier.ApiKey);
+                    if (tier.Model != null)
+                        Environment.SetEnvironmentVariable("AZURE_OPENAI_API_MODEL", tier.Model);
+
+                    // Force client recreation so it picks up the new env vars
+                    Main.ResetClient();
+
+                    var options = tier.Options ?? _defaultOptions;
+
+                    // Apply per-tier timeout if configured
+                    CancellationToken token = cancellationToken;
+                    CancellationTokenSource? cts = null;
+                    if (tier.Timeout.HasValue)
+                    {
+                        cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        cts.CancelAfter(tier.Timeout.Value);
+                        token = cts.Token;
+                    }
+
+                    try
+                    {
+                        return await Main.GetResponseAsync(
+                            prompt,
+                            systemPrompt,
+                            maxRetries: tier.MaxRetries,
+                            options: options,
+                            cancellationToken: token);
+                    }
+                    catch (OperationCanceledException) when (
+                        cts != null && cts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+                    {
+                        // Per-tier timeout — convert to a descriptive exception
+                        throw new TimeoutException(
+                            $"Tier '{tier.Name}' timed out after {tier.Timeout.Value.TotalSeconds:F1}s.");
+                    }
+                    finally
+                    {
+                        cts?.Dispose();
+                    }
                 }
                 finally
                 {
-                    cts?.Dispose();
+                    // Restore original env vars
+                    Environment.SetEnvironmentVariable("AZURE_OPENAI_API_URI", origUri);
+                    Environment.SetEnvironmentVariable("AZURE_OPENAI_API_KEY", origKey);
+                    Environment.SetEnvironmentVariable("AZURE_OPENAI_API_MODEL", origModel);
+                    Main.ResetClient();
                 }
             }
             finally
             {
-                // Restore original env vars
-                Environment.SetEnvironmentVariable("AZURE_OPENAI_API_URI", origUri);
-                Environment.SetEnvironmentVariable("AZURE_OPENAI_API_KEY", origKey);
-                Environment.SetEnvironmentVariable("AZURE_OPENAI_API_MODEL", origModel);
-                Main.ResetClient();
+                _envMutex.Release();
             }
         }
 
