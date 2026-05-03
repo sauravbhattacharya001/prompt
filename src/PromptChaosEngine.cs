@@ -474,9 +474,15 @@ namespace Prompt
         /// <summary>Score resilience for a completed (or observation-phase) experiment. Returns composite 0–100.</summary>
         public double ScoreResilience(string experimentId)
         {
+            return ComputeSubscores(experimentId).Composite;
+        }
+
+        /// <summary>Compute all 6 resilience subscores and the weighted composite for an experiment.</summary>
+        private (double RecoveryTime, double Degradation, double ErrorHandling, double Fallback, double StateConsistency, double UserImpact, double Composite) ComputeSubscores(string experimentId)
+        {
             var exp = GetOrThrow(experimentId);
-            if (exp.Baseline == null) return 0;
-            if (exp.Observations.Count == 0) return 100; // no observations = no degradation measured
+            if (exp.Baseline == null) return (0, 0, 0, 0, 0, 0, 0);
+            if (exp.Observations.Count == 0) return (100, 100, 100, 100, 100, 100, 100);
 
             var obs = AggregateObservations(exp.Observations);
             var bl = exp.Baseline;
@@ -489,13 +495,15 @@ namespace Prompt
             double userImpact = ScoreUserImpact(bl, obs);
 
             // Weighted average: recovery 20%, degradation 20%, errors 15%, fallback 15%, state 15%, user 15%
-            return Math.Round(
+            double composite = Math.Round(
                 recoveryTime * 0.20 +
                 degradation * 0.20 +
                 errorHandling * 0.15 +
                 fallback * 0.15 +
                 stateConsistency * 0.15 +
                 userImpact * 0.15, 1);
+
+            return (recoveryTime, degradation, errorHandling, fallback, stateConsistency, userImpact, composite);
         }
 
         /// <summary>Complete an experiment and generate its resilience report.</summary>
@@ -505,28 +513,25 @@ namespace Prompt
             if (exp.Phase == ExperimentPhase.Completed)
                 throw new InvalidOperationException("Experiment is already completed.");
 
-            double composite = ScoreResilience(experimentId);
-            var tier = ClassifyTier(composite);
-            var verdict = ClassifyVerdict(composite, exp);
+            var scores = ComputeSubscores(experimentId);
+            var tier = ClassifyTier(scores.Composite);
+            var verdict = ClassifyVerdict(scores.Composite, exp);
             var blastRadius = EstimateBlastRadius(experimentId);
-
-            var bl = exp.Baseline ?? new SteadyStateMetrics();
-            var obs = exp.Observations.Count > 0 ? AggregateObservations(exp.Observations) : bl;
 
             var report = new ChaosResilienceReport
             {
                 ExperimentId = experimentId,
-                RecoveryTimeScore = ScoreRecoveryTime(exp),
-                DegradationScore = ScoreDegradation(bl, obs),
-                ErrorHandlingScore = ScoreErrorHandling(bl, obs),
-                FallbackScore = ScoreFallback(bl, obs),
-                StateConsistencyScore = ScoreStateConsistency(bl, obs),
-                UserImpactScore = ScoreUserImpact(bl, obs),
-                CompositeScore = composite,
+                RecoveryTimeScore = scores.RecoveryTime,
+                DegradationScore = scores.Degradation,
+                ErrorHandlingScore = scores.ErrorHandling,
+                FallbackScore = scores.Fallback,
+                StateConsistencyScore = scores.StateConsistency,
+                UserImpactScore = scores.UserImpact,
+                CompositeScore = scores.Composite,
                 Tier = tier,
                 Verdict = verdict,
                 BlastRadius = blastRadius,
-                Recommendations = GenerateRecommendations(exp, composite, blastRadius)
+                Recommendations = GenerateRecommendations(exp, scores.Composite, blastRadius)
             };
 
             exp.Report = report;
@@ -548,16 +553,7 @@ namespace Prompt
             exp.Phase = ExperimentPhase.Verification;
 
             if (exp.Baseline == null) return true; // no baseline = can't compare
-
-            double tol = _config.RecoveryTolerance;
-            var bl = exp.Baseline;
-
-            bool latencyOk = bl.AvgLatencyMs == 0 || Math.Abs(postMetrics.AvgLatencyMs - bl.AvgLatencyMs) / Math.Max(bl.AvgLatencyMs, 1) <= tol;
-            bool successOk = Math.Abs(postMetrics.SuccessRate - bl.SuccessRate) <= tol;
-            bool qualityOk = bl.AvgQuality == 0 || Math.Abs(postMetrics.AvgQuality - bl.AvgQuality) / Math.Max(bl.AvgQuality, 1) <= tol;
-            bool errorOk = Math.Abs(postMetrics.ErrorRate - bl.ErrorRate) <= tol;
-
-            return latencyOk && successOk && qualityOk && errorOk;
+            return MetricsWithinTolerance(exp.Baseline, postMetrics, _config.RecoveryTolerance, checkErrors: true);
         }
 
         // ── Engine 6: Steady State Validator ────────────
@@ -575,14 +571,7 @@ namespace Prompt
             if (current == null) throw new ArgumentNullException(nameof(current));
             if (exp.Baseline == null) return true;
 
-            var bl = exp.Baseline;
-            double tol = _config.RecoveryTolerance;
-
-            bool latencyOk = bl.AvgLatencyMs == 0 || Math.Abs(current.AvgLatencyMs - bl.AvgLatencyMs) / Math.Max(bl.AvgLatencyMs, 1) <= tol;
-            bool successOk = Math.Abs(current.SuccessRate - bl.SuccessRate) <= tol;
-            bool qualityOk = bl.AvgQuality == 0 || Math.Abs(current.AvgQuality - bl.AvgQuality) / Math.Max(bl.AvgQuality, 1) <= tol;
-
-            return latencyOk && successOk && qualityOk;
+            return MetricsWithinTolerance(exp.Baseline, current, _config.RecoveryTolerance, checkErrors: false);
         }
 
         // ── Engine 7: Insight Generator ─────────────────
@@ -980,6 +969,26 @@ namespace Prompt
             if (exp.Observations.Any(o => o.ErrorRate > 0.5)) recs.Add("Error rate exceeded 50%. Add graceful degradation paths.");
             if (recs.Count == 0) recs.Add("System showed good resilience. Consider testing with higher fault intensity.");
             return recs;
+        }
+
+        /// <summary>
+        /// Check whether observed metrics are within relative tolerance of baseline.
+        /// Centralizes the latency/success/quality/error deviation checks used by
+        /// both VerifyRecovery (full check incl. errors) and ValidateSteadyState
+        /// (steady-state subset without error rate).
+        /// </summary>
+        private static bool MetricsWithinTolerance(SteadyStateMetrics baseline, SteadyStateMetrics observed, double tolerance, bool checkErrors)
+        {
+            bool latencyOk = baseline.AvgLatencyMs == 0 ||
+                Math.Abs(observed.AvgLatencyMs - baseline.AvgLatencyMs) / Math.Max(baseline.AvgLatencyMs, 1) <= tolerance;
+            bool successOk = Math.Abs(observed.SuccessRate - baseline.SuccessRate) <= tolerance;
+            bool qualityOk = baseline.AvgQuality == 0 ||
+                Math.Abs(observed.AvgQuality - baseline.AvgQuality) / Math.Max(baseline.AvgQuality, 1) <= tolerance;
+
+            if (!latencyOk || !successOk || !qualityOk) return false;
+            if (!checkErrors) return true;
+
+            return Math.Abs(observed.ErrorRate - baseline.ErrorRate) <= tolerance;
         }
 
         private static string Esc(string s) => s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
