@@ -727,9 +727,25 @@ namespace Prompt
         public BlackSwanSnapshot GenerateSnapshot(string promptId)
         {
             var promptEvents = _events.Where(e => e.PromptId == promptId).ToList();
+            return BuildSnapshot(promptId, promptEvents, cascades: null);
+        }
+
+        /// <summary>
+        /// Internal snapshot builder that accepts pre-filtered events and
+        /// optional pre-computed cascades to avoid redundant O(N log N)
+        /// DetectCascades() calls when invoked from GenerateFleetReport.
+        /// </summary>
+        private BlackSwanSnapshot BuildSnapshot(
+            string promptId,
+            List<BlackSwanEvent> promptEvents,
+            List<CascadeChain>? cascades)
+        {
             var extremeEvents = DetectExtremeEvents(promptId);
 
-            double exposureScore = ComputeExposureScore(promptId, promptEvents, extremeEvents);
+            // Re-use fleet cascades when available; otherwise compute on demand
+            cascades ??= DetectCascades();
+
+            double exposureScore = ComputeExposureScore(promptId, promptEvents, extremeEvents, cascades);
             var tier = ScoreToTier(100 - exposureScore); // Invert: high exposure = low health
 
             var worstSeverity = promptEvents.Count > 0
@@ -762,10 +778,21 @@ namespace Prompt
         /// <summary>Generate a fleet-wide black swan report.</summary>
         public BlackSwanFleetReport GenerateFleetReport()
         {
-            var promptIds = _events.Select(e => e.PromptId).Distinct().ToList();
-            var snapshots = promptIds.Select(GenerateSnapshot).ToList();
-            var tailProfiles = AnalyzeTailRisk();
+            // Pre-compute cascades once (O(N log N)) and pre-group events
+            // by promptId to avoid redundant O(N) filtering per prompt.
+            // Previously, each GenerateSnapshot→ComputeExposureScore called
+            // DetectCascades() independently, costing O(P × N log N) total.
             var cascades = DetectCascades();
+            var tailProfiles = AnalyzeTailRisk();
+
+            var eventsByPrompt = _events
+                .GroupBy(e => e.PromptId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var snapshots = eventsByPrompt
+                .Select(kvp => BuildSnapshot(kvp.Key, kvp.Value, cascades))
+                .ToList();
+
             var insights = GenerateInsights(snapshots, tailProfiles, cascades);
 
             double fleetScore = snapshots.Count > 0
@@ -1001,7 +1028,15 @@ namespace Prompt
 
         // ── Private Helpers ─────────────────────────
 
-        private double ComputeExposureScore(string promptId, List<BlackSwanEvent> events, List<BlackSwanEvent> extremeEvents)
+        /// <summary>
+        /// Computes composite exposure score from pre-filtered prompt events
+        /// and pre-computed cascade chains (avoids redundant DetectCascades).
+        /// </summary>
+        private double ComputeExposureScore(
+            string promptId,
+            List<BlackSwanEvent> events,
+            List<BlackSwanEvent> extremeEvents,
+            List<CascadeChain> cascades)
         {
             if (events.Count == 0) return 0;
 
@@ -1018,8 +1053,7 @@ namespace Prompt
                 tailComponent = Math.Min(worstKurtosis / 10 * 100, 100) * 0.25;
             }
 
-            // 20%: cascade involvement
-            var cascades = DetectCascades();
+            // 20%: cascade involvement (uses pre-computed cascades)
             int cascadeInvolvement = cascades.Count(c =>
                 c.PatientZeroPromptId == promptId || c.AffectedPromptIds.Contains(promptId));
             double cascadeComponent = Math.Min(cascadeInvolvement * 20.0, 100) * 0.20;
@@ -1132,12 +1166,6 @@ namespace Prompt
         }
 
         private static string EscapeHtml(string text)
-        {
-            return text
-                .Replace("&", "&amp;")
-                .Replace("<", "&lt;")
-                .Replace(">", "&gt;")
-                .Replace("\"", "&quot;");
-        }
+            => System.Net.WebUtility.HtmlEncode(text);
     }
 }
