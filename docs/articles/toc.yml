@@ -30,5 +30,7 @@
   href: caching.md
 - name: Production Features
   href: production-features.md
+- name: Autonomous Resilience & Intelligence
+  href: resilience-intelligence.md
 - name: Migration Guide
   href: migration.md
