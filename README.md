@@ -12,7 +12,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/ci.yml?style=flat-square&label=CI&logo=github)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/ci.yml)
 [![Publish](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/nuget-publish.yml?style=flat-square&label=Publish&logo=github)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/nuget-publish.yml)
 [![codecov](https://img.shields.io/codecov/c/github/sauravbhattacharya001/prompt?style=flat-square&logo=codecov)](https://codecov.io/gh/sauravbhattacharya001/prompt)
-![Tests](https://img.shields.io/badge/tests-5846%20passed-brightgreen?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-5993%20passed-brightgreen?style=flat-square)
 [![Docker](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/docker.yml?style=flat-square&label=Docker&logo=docker)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/docker.yml)
 [![Pages](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/pages.yml?style=flat-square&label=Docs&logo=github)](https://sauravbhattacharya001.github.io/prompt/)
 [![GitHub Release](https://img.shields.io/github/v/release/sauravbhattacharya001/prompt?style=flat-square&logo=github&color=blue)](https://github.com/sauravbhattacharya001/prompt/releases)
@@ -35,7 +35,7 @@ Send prompts to Azure OpenAI and get responses — with templates, chains, safet
 
 - [Why Prompt?](#-why-prompt)
 - [Features](#-features)
-  - [Full Class Library](#full-class-library) (175 classes across 9 categories)
+  - [Full Class Library](#full-class-library) (177 classes across 9 categories)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Configuration](#configuration)
@@ -63,8 +63,8 @@ Most Azure OpenAI wrappers give you a thin HTTP client and call it a day. **Prom
 - **One line to start** — `await Main.GetResponseAsync("...")` handles auth, retries, and connection pooling
 - **Templates + Chains** — build reusable, composable prompt pipelines without string concatenation
 - **Safety built in** — injection detection, token budgeting, and quality scoring out of the box
-- **175+ specialized classes** — from A/B testing to workflow orchestration, every prompt engineering pattern is covered
-- **Production-ready** — 5,800+ tests, NuGet package, Docker image, full docs site
+- **177 specialized classes** — from A/B testing to workflow orchestration, every prompt engineering pattern is covered
+- **Production-ready** — 5,900+ tests, NuGet package, Docker image, full docs site
 
 If you've ever copy-pasted prompt strings across files, hand-rolled retry logic, or wondered if your prompt is vulnerable to injection — this library exists so you don't have to.
 
@@ -99,7 +99,7 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 - **Serialization** — All classes support JSON round-trip (ToJson/FromJson/SaveToFileAsync/LoadFromFileAsync)
 
 ### Infrastructure
-- **5,800+ tests** — Comprehensive xUnit test suite
+- **5,900+ tests** — Comprehensive xUnit test suite
 - **Cross-platform** — Environment variable resolution on Windows, Linux, and macOS
 - **NuGet ready** — Published as [`prompt-llm-aoi`](https://www.nuget.org/packages/prompt-llm-aoi)
 
@@ -204,6 +204,7 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 | `PromptTournament` | Tournament-style prompt variant comparison and ranking |
 | `PromptShadowRunner` | Shadow execution for safe prompt change validation |
 | `PromptComparator` | Side-by-side prompt output comparison |
+| `PromptChaosEngine` | Autonomous chaos engineering — designs controlled experiments, injects 10 fault types (token corruption, latency spikes, model switching, etc.), measures blast radius via dependency graphs, scores resilience across 6 dimensions, and verifies recovery |
 
 </details>
 
@@ -283,6 +284,7 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 | `PromptStyleTransfer` | Heuristic prompt tone and style rewriting |
 | `PromptStyleTransformer` | Rule-based style transformations across registers and formats |
 | `PromptNegotiator` | Iterative prompt refinement with validation feedback loops |
+| `PromptEntanglementEngine` | Autonomous hidden dependency detector — maps shared variables, template dependencies, semantic overlap, behavioral correlations, cascade risk chains, and resource contention across prompt fleets using union-find clustering |
 
 </details>
 
@@ -983,7 +985,7 @@ Multi-step prompt pipeline where each step's output feeds into subsequent steps 
 └──────────────────────────────┬──────────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────────┐
-│                    Prompt Library (175 classes)                  │
+│                    Prompt Library (177 classes)                  │
 │                                                                 │
 │  ┌─── 🔧 Core Runtime ───────────────────────────────────────┐ │
 │  │ Main · Conversation · PromptOptions · PromptRetryPolicy   │ │
@@ -1041,13 +1043,13 @@ Multi-step prompt pipeline where each step's output feeds into subsequent steps 
 
 ## Contributing
 
-Contributions are welcome! See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the full guide, including the complete 175-module catalog organized by functional area, CI/CD pipeline details, code style conventions, and test categories.
+Contributions are welcome! See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the full guide, including the complete 177-module catalog organized by functional area, CI/CD pipeline details, code style conventions, and test categories.
 
 **Quick start:**
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Write tests — the project maintains 5,846+ xUnit tests
+3. Write tests — the project maintains 5,993+ xUnit tests
 4. Ensure CI passes (`dotnet build && dotnet test`)
 5. Open a Pull Request
 
