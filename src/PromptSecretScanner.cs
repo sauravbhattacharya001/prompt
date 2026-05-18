@@ -160,10 +160,9 @@ namespace Prompt
             if (string.IsNullOrEmpty(text))
                 return new SecretScanResult(text ?? "", text ?? "", Array.Empty<SecretFinding>());
 
-            var findings = new List<SecretFinding>();
-            var redacted = text;
+            var raw = new List<SecretFinding>();
 
-            // Precompute line offsets
+            // Precompute line offsets (sorted, strictly increasing).
             var lineStarts = new List<int> { 0 };
             for (int i = 0; i < text.Length; i++)
                 if (text[i] == '\n') lineStarts.Add(i + 1);
@@ -175,26 +174,63 @@ namespace Prompt
                     var matched = m.Value;
                     if (_allowlist.Contains(matched)) continue;
 
-                    int line = lineStarts.Count(ls => ls <= m.Index);
+                    // O(log L) line lookup via BinarySearch.
+                    int bs = lineStarts.BinarySearch(m.Index);
+                    int line = bs >= 0 ? bs + 1 : ~bs;
                     var mask = Redact(matched, rule.Category);
 
-                    findings.Add(new SecretFinding(rule, matched, mask,
+                    raw.Add(new SecretFinding(rule, matched, mask,
                         m.Index, m.Length, line));
                 }
             }
 
-            // Sort by position descending for safe replacement
-            foreach (var f in findings.OrderByDescending(f => f.Position))
-                redacted = redacted.Remove(f.Position, f.Length).Insert(f.Position, f.RedactedText);
+            // Deduplicate by interval overlap BEFORE redacting, so the redacted
+            // text and the returned Findings list describe the same set.
+            // Greedy: walk by descending priority (severity, then length, then
+            // earliest position) and keep a finding only if its [pos, pos+len)
+            // interval does not overlap any already-kept interval.
+            var deduped = DeduplicateByOverlap(raw);
 
-            // Deduplicate overlapping findings (keep highest severity)
-            var deduped = findings
-                .GroupBy(f => f.Position)
-                .Select(g => g.OrderByDescending(f => f.Rule.Severity).First())
-                .OrderBy(f => f.Position)
+            // Apply replacements from the deduped list, ordered by descending
+            // position so earlier offsets stay valid as we mutate the string.
+            var sb = new System.Text.StringBuilder(text);
+            foreach (var f in deduped.OrderByDescending(f => f.Position))
+            {
+                sb.Remove(f.Position, f.Length);
+                sb.Insert(f.Position, f.RedactedText);
+            }
+
+            return new SecretScanResult(text, sb.ToString(),
+                deduped.OrderBy(f => f.Position).ToList());
+        }
+
+        private static List<SecretFinding> DeduplicateByOverlap(List<SecretFinding> findings)
+        {
+            if (findings.Count < 2) return new List<SecretFinding>(findings);
+
+            var prioritized = findings
+                .OrderByDescending(f => (int)f.Rule.Severity)
+                .ThenByDescending(f => f.Length)
+                .ThenBy(f => f.Position)
                 .ToList();
 
-            return new SecretScanResult(text, redacted, deduped);
+            var kept = new List<SecretFinding>();
+            foreach (var f in prioritized)
+            {
+                int fEnd = f.Position + f.Length;
+                bool overlaps = false;
+                foreach (var k in kept)
+                {
+                    int kEnd = k.Position + k.Length;
+                    if (f.Position < kEnd && k.Position < fEnd)
+                    {
+                        overlaps = true;
+                        break;
+                    }
+                }
+                if (!overlaps) kept.Add(f);
+            }
+            return kept;
         }
 
         /// <summary>Quick check: does the text contain any secrets?</summary>
@@ -236,8 +272,11 @@ namespace Prompt
 
                 new SecretRule("openai-key", "OpenAI API Key", SecretCategory.ApiKey,
                     SecretSeverity.Critical,
-                    @"sk-[A-Za-z0-9]{20,}",
-                    "OpenAI API key"),
+                    // Matches legacy sk-XXXX keys as well as modern
+                    // sk-proj-/sk-svcacct-/sk-admin-/sk-None- keys, which can
+                    // contain hyphens and underscores in the body.
+                    @"sk-(?:proj-|svcacct-|admin-|None-)?[A-Za-z0-9][A-Za-z0-9_\-]{19,}",
+                    "OpenAI API key (legacy and project/service-account/admin formats)"),
 
                 new SecretRule("github-token", "GitHub Token", SecretCategory.Token,
                     SecretSeverity.Critical,

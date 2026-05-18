@@ -213,4 +213,105 @@ public class PromptSecretScannerTests
         var critical = result.AtSeverity(SecretSeverity.Critical).ToList();
         Assert.All(critical, f => Assert.True(f.Rule.Severity >= SecretSeverity.Critical));
     }
+
+    // --- Regression: overlapping rule matches must not corrupt RedactedText
+    // and the Findings list must agree with the redacted output (issue #188).
+
+    [Fact]
+    public void OverlappingRules_RedactedTextMatchesFindings_NoDoubleRedaction()
+    {
+        // "password:" triggers generic-secret on the JWT body; the JWT itself
+        // triggers the jwt rule. Pre-fix this double-redacted the same span.
+        var scanner = new PromptSecretScanner();
+        var jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.abcdefghijklmnop";
+        var input = $"password: {jwt}";
+        var result = scanner.Scan(input);
+
+        // Exactly one finding survives dedup for that single logical secret.
+        Assert.Single(result.Findings);
+
+        // The redacted text must not still contain the secret body.
+        Assert.DoesNotContain(jwt, result.RedactedText);
+
+        // And the redacted text length must equal: prefix + the surviving
+        // finding's RedactedText length. No leftover characters, no double mask.
+        var only = result.Findings[0];
+        var expected = input.Substring(0, only.Position) + only.RedactedText
+            + input.Substring(only.Position + only.Length);
+        Assert.Equal(expected, result.RedactedText);
+    }
+
+    [Fact]
+    public void OverlappingRules_KeepsHigherSeverity()
+    {
+        // connection-string (Critical) fully contains a generic-secret (High)
+        // match on the Password= portion. Critical must win.
+        var scanner = new PromptSecretScanner();
+        var cs = "Server=myserver;User Id=admin;Password=s3cr3tValue";
+        var result = scanner.Scan(cs);
+
+        Assert.Single(result.Findings);
+        Assert.Equal("connection-string", result.Findings[0].Rule.Id);
+    }
+
+    [Fact]
+    public void RedactedText_Reconstructible_FromFindings_Multiline()
+    {
+        var scanner = new PromptSecretScanner();
+        var input = "line1 key sk-abc123def456ghi789jkl012mno x\n"
+                  + "line2 email a@b.com end\n"
+                  + "line3 ip 10.0.0.1 done";
+        var result = scanner.Scan(input);
+
+        // Build expected redacted text by applying findings in reverse order.
+        var expected = input;
+        foreach (var f in result.Findings.OrderByDescending(f => f.Position))
+            expected = expected.Remove(f.Position, f.Length).Insert(f.Position, f.RedactedText);
+
+        Assert.Equal(expected, result.RedactedText);
+    }
+
+    [Fact]
+    public void OpenAIKey_ModernProjectFormat_IsDetected()
+    {
+        var scanner = new PromptSecretScanner();
+        // sk-proj-... shape used by current OpenAI project keys.
+        var key = "sk-proj-AbCdEf123456_-789xyzABCDEFghij";
+        var result = scanner.Scan($"OPENAI_API_KEY={key}");
+
+        Assert.Contains(result.Findings, f => f.Rule.Id == "openai-key");
+        Assert.DoesNotContain(key, result.RedactedText);
+    }
+
+    [Fact]
+    public void OpenAIKey_ServiceAccountFormat_IsDetected()
+    {
+        var scanner = new PromptSecretScanner();
+        var key = "sk-svcacct-AbCdEf123456_-789xyzABCDEF";
+        var result = scanner.Scan($"key={key}");
+        Assert.Contains(result.Findings, f => f.Rule.Id == "openai-key");
+    }
+
+    [Fact]
+    public void LineNumberLookup_IsCorrect_ForLastLine()
+    {
+        // Regression for the BinarySearch-based line attribution: secrets on
+        // the final line (no trailing newline) must report the right line.
+        var scanner = new PromptSecretScanner();
+        var input = "line 1\nline 2\nline 3 has sk-abc123def456ghi789jkl012mno here";
+        var result = scanner.Scan(input);
+        var f = result.Findings.First(x => x.Rule.Id == "openai-key");
+        Assert.Equal(3, f.Line);
+    }
+
+    [Fact]
+    public void LineNumberLookup_FindingAtLineStart_IsCorrect()
+    {
+        // m.Index is exactly equal to a lineStarts entry -> BinarySearch hits.
+        var scanner = new PromptSecretScanner();
+        var input = "prefix\nsk-abc123def456ghi789jkl012mno tail";
+        var result = scanner.Scan(input);
+        var f = result.Findings.First(x => x.Rule.Id == "openai-key");
+        Assert.Equal(2, f.Line);
+    }
 }
