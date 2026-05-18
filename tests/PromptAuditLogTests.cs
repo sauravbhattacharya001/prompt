@@ -432,6 +432,23 @@ namespace Prompt.Tests
             Assert.Contains("\"test,with,commas\"", csv);
         }
 
+        [Theory]
+        [InlineData("=cmd|'/c calc'!A1")]
+        [InlineData("+SUM(A1:A2)")]
+        [InlineData("-2+3")]
+        [InlineData("@SUM(1+1)")]
+        public void ExportCsv_NeutralizesFormulaInjection(string payload)
+        {
+            // CWE-1236: cells that begin with =, +, -, or @ must be prefixed
+            // with a single quote so spreadsheet apps treat them as literal
+            // text instead of evaluating them as formulas.
+            var log = new PromptAuditLog();
+            log.Append(new AuditEntry(payload, true));
+            var csv = log.ExportCsv();
+            Assert.Contains("'" + payload, csv);
+            Assert.DoesNotContain("," + payload + ",", csv);
+        }
+
         // ── PurgeExpired ──────────────────────────────────────────
 
         [Fact]

@@ -520,7 +520,17 @@ public sealed class PromptAuditLog
 
     private static string CsvEscape(string value)
     {
-        if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
+        // CWE-1236: guard against CSV formula injection. Prefix cells that
+        // begin with spreadsheet formula-trigger characters with a single
+        // quote so Excel / LibreOffice / Google Sheets treat the cell as a
+        // literal text value instead of evaluating it as a formula.
+        if (value.Length > 0 && (value[0] is '=' or '+' or '-' or '@' or '\t' or '\r'))
+        {
+            value = "'" + value;
+        }
+
+        if (value.Contains(',') || value.Contains('"') ||
+            value.Contains('\n') || value.Contains('\r'))
         {
             return "\"" + value.Replace("\"", "\"\"") + "\"";
         }

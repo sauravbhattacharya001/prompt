@@ -492,7 +492,16 @@ namespace Prompt
 
         private static string CsvEscape(string value)
         {
-            if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
+            // CWE-1236: prevent CSV formula injection by prefixing
+            // formula-trigger characters with a single quote so spreadsheet
+            // apps treat the cell as literal text.
+            if (value.Length > 0 && (value[0] is '=' or '+' or '-' or '@' or '\t' or '\r'))
+            {
+                value = "'" + value;
+            }
+
+            if (value.Contains(',') || value.Contains('"') ||
+                value.Contains('\n') || value.Contains('\r'))
                 return $"\"{value.Replace("\"", "\"\"")}\"";
             return value;
         }

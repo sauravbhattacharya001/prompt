@@ -412,7 +412,19 @@ namespace Prompt
         private static string CsvEscape(string? value)
         {
             if (value == null) return "";
-            if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
+
+            // CWE-1236: prevent CSV formula injection. Prefix cells whose
+            // first character could be interpreted as a formula trigger
+            // (=, +, -, @, tab, CR) with a single quote so spreadsheet
+            // applications treat the cell as literal text instead of
+            // evaluating it.
+            if (value.Length > 0 && (value[0] is '=' or '+' or '-' or '@' or '\t' or '\r'))
+            {
+                value = "'" + value;
+            }
+
+            if (value.Contains(',') || value.Contains('"') ||
+                value.Contains('\n') || value.Contains('\r'))
                 return "\"" + value.Replace("\"", "\"\"") + "\"";
             return value;
         }
