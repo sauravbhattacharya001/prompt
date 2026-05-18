@@ -140,28 +140,52 @@ public sealed class PromptMixtureOfExperts
         };
     }
 
+    // Pre-tokenization regex compiled once (was: re-compiled per Route call).
+    private static readonly Regex WordSplitRegex = new(@"\W+", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     private List<ExpertScore> ScoreExperts(string input)
     {
+        // Lowercase the input once and build a word set once per Route call,
+        // rather than per-expert as the previous Linq-heavy implementation did.
         var lower = input.ToLowerInvariant();
-        var words = Regex.Split(lower, @"\W+").Where(w => w.Length > 0).ToHashSet();
-
-        return _experts.Select(e =>
+        var words = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var w in WordSplitRegex.Split(lower))
         {
-            double keywordScore = e.Keywords.Count > 0
-                ? (double)e.Keywords.Count(k => lower.Contains(k.ToLowerInvariant())) / e.Keywords.Count
-                : 0.0;
+            if (w.Length > 0) words.Add(w);
+        }
 
-            double wordOverlap = e.Keywords.Count > 0
-                ? (double)e.Keywords.Count(k => words.Contains(k.ToLowerInvariant())) / e.Keywords.Count
-                : 0.0;
+        var results = new List<ExpertScore>(_experts.Count);
+        foreach (var e in _experts)
+        {
+            var kwCount = e.LowerKeywords.Count;
+            double keywordScore = 0.0;
+            double wordOverlap = 0.0;
 
-            double domainBonus = lower.Contains(e.Domain.ToLowerInvariant()) ? 0.2 : 0.0;
+            if (kwCount > 0)
+            {
+                int substringHits = 0;
+                int wordHits = 0;
+                // Single loop: counts both substring containment AND exact word overlap,
+                // using pre-lowercased keywords. Previous version allocated 2N lowercased
+                // strings and did 2 Linq passes per expert per Route.
+                for (int i = 0; i < kwCount; i++)
+                {
+                    var lk = e.LowerKeywords[i];
+                    if (lower.Contains(lk, StringComparison.Ordinal)) substringHits++;
+                    if (words.Contains(lk)) wordHits++;
+                }
+                keywordScore = (double)substringHits / kwCount;
+                wordOverlap = (double)wordHits / kwCount;
+            }
+
+            double domainBonus = lower.Contains(e.LowerDomain, StringComparison.Ordinal) ? 0.2 : 0.0;
 
             double raw = (keywordScore * 0.5 + wordOverlap * 0.3 + domainBonus) * e.CurrentWeight;
             double score = Math.Min(raw, 1.0);
 
-            return new ExpertScore(e.Name, score, e);
-        }).ToList();
+            results.Add(new ExpertScore(e.Name, score, e));
+        }
+        return results;
     }
 
     private static string BuildTextReport(IEnumerable<dynamic> stats, int fallbackHits)
@@ -218,12 +242,22 @@ public sealed class PromptMixtureOfExperts
         public IReadOnlyList<string> Keywords { get; }
         public double CurrentWeight { get; private set; }
 
+        // Pre-lowercased copies of keywords and domain — computed once at construction
+        // so the hot ScoreExperts loop doesn't allocate a new lowercased string per
+        // keyword per Route call.
+        internal IReadOnlyList<string> LowerKeywords { get; }
+        internal string LowerDomain { get; }
+
         internal Expert(string name, string domain, string promptTemplate, List<string> keywords, double baseWeight)
         {
             Name = name;
             Domain = domain;
             PromptTemplate = promptTemplate;
             Keywords = keywords.AsReadOnly();
+            var lower = new List<string>(keywords.Count);
+            foreach (var k in keywords) lower.Add(k.ToLowerInvariant());
+            LowerKeywords = lower.AsReadOnly();
+            LowerDomain = domain.ToLowerInvariant();
             CurrentWeight = baseWeight;
         }
 
