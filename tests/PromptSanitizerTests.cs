@@ -351,6 +351,32 @@ namespace Prompt.Tests
             Assert.Contains("3", action.Description);
         }
 
+        [Fact]
+        public void StripsBidirectionalOverrideCharacters()
+        {
+            // Bidi overrides can visually reorder text, allowing prompt-injection
+            // payloads to bypass naive substring/regex matching. They must be stripped.
+            // U+202E = Right-to-Left Override, U+2066 = LRI, U+2069 = PDI.
+            var input = "safe\u202EevilSI\u2066\u2069text";
+            var result = _sanitizer.Sanitize(input);
+            Assert.DoesNotContain('\u202E', result.Sanitized);
+            Assert.DoesNotContain('\u2066', result.Sanitized);
+            Assert.DoesNotContain('\u2069', result.Sanitized);
+            Assert.True(result.WasModified);
+            Assert.Contains(result.Actions, a => a.Type == "strip_invisible");
+        }
+
+        [Fact]
+        public void StripsUnicodeTagCharacters()
+        {
+            // U+E0000–U+E007F (Unicode Tag block) can be used to smuggle hidden
+            // instructions invisibly into prompts. They must be stripped.
+            var input = "hello\U000E0041\U000E0042 world";
+            var result = _sanitizer.Sanitize(input);
+            Assert.Equal("hello world", result.Sanitized);
+            Assert.True(result.WasModified);
+        }
+
         // ── Special Token Escaping ─────────────────────────────────────────
 
         [Fact]

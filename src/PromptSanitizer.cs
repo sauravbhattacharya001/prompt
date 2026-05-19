@@ -89,9 +89,25 @@ namespace Prompt
     /// </example>
     public class PromptSanitizer
     {
+        // Includes zero-width chars, BOM, word-joiner / function chars, soft hyphen,
+        // **bidirectional override controls** (U+202A–U+202E, U+2066–U+2069), and
+        // **Unicode Tag characters** (U+E0000–U+E007F). The latter two ranges are
+        // documented prompt-injection bypass techniques: an attacker can use them
+        // to visually reorder text past regex-based filters or smuggle hidden
+        // instructions inside otherwise-innocuous prompts.
         private static readonly Regex InvisibleCharsRegex = new(
-            @"[\u200B\u200C\u200D\u200E\u200F\uFEFF\u2060\u2061\u2062\u2063\u2064\u00AD]",
-            RegexOptions.Compiled);
+            // BMP invisible/format chars + bidi controls.
+            @"[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\u00AD]",
+            RegexOptions.Compiled,
+            TimeSpan.FromMilliseconds(500));
+
+        // Unicode Tag characters live in supplementary plane U+E0000–U+E007F,
+        // encoded as surrogate pair high=0xDB40, low=0xDC00–0xDC7F. They are a
+        // documented prompt-injection smuggling vector and must be stripped.
+        private static readonly Regex InvisibleTagCharsRegex = new(
+            "\uDB40[\uDC00-\uDC7F]",
+            RegexOptions.Compiled,
+            TimeSpan.FromMilliseconds(500));
 
         private static readonly (string Label, Regex Pattern)[] InjectionPatterns = new[]
         {
@@ -121,10 +137,13 @@ namespace Prompt
 
         private static readonly Regex SpecialTokenRegex = new(
             @"<\|(?:endoftext|im_start|im_end|pad|sep)\|>|<s>|</s>|\[INST\]|\[/INST\]|<<SYS>>|<</SYS>>",
-            RegexOptions.Compiled);
+            RegexOptions.Compiled,
+            TimeSpan.FromMilliseconds(500));
 
-        private static readonly Regex MultiSpaceRegex = new(@"[^\S\n]+", RegexOptions.Compiled);
-        private static readonly Regex MultiBlankLineRegex = new(@"\n{3,}", RegexOptions.Compiled);
+        private static readonly Regex MultiSpaceRegex = new(
+            @"[^\S\n]+", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+        private static readonly Regex MultiBlankLineRegex = new(
+            @"\n{3,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         /// <summary>
         /// Sanitize a prompt with default options.
@@ -153,6 +172,7 @@ namespace Prompt
             {
                 int count = 0;
                 text = InvisibleCharsRegex.Replace(text, _ => { count++; return ""; });
+                text = InvisibleTagCharsRegex.Replace(text, _ => { count++; return ""; });
                 if (count > 0)
                 {
                     actions.Add(new SanitizeAction
