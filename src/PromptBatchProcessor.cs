@@ -154,14 +154,48 @@ namespace Prompt
         }
 
         /// <summary>
-        /// Returns the delay in milliseconds for a given attempt number (0-based).
-        /// Delegates to <see cref="PromptRetryPolicy.CalculateDelay"/>.
+        /// Returns the delay in milliseconds for a given retry attempt.
         /// </summary>
-        /// <param name="attempt">The attempt number (0-based).</param>
-        /// <returns>Delay in milliseconds.</returns>
+        /// <remarks>
+        /// Semantics:
+        /// <list type="bullet">
+        ///   <item><description><c>attempt &lt;= 0</c> → returns 0 (no delay).</description></item>
+        ///   <item><description>With <see cref="ExponentialBackoff"/>: <c>BaseDelayMs * 2^attempt</c>,
+        ///     so attempt 1 doubles the base, attempt 2 quadruples it, etc. — matching the
+        ///     documented "delay doubles each retry" behavior.</description></item>
+        ///   <item><description>Without <see cref="ExponentialBackoff"/>: fixed <see cref="BaseDelayMs"/>.</description></item>
+        ///   <item><description>The result is capped at <see cref="MaxDelayMs"/>.</description></item>
+        ///   <item><description>If <see cref="Jitter"/> is enabled, a random ±25% jitter is applied
+        ///     before the cap.</description></item>
+        /// </list>
+        /// This is intentionally a simple, self-contained calculation independent of
+        /// <see cref="PromptRetryPolicy.CalculateDelay"/>, which uses different conventions
+        /// (attempt 1 = base, attempt 2 = 2× base) more suited to its internal retry loop.
+        /// </remarks>
+        /// <param name="attempt">The retry attempt number (1 = first retry).</param>
+        /// <returns>Delay in milliseconds, capped at <see cref="MaxDelayMs"/>.</returns>
         public int GetDelay(int attempt)
         {
-            return (int)_inner.CalculateDelay(attempt, ErrorCategory.Unknown).TotalMilliseconds;
+            if (attempt <= 0) return 0;
+
+            double delayMs = BaseDelayMs;
+            if (ExponentialBackoff)
+            {
+                // delay doubles each retry: attempt 1 -> 2x base, attempt 2 -> 4x base, ...
+                delayMs *= Math.Pow(2, attempt);
+            }
+
+            if (Jitter)
+            {
+                // ±25% jitter — deterministic-free, thread-safe via Random.Shared.
+                double jitter = (Random.Shared.NextDouble() * 0.5) - 0.25; // [-0.25, +0.25)
+                delayMs *= (1.0 + jitter);
+            }
+
+            int max = MaxDelayMs;
+            if (max > 0 && delayMs > max) delayMs = max;
+            if (delayMs < 0) delayMs = 0;
+            return (int)delayMs;
         }
 
         /// <summary>
@@ -479,6 +513,14 @@ namespace Prompt
                                              Dictionary<string, string>? variables = null,
                                              string[]? tags = null)
         {
+            // Validate id up front so we throw a stable ArgumentException (not whatever
+            // exception happens to fall out of the dictionary lookup for a null/empty id).
+            if (string.IsNullOrWhiteSpace(id))
+                throw new ArgumentException(
+                    "Batch item id must be a non-empty, non-whitespace string.", nameof(id));
+            if (template == null)
+                throw new ArgumentNullException(nameof(template));
+
             lock (_lock)
             {
                 if (_items.Count >= MaxBatchSize)
