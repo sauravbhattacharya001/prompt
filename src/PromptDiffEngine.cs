@@ -103,14 +103,22 @@ namespace Prompt
         /// <summary>
         /// Renders the diff in unified diff format.
         /// </summary>
-        /// <param name="contextLines">Number of context lines around changes (default 3).</param>
+        /// <param name="contextLines">Number of context lines around changes (default 3).
+        /// If this differs from the context originally used to build the hunks, the hunks are rebuilt on the fly.</param>
         /// <returns>Unified diff string.</returns>
         public string ToUnifiedDiff(int contextLines = 3)
         {
+            if (contextLines < 0)
+                throw new ArgumentOutOfRangeException(nameof(contextLines), "contextLines must be non-negative.");
+
+            // Hunks are computed at Diff() time with a fixed context value. If the caller asks for a
+            // different context here, rebuild the hunks so the output actually reflects the request.
+            var hunks = PromptDiffEngine.BuildHunksPublic(Lines, contextLines);
+
             var sb = new StringBuilder();
             sb.AppendLine("--- old");
             sb.AppendLine("+++ new");
-            foreach (var hunk in Hunks)
+            foreach (var hunk in hunks)
             {
                 sb.AppendLine(hunk.Header);
                 foreach (var line in hunk.Lines)
@@ -172,7 +180,6 @@ namespace Prompt
         /// </summary>
         public string ToStats()
         {
-            var total = Lines.Count > 0 ? Lines.Count : 1;
             return $"Similarity: {Similarity:P1} | +{Additions} -{Deletions} ~{Unchanged} | {Hunks.Count} hunk(s)";
         }
 
@@ -294,46 +301,78 @@ namespace Prompt
         /// <returns>Merged text with conflict markers where both sides changed the same region.</returns>
         public static string ThreeWayMerge(string baseText, string oursText, string theirsText)
         {
+            if (baseText == null) throw new ArgumentNullException(nameof(baseText));
+            if (oursText == null) throw new ArgumentNullException(nameof(oursText));
+            if (theirsText == null) throw new ArgumentNullException(nameof(theirsText));
+
+            // Fast paths for trivial three-way merges.
+            if (oursText == theirsText) return oursText;
+            if (baseText == oursText) return theirsText;     // only theirs changed
+            if (baseText == theirsText) return oursText;     // only ours changed
+
             var diffOurs = Diff(baseText, oursText, 0);
             var diffTheirs = Diff(baseText, theirsText, 0);
 
-            var baseLines = SplitLines(baseText);
-            var ourLines = SplitLines(oursText);
-            var theirLines = SplitLines(theirsText);
+            // A base line is "touched" by a side if that side deleted it OR inserted next to it
+            // (i.e., the side did anything in that region). Tracking only deletions (the previous
+            // behaviour) made theirs-only insertions silently disappear when ours had any change.
+            var oursTouched = CollectTouchedBaseLines(diffOurs);
+            var theirsTouched = CollectTouchedBaseLines(diffTheirs);
 
-            // Simple strategy: apply non-conflicting changes, mark conflicts
-            var oursChanged = new HashSet<int>();
-            var theirsChanged = new HashSet<int>();
-
-            foreach (var line in diffOurs.Lines.Where(l => l.Operation == DiffOperation.Delete && l.OldLineNumber.HasValue))
-                oursChanged.Add(line.OldLineNumber.Value);
-            foreach (var line in diffTheirs.Lines.Where(l => l.Operation == DiffOperation.Delete && l.OldLineNumber.HasValue))
-                theirsChanged.Add(line.OldLineNumber.Value);
-
-            var conflicts = oursChanged.Intersect(theirsChanged).ToHashSet();
+            var conflicts = oursTouched.Intersect(theirsTouched).ToHashSet();
 
             if (conflicts.Count == 0)
             {
-                // No conflicts — prefer ours for changed lines, theirs for their-only changes
-                return oursText;
+                // No overlapping regions. We still cannot trivially "apply both diffs" without a
+                // proper diff3 implementation, so we emit a conservative conflict block so the
+                // caller can pick a side rather than silently losing one side's edits.
+                return BuildConflictBlock(oursText, theirsText, regionCount: 1,
+                    headerSuffix: "non-overlapping edits on both sides — manual merge required");
             }
 
-            // Has conflicts — output with markers
-            var sb = new StringBuilder();
-            foreach (var line in ourLines)
-                sb.AppendLine(line);
+            return BuildConflictBlock(oursText, theirsText, regionCount: conflicts.Count,
+                headerSuffix: "conflict region(s) detected");
+        }
 
-            if (conflicts.Count > 0)
+        private static HashSet<int> CollectTouchedBaseLines(PromptDiffResult diff)
+        {
+            // For each non-equal line, mark the surrounding base line numbers as touched.
+            // For a Delete we know its OldLineNumber. For an Insert we approximate the region
+            // by looking at the nearest preceding base line in the diff sequence.
+            var touched = new HashSet<int>();
+            int lastBaseLine = 0;
+            foreach (var line in diff.Lines)
             {
-                sb.AppendLine();
-                sb.AppendLine($"<<<<<<< OURS (above) — {conflicts.Count} conflict region(s) detected");
-                sb.AppendLine("=======");
-                foreach (var line in theirLines)
-                    sb.AppendLine(line);
-                sb.AppendLine(">>>>>>> THEIRS");
+                if (line.Operation == DiffOperation.Equal && line.OldLineNumber.HasValue)
+                {
+                    lastBaseLine = line.OldLineNumber.Value;
+                }
+                else if (line.Operation == DiffOperation.Delete && line.OldLineNumber.HasValue)
+                {
+                    lastBaseLine = line.OldLineNumber.Value;
+                    touched.Add(lastBaseLine);
+                }
+                else if (line.Operation == DiffOperation.Insert)
+                {
+                    // Mark the insertion point (between lastBaseLine and the next base line).
+                    touched.Add(lastBaseLine);
+                    touched.Add(lastBaseLine + 1);
+                }
             }
+            return touched;
+        }
 
-            return sb.ToString().TrimEnd();
+        private static string BuildConflictBlock(string oursText, string theirsText, int regionCount, string headerSuffix)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"<<<<<<< OURS — {regionCount} {headerSuffix}");
+            sb.Append(oursText);
+            if (!oursText.EndsWith("\n")) sb.AppendLine();
+            sb.AppendLine("=======");
+            sb.Append(theirsText);
+            if (!theirsText.EndsWith("\n")) sb.AppendLine();
+            sb.Append(">>>>>>> THEIRS");
+            return sb.ToString();
         }
 
         #region Private Helpers
@@ -420,6 +459,12 @@ namespace Prompt
             result.Reverse();
             return result;
         }
+
+        // Internal exposure of BuildHunks so PromptDiffResult.ToUnifiedDiff can honour
+        // a caller-supplied context value (the value passed to Diff is baked into the
+        // hunks at construction time).
+        internal static List<DiffHunk> BuildHunksPublic(List<DiffLine> lines, int context)
+            => BuildHunks(lines, context);
 
         private static List<DiffHunk> BuildHunks(List<DiffLine> lines, int context)
         {
