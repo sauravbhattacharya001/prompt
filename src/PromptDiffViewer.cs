@@ -146,7 +146,7 @@ namespace Prompt
             var newLines = SplitLines(newPrompt);
 
             var lcs = ComputeLCS(oldLines, newLines, ignoreWhitespace);
-            var diffLines = BuildDiffLines(oldLines, newLines, lcs);
+            var diffLines = BuildDiffLines(oldLines, newLines, lcs, ignoreWhitespace);
 
             int added = diffLines.Count(l => l.Type == LineDiffType.Added);
             int removed = diffLines.Count(l => l.Type == LineDiffType.Removed);
@@ -189,7 +189,7 @@ namespace Prompt
                     var oldWords = result.Lines[i].Content.Split(' ');
                     var newWords = result.Lines[i + 1].Content.Split(' ');
                     var wlcs = ComputeLCS(oldWords, newWords, false);
-                    var wdiff = BuildWordDiff(oldWords, newWords, wlcs);
+                    var wdiff = BuildWordDiff(oldWords, newWords, wlcs, false);
                     wordDiffs.Add((i, wdiff));
                 }
             }
@@ -224,16 +224,24 @@ namespace Prompt
             return dp;
         }
 
-        private static List<ViewerDiffLine> BuildDiffLines(string[] oldLines, string[] newLines, int[,] dp)
+        private static List<ViewerDiffLine> BuildDiffLines(string[] oldLines, string[] newLines, int[,] dp, bool ignoreWhitespace = false)
         {
             var result = new List<ViewerDiffLine>();
             int i = oldLines.Length, j = newLines.Length;
 
             var stack = new Stack<ViewerDiffLine>();
 
+            // Bug fix: the backtracking comparison must use the SAME equality
+            // predicate that was used when filling the DP table. Otherwise,
+            // with ignoreWhitespace=true, lines that the LCS table considered
+            // equal (after trimming) can be reported as Removed+Added pairs,
+            // producing an incorrect diff that disagrees with its own LCS.
+            static bool LinesEqual(string a, string b, bool trim) =>
+                trim ? string.Equals(a.Trim(), b.Trim(), StringComparison.Ordinal) : a == b;
+
             while (i > 0 || j > 0)
             {
-                if (i > 0 && j > 0 && oldLines[i - 1] == newLines[j - 1])
+                if (i > 0 && j > 0 && LinesEqual(oldLines[i - 1], newLines[j - 1], ignoreWhitespace))
                 {
                     stack.Push(new ViewerDiffLine
                     {
@@ -274,15 +282,18 @@ namespace Prompt
             return result;
         }
 
-        private static List<(LineDiffType, string)> BuildWordDiff(string[] oldWords, string[] newWords, int[,] dp)
+        private static List<(LineDiffType, string)> BuildWordDiff(string[] oldWords, string[] newWords, int[,] dp, bool ignoreWhitespace = false)
         {
             var result = new List<(LineDiffType, string)>();
             int i = oldWords.Length, j = newWords.Length;
             var stack = new Stack<(LineDiffType, string)>();
 
+            static bool WordsEqual(string a, string b, bool trim) =>
+                trim ? string.Equals(a.Trim(), b.Trim(), StringComparison.Ordinal) : a == b;
+
             while (i > 0 || j > 0)
             {
-                if (i > 0 && j > 0 && oldWords[i - 1] == newWords[j - 1])
+                if (i > 0 && j > 0 && WordsEqual(oldWords[i - 1], newWords[j - 1], ignoreWhitespace))
                 {
                     stack.Push((LineDiffType.Equal, oldWords[i - 1]));
                     i--; j--;
