@@ -43,6 +43,14 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "Microsoft.AspNetCore.App"
         update-types: ["version-update:semver-major"]
+      # Azure.AI.OpenAI and its transitive System.ClientModel ship together
+      # and have had breaking API changes across major bumps (2.x → 3.x has
+      # already broken downstream consumers historically). Hold these for
+      # manual upgrade — the documented intent above must match the rule.
+      - dependency-name: "Azure.AI.OpenAI"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "System.ClientModel"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions workflows
   - package-ecosystem: "github-actions"
@@ -94,4 +102,8 @@ updates:
       - dependency-name: "mcr.microsoft.com/dotnet/runtime"
         update-types: ["version-update:semver-major"]
       - dependency-name: "mcr.microsoft.com/dotnet/aspnet"
+        update-types: ["version-update:semver-major"]
+      # Dockerfile uses runtime-deps for the output stage. Must move in
+      # lockstep with the sdk/runtime above on major .NET bumps.
+      - dependency-name: "mcr.microsoft.com/dotnet/runtime-deps"
         update-types: ["version-update:semver-major"]

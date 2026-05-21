@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.24.0] - 2026-05-21
+
+### Added
+- **PromptStepReasoningAdvisor** — 7th agentic sibling advisor for step-by-step reasoning prompts (0524bd3)
+- Comprehensive unit-test suites for `PromptDiffEngine` (ba0c7ca) and `TextAnalysisHelpers` (1e50c6b)
+
+### Fixed
+- **PromptDiffEngine** (#c42c703): `ToUnifiedDiff` now honours the `contextLines` parameter; `ThreeWayMerge` no longer drops theirs-only edits
+- **PromptDiffViewer** (#b3865f1): LCS backtrack now respects `ignoreWhitespace`, fixing spurious diffs that differed only in whitespace
+- **PromptBatchProcessor** (#70686e2): `RetryPolicy.GetDelay` semantics corrected and `AddItem` now validates ids
+- **PromptRollbackManager** (#f01b6d7): `ExportJson` / `ImportJson` round-trip now lossless, with regression tests
+- **#191 — token estimator** (#83a2923): converged all duplicated `EstimateTokens` implementations on the canonical ~4 chars/token helper to eliminate drift
+
+### Changed
+- **Refactor** (#c4535f5): use `MinBy` / `MaxBy` instead of `OrderBy(...).First()` across 21 files — fewer allocations, clearer intent
+- **Performance** (#18f7f85): eliminated redundant LINQ sorts in `PromptEvaluator` and `PromptABTester` hot paths
+- **Docs** (#116b759): expanded XML doc comments on metadata APIs and hardened the Dependabot config to match documented intent (Azure.AI.OpenAI / System.ClientModel / `runtime-deps` major bumps now actually ignored, not just commented)
+
+### Security
+- **PromptSanitizer** (#b7c46c9): strip Unicode bidi-override and Tag characters to defend against homoglyph / hidden-instruction smuggling
+
+### Dependencies
+- nuget: bump the `nuget-minor-and-patch` group (#192)
+
 ### Added
 - **PromptCatalogExporter** — export prompt library to HTML, CSV, and JSON formats
 - **PromptBenchmarkSuite** — benchmark prompt variants against test scenarios
