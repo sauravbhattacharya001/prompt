@@ -163,7 +163,7 @@ namespace Prompt
 
         /// <summary>Highest severity among violations.</summary>
         public ContractSeverity? HighestViolationSeverity =>
-            Results.Where(r => !r.Passed).Select(r => r.Contract.Severity).OrderByDescending(s => s).FirstOrDefault();
+            Results.Where(r => !r.Passed).Select(r => r.Contract.Severity).MaxBy(s => s);
 
         /// <summary>Violations grouped by phase.</summary>
         public Dictionary<ContractPhase, List<ContractVerificationResult>> ViolationsByPhase =>

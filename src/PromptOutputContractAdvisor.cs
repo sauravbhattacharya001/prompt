@@ -364,7 +364,7 @@ namespace Prompt
             // Dedupe findings by Code (keep the highest-severity).
             findings = findings
                 .GroupBy(f => f.Code)
-                .Select(g => g.OrderByDescending(f => f.Severity).First())
+                .Select(g => g.MaxBy(f => f.Severity)!)
                 .OrderByDescending(f => f.Severity)
                 .ToList();
 

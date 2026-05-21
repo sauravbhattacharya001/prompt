@@ -305,7 +305,7 @@ namespace Prompt
                 normalized[Emotion.Neutral] = 0;
 
             // Determine dominant
-            var dominant = normalized.OrderByDescending(kv => kv.Value).First().Key;
+            var dominant = normalized.MaxBy(kv => kv.Value)!.Key;
             double confidence = normalized[dominant];
 
             // If confidence is very low, default to neutral

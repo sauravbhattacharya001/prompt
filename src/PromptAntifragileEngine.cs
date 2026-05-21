@@ -654,8 +654,8 @@ namespace Prompt
                 ? profiles.Sum(p => p.FailureRate * p.TestCount) / totalTests
                 : 0;
 
-            var weakest = profiles.OrderBy(p => p.MeanStressQuality).FirstOrDefault();
-            var strongest = profiles.OrderByDescending(p => p.MeanStressQuality).FirstOrDefault();
+            var weakest = profiles.MinBy(p => p.MeanStressQuality);
+            var strongest = profiles.MaxBy(p => p.MeanStressQuality);
 
             return new AntifragileSnapshot
             {

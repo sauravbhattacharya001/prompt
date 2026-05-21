@@ -440,7 +440,7 @@ namespace Prompt
             double dominantBucketShare = 0;
             if (totalFormat > 0)
             {
-                var top = bucketCounts.OrderByDescending(kv => kv.Value).First();
+                var top = bucketCounts.MaxBy(kv => kv.Value)!;
                 dominantBucket = top.Key;
                 dominantBucketCount = top.Value;
                 dominantBucketShare = (double)top.Value / totalFormat;

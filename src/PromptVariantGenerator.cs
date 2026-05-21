@@ -138,8 +138,8 @@ namespace Prompt
             Original = original;
             OriginalTokens = originalTokens;
             Variants = variants;
-            Shortest = variants.OrderBy(v => v.EstimatedTokens).FirstOrDefault();
-            Longest = variants.OrderByDescending(v => v.EstimatedTokens).FirstOrDefault();
+            Shortest = variants.MinBy(v => v.EstimatedTokens);
+            Longest = variants.MaxBy(v => v.EstimatedTokens);
         }
 
         /// <summary>

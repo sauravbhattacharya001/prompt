@@ -932,8 +932,8 @@ namespace Prompt
                 insights.Add($"📊 Arm '{highVar.ArmId}' shows high variance (σ={highVar.StdDevReward:F3}). Results are inconsistent — may indicate sensitivity to prompt content or external factors.");
 
             // Latency vs quality trade-off
-            var bestByQuality = snapshot.ArmStats.OrderByDescending(s => s.MeanReward).FirstOrDefault();
-            var bestByLatency = snapshot.ArmStats.Where(s => s.Trials > 0).OrderBy(s => s.MeanLatencyMs).FirstOrDefault();
+            var bestByQuality = snapshot.ArmStats.MaxBy(s => s.MeanReward);
+            var bestByLatency = snapshot.ArmStats.Where(s => s.Trials > 0).MinBy(s => s.MeanLatencyMs);
             if (bestByQuality != null && bestByLatency != null && bestByQuality.ArmId != bestByLatency.ArmId)
             {
                 double qualityGap = bestByQuality.MeanReward - (snapshot.ArmStats.FirstOrDefault(s => s.ArmId == bestByLatency.ArmId)?.MeanReward ?? 0);

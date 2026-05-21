@@ -420,7 +420,7 @@ namespace Prompt
                 foreach (var kv in toneScores)
                     report.ToneDistribution[kv.Key] = kv.Value / totalScore;
 
-                var dominant = toneScores.OrderByDescending(x => x.Value).First();
+                var dominant = toneScores.MaxBy(x => x.Value)!;
                 report.DominantTone = dominant.Key;
                 report.Confidence = Math.Min(1.0, dominant.Value / totalScore);
             }

@@ -456,7 +456,7 @@ namespace Prompt
                 .ToList();
 
             var topGroup = groups.First();
-            var winner = topGroup.OrderByDescending(r => r.Confidence).First();
+            var winner = topGroup.MaxBy(r => r.Confidence)!;
             winner.Votes = topGroup.Count();
 
             d.Winner = winner;
@@ -549,7 +549,7 @@ namespace Prompt
             var groups = d.Responses.GroupBy(r => NormalizeForComparison(r.Text)).ToList();
             bool unanimous = groups.Count == 1;
 
-            var winner = d.Responses.OrderByDescending(r => r.Confidence).First();
+            var winner = d.Responses.MaxBy(r => r.Confidence)!;
             d.Winner = winner;
             d.AgreementRatio = unanimous ? 1.0 : (double)groups.Max(g => g.Count()) / d.Responses.Count;
             d.ConsensusConfidence = unanimous ? d.Responses.Average(r => r.Confidence) : 0;
@@ -585,7 +585,7 @@ namespace Prompt
                 synthesized += ".";
 
             d.SynthesizedOutput = synthesized;
-            d.Winner = d.Responses.OrderByDescending(r => r.Confidence).First();
+            d.Winner = d.Responses.MaxBy(r => r.Confidence)!;
             d.AgreementRatio = 1.0; // Synthesis includes everyone
             d.ConsensusConfidence = d.Responses.Average(r => r.Confidence);
             d.ConsensusReached = true; // Synthesis always produces output

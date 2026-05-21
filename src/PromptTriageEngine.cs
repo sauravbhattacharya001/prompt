@@ -683,7 +683,7 @@ namespace Prompt
             // Dominant category
             if (report.ByCategory.Count > 0)
             {
-                var top = report.ByCategory.OrderByDescending(k => k.Value).First();
+                var top = report.ByCategory.MaxBy(k => k.Value)!;
                 if (top.Value > total * 0.5)
                 {
                     insights.Add($"⚠️ {top.Key} dominates — {top.Value}/{total} incidents. Systemic root cause likely.");

@@ -104,7 +104,7 @@ namespace Prompt
             var friendlyPat = new Regex(@"\b(thanks|thank you|appreciate|great|wonderful)\b|!\s", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
             scores[PromptStyle.Friendly] += friendlyPat.Matches(text).Count * 2;
 
-            return scores.OrderByDescending(kv => kv.Value).First().Key;
+            return scores.MaxBy(kv => kv.Value)!.Key;
         }
 
         /// <summary>

@@ -418,7 +418,7 @@ namespace Prompt
             }
 
             // Recommend the level with highest suitability
-            var recommended = suitability.OrderByDescending(kv => kv.Value).First().Key;
+            var recommended = suitability.MaxBy(kv => kv.Value)!.Key;
 
             return new AudienceAnalysis
             {

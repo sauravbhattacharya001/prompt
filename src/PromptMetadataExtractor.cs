@@ -359,7 +359,7 @@ namespace Prompt
             }
             if (scores.Count == 0) return (PromptDomain.General, 0.5);
 
-            var top = scores.OrderByDescending(s => s.Value).First();
+            var top = scores.MaxBy(s => s.Value)!;
             double conf = Math.Min(1.0, top.Value / Math.Max(1.0, scores.Values.Sum() * 0.6));
             return (top.Key, Math.Round(conf, 2));
         }

@@ -244,7 +244,7 @@ namespace Prompt
         /// </summary>
         public PromptIntent? DominantIntent =>
             Distribution.Count > 0
-                ? Distribution.OrderByDescending(kv => kv.Value).First().Key
+                ? Distribution.MaxBy(kv => kv.Value)!.Key
                 : (PromptIntent?)null;
 
         public override string ToString()

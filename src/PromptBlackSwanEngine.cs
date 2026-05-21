@@ -876,7 +876,7 @@ namespace Prompt
             // Concentration risk
             if (snapshots.Count > 0)
             {
-                var mostExposed = snapshots.OrderByDescending(s => s.ExposureScore).First();
+                var mostExposed = snapshots.MaxBy(s => s.ExposureScore)!;
                 if (mostExposed.ExposureScore > 70)
                     insights.Add($"🎯 Prompt '{mostExposed.PromptId}' has exposure score {mostExposed.ExposureScore:F0}/100 — highest in fleet.");
             }

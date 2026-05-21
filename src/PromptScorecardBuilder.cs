@@ -284,7 +284,7 @@ namespace Prompt
             {
                 if (score >= kvp.Value) return kvp.Key;
             }
-            return GradeThresholds.OrderBy(t => t.Value).First().Key;
+            return GradeThresholds.MinBy(t => t.Value)!.Key;
         }
 
         /// <summary>Generates a human-readable text report for a result.</summary>

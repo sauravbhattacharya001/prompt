@@ -159,7 +159,7 @@ namespace Prompt
                 return _fallbackRoute != null ? _createFallbackMatch(input) : null;
 
             var scores = ScoreAll(input);
-            var best = scores.OrderByDescending(s => s.Score).FirstOrDefault();
+            var best = scores.MaxBy(s => s.Score);
 
             if (best != null && best.Score >= _minScore)
                 return best;

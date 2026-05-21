@@ -423,7 +423,7 @@ namespace Prompt
                 .GroupBy(o => o.Dimension)
                 .ToDictionary(
                     g => g.Key,
-                    g => g.OrderByDescending(o => o.ObservedAt).First().Score);
+                    g => g.MaxBy(o => o.ObservedAt)!.Score);
         }
 
         /// <summary>Exports the current forecast as JSON.</summary>

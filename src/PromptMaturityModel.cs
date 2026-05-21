@@ -297,8 +297,8 @@ namespace Prompt
             if (assessments.Count == 0)
                 throw new ArgumentException("At least one prompt required.");
 
-            var weakest = assessments.OrderBy(a => a.OverallScore).First();
-            var strongest = assessments.OrderByDescending(a => a.OverallScore).First();
+            var weakest = assessments.MinBy(a => a.OverallScore)!;
+            var strongest = assessments.MaxBy(a => a.OverallScore)!;
 
             // Build average assessment
             var avgDimensions = new List<DimensionAssessment>();

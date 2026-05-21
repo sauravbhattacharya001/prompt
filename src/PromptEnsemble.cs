@@ -265,7 +265,7 @@ namespace Prompt
         private EnsembleAggregation AggregateMajorityVote(List<EnsembleMemberResult> valid)
         {
             var clusters = ClusterResponses(valid);
-            var largest = clusters.OrderByDescending(c => c.Value.Count).First();
+            var largest = clusters.MaxBy(c => c.Value.Count)!;
             var winner = largest.Value.First();
             return new EnsembleAggregation
             {
@@ -282,7 +282,7 @@ namespace Prompt
             if (_config.Scorer != null)
                 foreach (var r in valid.Where(r => r.Score == null))
                 { try { r.Score = _config.Scorer(r.Response); } catch { r.Score = 0; } }
-            var best = valid.OrderByDescending(r => r.Score ?? 0).First();
+            var best = valid.MaxBy(r => r.Score ?? 0)!;
             var clusters = ClusterResponses(valid);
             return new EnsembleAggregation
             {
@@ -296,7 +296,7 @@ namespace Prompt
         private EnsembleAggregation AggregateConsensus(List<EnsembleMemberResult> valid)
         {
             var clusters = ClusterResponses(valid);
-            var largest = clusters.OrderByDescending(c => c.Value.Count).First();
+            var largest = clusters.MaxBy(c => c.Value.Count)!;
             double agreement = (double)largest.Value.Count / valid.Count;
             bool reached = agreement >= _config.ConsensusThreshold;
             var winner = largest.Value.First();
