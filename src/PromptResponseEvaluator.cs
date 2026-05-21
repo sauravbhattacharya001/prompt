@@ -147,6 +147,16 @@ namespace Prompt
 
             var evaluations = responses.Select(r => Evaluate(prompt, r)).ToList();
 
+            // Single O(n) pass for best/worst instead of two O(n log n) sorts.
+            var best = evaluations[0];
+            var worst = evaluations[0];
+            for (int i = 1; i < evaluations.Count; i++)
+            {
+                var e = evaluations[i];
+                if (e.CompositeScore > best.CompositeScore) best = e;
+                if (e.CompositeScore < worst.CompositeScore) worst = e;
+            }
+
             var report = new ConsistencyReport
             {
                 Prompt = prompt,
@@ -154,8 +164,8 @@ namespace Prompt
                 Evaluations = evaluations,
                 MeanCompositeScore = evaluations.Average(e => e.CompositeScore),
                 ScoreStdDev = StdDev(evaluations.Select(e => e.CompositeScore)),
-                BestResponse = evaluations.OrderByDescending(e => e.CompositeScore).First(),
-                WorstResponse = evaluations.OrderBy(e => e.CompositeScore).First()
+                BestResponse = best,
+                WorstResponse = worst
             };
 
             // Measure structural consistency (do all responses use the same format?)
@@ -382,7 +392,7 @@ namespace Prompt
             double uniqueRatio = (double)uniqueWords.Count / words.Length;
 
             // 3. Length proportionality — very long responses to short prompts are penalized
-            var promptWords = Regex.Split(prompt, @"\s+", RegexOptions.None, TimeSpan.FromMilliseconds(500)).Where(w => w.Length > 0).Count();
+            var promptWords = Regex.Split(prompt, @"\s+", RegexOptions.None, TimeSpan.FromMilliseconds(500)).Count(w => w.Length > 0);
             double lengthRatio = (double)words.Length / Math.Max(1, promptWords);
             double lengthPenalty = lengthRatio > 20 ? 0.15 : lengthRatio > 10 ? 0.05 : 0;
 

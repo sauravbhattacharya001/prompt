@@ -782,8 +782,10 @@ namespace Prompt
             // Priority 1: quality scores if available for all variants
             if (stats.All(s => s.QualityScoredCount > 0))
             {
-                var bestQuality = stats.OrderByDescending(s => s.MeanQualityScore ?? 0).First();
-                var secondBest = stats.OrderByDescending(s => s.MeanQualityScore ?? 0).Skip(1).First();
+                // Sort once (stable) and reuse instead of two OrderByDescending().First() passes.
+                var byQuality = stats.OrderByDescending(s => s.MeanQualityScore ?? 0).ToList();
+                var bestQuality = byQuality[0];
+                var secondBest = byQuality[1];
                 double diff = (bestQuality.MeanQualityScore ?? 0) - (secondBest.MeanQualityScore ?? 0);
 
                 if (diff >= 0.05) // 5% quality difference threshold
