@@ -28,6 +28,21 @@ updates:
       microsoft-test:
         patterns:
           - "Microsoft.NET.Test*"
+      # Group all non-major NuGet bumps together so security/patch updates
+      # don't drown the PR queue. Major bumps still arrive as individual PRs
+      # so we can review API-breaking changes deliberately.
+      nuget-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    # Project targets net8.0 - don't let dependabot push us off LTS.
+    # Major-version OpenAI SDK / Azure.AI.OpenAI bumps are intentionally
+    # handled manually by the gardener / release engineer.
+    ignore:
+      - dependency-name: "Microsoft.NETCore.App"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.AspNetCore.App"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions workflows
   - package-ecosystem: "github-actions"
@@ -44,6 +59,13 @@ updates:
     commit-message:
       prefix: "ci"
       include: "scope"
+    # Group all action bumps together — these are almost always safe and
+    # we don't want a separate PR per action. The gardener auto-merges
+    # these in batches anyway.
+    groups:
+      actions-all:
+        patterns:
+          - "*"
 
   # Docker base images
   - package-ecosystem: "docker"
@@ -60,3 +82,16 @@ updates:
     commit-message:
       prefix: "docker"
       include: "scope"
+    # The Dockerfile pins mcr.microsoft.com/dotnet/sdk:8.0-alpine and the
+    # runtime to the matching 8.0 line. Major-version base image bumps
+    # (e.g. .NET 8 → 9 → 10) require a coordinated TargetFramework change
+    # in src/Prompt.csproj and tests/Prompt.Tests.csproj, and have caused
+    # broken builds historically. Ignore them; let the gardener / releaser
+    # bump the runtime intentionally.
+    ignore:
+      - dependency-name: "mcr.microsoft.com/dotnet/sdk"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "mcr.microsoft.com/dotnet/runtime"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "mcr.microsoft.com/dotnet/aspnet"
+        update-types: ["version-update:semver-major"]

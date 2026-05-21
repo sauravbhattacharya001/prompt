@@ -5,53 +5,183 @@ namespace Prompt
     using System.Linq;
     using System.Text.RegularExpressions;
 
+    /// <summary>
+    /// High-level capability requirements that a prompt may need from a model
+    /// (e.g. code generation, vision, web search). Used by routing layers to
+    /// pick an appropriately capable model/tool.
+    /// </summary>
     public enum PromptCapability
     {
-        TextGeneration, CodeGeneration, MathReasoning, VisionOrImage, WebSearch,
-        DocumentProcessing, DataAnalysis, Translation, Summarization,
-        StructuredOutput, Reasoning, ToolUse
+        /// <summary>Standard natural-language text generation. Implied for every prompt.</summary>
+        TextGeneration,
+        /// <summary>Generating, editing, or explaining source code.</summary>
+        CodeGeneration,
+        /// <summary>Multi-step mathematical or numerical reasoning.</summary>
+        MathReasoning,
+        /// <summary>Image understanding or generation (vision-enabled models).</summary>
+        VisionOrImage,
+        /// <summary>Real-time / current information that requires web search.</summary>
+        WebSearch,
+        /// <summary>Parsing or extracting from documents (PDF, DOCX, spreadsheets).</summary>
+        DocumentProcessing,
+        /// <summary>Analytics over structured datasets (statistics, visualizations).</summary>
+        DataAnalysis,
+        /// <summary>Translation between human languages.</summary>
+        Translation,
+        /// <summary>Condensing text into shorter summaries.</summary>
+        Summarization,
+        /// <summary>Producing machine-readable output (JSON / XML / CSV / YAML).</summary>
+        StructuredOutput,
+        /// <summary>Step-by-step or chain-of-thought reasoning.</summary>
+        Reasoning,
+        /// <summary>Invoking tools / function calls / external APIs.</summary>
+        ToolUse
     }
 
+    /// <summary>
+    /// Subject-matter domain classification for a prompt. Used to route
+    /// requests to domain-specialised models, prompt templates, or experts.
+    /// </summary>
     public enum PromptDomain
     {
-        General, Technology, Medical, Legal, Finance, Academic,
-        Marketing, Creative, Science, Business
+        /// <summary>No strong domain signal detected; default bucket.</summary>
+        General,
+        /// <summary>Software engineering, IT, cloud, developer tooling.</summary>
+        Technology,
+        /// <summary>Clinical or biomedical content (diagnoses, treatments).</summary>
+        Medical,
+        /// <summary>Contracts, litigation, regulatory compliance.</summary>
+        Legal,
+        /// <summary>Banking, investing, accounting, economics.</summary>
+        Finance,
+        /// <summary>Research papers, theses, scholarly writing.</summary>
+        Academic,
+        /// <summary>Branding, advertising, growth, copywriting.</summary>
+        Marketing,
+        /// <summary>Fiction, poetry, screenwriting, world-building.</summary>
+        Creative,
+        /// <summary>Natural science (physics, chemistry, biology, etc.).</summary>
+        Science,
+        /// <summary>General business operations, strategy, HR, procurement.</summary>
+        Business
     }
 
-    public enum PromptFormality { Formal, Professional, Neutral, Casual, Informal }
+    /// <summary>
+    /// Tone / register detected in a prompt, from highly formal legalese
+    /// to casual chat. Used by tone-aware routing and style adapters.
+    /// </summary>
+    public enum PromptFormality
+    {
+        /// <summary>Legalistic / archaic register ("hereby", "pursuant", "shall").</summary>
+        Formal,
+        /// <summary>Polite, business-appropriate ("please", "thank you", "regards").</summary>
+        Professional,
+        /// <summary>No strong signal in either direction.</summary>
+        Neutral,
+        /// <summary>Conversational with light informalities ("yeah", "cool").</summary>
+        Casual,
+        /// <summary>Heavy slang / chat shorthand ("lol", "bruh", emoji-heavy).</summary>
+        Informal
+    }
 
+    /// <summary>
+    /// Result of language detection on a prompt.
+    /// </summary>
     public class DetectedLanguage
     {
+        /// <summary>ISO 639-1 language code (e.g. "en", "es", "ja"). Defaults to "en".</summary>
         public string Code { get; internal set; } = "en";
+
+        /// <summary>Human-readable language name (e.g. "English").</summary>
         public string Name { get; internal set; } = "English";
+
+        /// <summary>
+        /// Confidence score in <c>[0.0, 1.0]</c>. Derived from the number of
+        /// language marker tokens matched, capped at 1.0.
+        /// </summary>
         public double Confidence { get; internal set; } = 1.0;
     }
 
+    /// <summary>
+    /// A single entity extracted from prompt text (email, URL, file path,
+    /// date, number, programming language, etc.).
+    /// </summary>
     public class ExtractedEntity
     {
+        /// <summary>Original substring that matched the entity pattern.</summary>
         public string Text { get; internal set; } = "";
+
+        /// <summary>
+        /// Entity type tag. One of <c>"email"</c>, <c>"url"</c>,
+        /// <c>"file_path"</c>, <c>"date"</c>, <c>"number"</c>, or
+        /// <c>"code_lang"</c>.
+        /// </summary>
         public string Type { get; internal set; } = "";
+
+        /// <summary>Zero-based character offset of the match in the source prompt.</summary>
         public int StartIndex { get; internal set; }
     }
 
     /// <summary>
-    /// Full metadata extraction result for a prompt.
+    /// Full metadata extraction result for a prompt: language, capabilities,
+    /// domain, tone, entities, structural counts and routing suggestion.
     /// </summary>
     public class PromptMetadata
     {
+        /// <summary>Detected primary language of the prompt.</summary>
         public DetectedLanguage Language { get; internal set; } = new();
+
+        /// <summary>
+        /// Capabilities the prompt appears to require. Always contains at
+        /// least <see cref="PromptCapability.TextGeneration"/>.
+        /// </summary>
         public List<PromptCapability> Capabilities { get; internal set; } = new();
+
+        /// <summary>Most likely subject-matter domain.</summary>
         public PromptDomain Domain { get; internal set; } = PromptDomain.General;
+
+        /// <summary>Confidence of the <see cref="Domain"/> classification in <c>[0.0, 1.0]</c>.</summary>
         public double DomainConfidence { get; internal set; }
+
+        /// <summary>Detected tone / formality register.</summary>
         public PromptFormality Tone { get; internal set; } = PromptFormality.Neutral;
+
+        /// <summary>Entities (URLs, emails, dates, numbers, code-langs, paths) found in the prompt.</summary>
         public List<ExtractedEntity> Entities { get; internal set; } = new();
+
+        /// <summary>Whitespace-delimited word count of the prompt body.</summary>
         public int WordCount { get; internal set; }
+
+        /// <summary>
+        /// Token estimate computed via <see cref="PromptGuard.EstimateTokens"/>.
+        /// Approximate; intended for budget / routing decisions, not billing.
+        /// </summary>
         public int EstimatedTokens { get; internal set; }
+
+        /// <summary>Number of question-mark characters detected.</summary>
         public int QuestionCount { get; internal set; }
+
+        /// <summary>Number of imperative instruction phrases detected (e.g. "write", "build").</summary>
         public int InstructionCount { get; internal set; }
+
+        /// <summary>True when the prompt appears to include a few-shot example or code block.</summary>
         public bool HasExamples { get; internal set; }
+
+        /// <summary>True when the prompt contains system-style directives ("You are", "Act as", "always", "never").</summary>
         public bool HasSystemDirectives { get; internal set; }
+
+        /// <summary>
+        /// Suggested routing tier. One of <c>"fast"</c>, <c>"standard"</c>,
+        /// <c>"premium"</c>, or <c>"specialist"</c> — based on capability
+        /// count, token budget, and domain confidence.
+        /// </summary>
         public string RoutingSuggestion { get; internal set; } = "standard";
+
+        /// <summary>
+        /// Free-form key/value tags derived from the analysis (e.g.
+        /// <c>word_count_bucket=short</c>, <c>pattern=few_shot</c>,
+        /// <c>code_languages=python,sql</c>).
+        /// </summary>
         public Dictionary<string, string> Tags { get; internal set; } = new();
     }
 
@@ -61,6 +191,11 @@ namespace Prompt
     /// routing suggestions. Useful for prompt routing, analytics, and compliance.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// All work is local, deterministic, and based on compiled regex / keyword
+    /// dictionaries (no network calls, no LLM round-trips). Regex evaluation is
+    /// hardened with 500&#160;ms timeouts to avoid ReDoS.
+    /// </para>
     /// <para>Example:
     /// <code>
     /// var extractor = new PromptMetadataExtractor();
@@ -71,7 +206,7 @@ namespace Prompt
     /// </remarks>
     public class PromptMetadataExtractor
     {
-        // ── Compiled regex with ReDoS-safe 500ms timeouts ──────────
+        // ── Compiled regex with ReDoS-safe 500ms timeouts ────────────
 
         private static readonly Regex EmailRx = new(
             @"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b",
@@ -249,7 +384,12 @@ namespace Prompt
             },
         };
 
-        /// <summary>Extracts comprehensive metadata from a prompt string.</summary>
+        /// <summary>
+        /// Extracts comprehensive metadata from a single prompt string.
+        /// </summary>
+        /// <param name="prompt">Raw prompt text. May be empty (but not null).</param>
+        /// <returns>A populated <see cref="PromptMetadata"/> instance. Always non-null.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="prompt"/> is null.</exception>
         public PromptMetadata Extract(string prompt)
         {
             if (prompt == null) throw new ArgumentNullException(nameof(prompt));
@@ -273,7 +413,13 @@ namespace Prompt
             return meta;
         }
 
-        /// <summary>Extracts metadata from multiple prompts.</summary>
+        /// <summary>
+        /// Extracts metadata from a batch of prompts. Equivalent to calling
+        /// <see cref="Extract"/> on each element; preserves input order.
+        /// </summary>
+        /// <param name="prompts">Sequence of raw prompt strings.</param>
+        /// <returns>A list of <see cref="PromptMetadata"/>, one per input prompt.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="prompts"/> is null.</exception>
         public List<PromptMetadata> ExtractBatch(IEnumerable<string> prompts)
         {
             if (prompts == null) throw new ArgumentNullException(nameof(prompts));
@@ -282,6 +428,11 @@ namespace Prompt
 
         // ── Internals ────────────────────────────────────────────────
 
+        /// <summary>
+        /// Detects the most likely language by counting marker-token hits.
+        /// Falls back to English with a 0.5 confidence floor when no other
+        /// language clearly wins.
+        /// </summary>
         private static DetectedLanguage DetectLanguage(string text)
         {
             var padded = " " + text.ToLowerInvariant() + " ";
@@ -303,6 +454,11 @@ namespace Prompt
             return new DetectedLanguage { Code = "en", Name = "English", Confidence = enHits >= 3 ? Math.Min(1.0, enHits / 8.0) : 0.5 };
         }
 
+        /// <summary>
+        /// Runs each entity regex over the prompt text and collects matches.
+        /// Also scans for hard-coded programming-language names.
+        /// Results are returned sorted by <see cref="ExtractedEntity.StartIndex"/>.
+        /// </summary>
         private static List<ExtractedEntity> ExtractEntities(string text)
         {
             var entities = new List<ExtractedEntity>();
@@ -327,6 +483,14 @@ namespace Prompt
             return entities.OrderBy(e => e.StartIndex).ToList();
         }
 
+        /// <summary>
+        /// Detects required capabilities by counting keyword hits against
+        /// per-capability dictionaries. <see cref="PromptCapability.Translation"/>
+        /// and <see cref="PromptCapability.Summarization"/> fire on a single
+        /// hit; all others require at least two. <see cref="PromptCapability.TextGeneration"/>
+        /// is always included; <see cref="PromptCapability.StructuredOutput"/>
+        /// is also added when the text contains JSON-like structure.
+        /// </summary>
         private static List<PromptCapability> DetectCapabilities(string text)
         {
             var caps = new List<PromptCapability>();
@@ -348,6 +512,13 @@ namespace Prompt
             return caps;
         }
 
+        /// <summary>
+        /// Classifies the prompt into a <see cref="PromptDomain"/> by counting
+        /// keyword hits. Confidence is the top-domain hit count divided by
+        /// 60% of total hits across all domains, clamped to <c>[0.0, 1.0]</c>.
+        /// Returns <see cref="PromptDomain.General"/> with confidence 0.5 when
+        /// no keyword matches at all.
+        /// </summary>
         private static (PromptDomain, double) ClassifyDomain(string text)
         {
             var lower = text.ToLowerInvariant();
@@ -364,6 +535,12 @@ namespace Prompt
             return (top.Key, Math.Round(conf, 2));
         }
 
+        /// <summary>
+        /// Scores tone using three keyword buckets (formal, professional,
+        /// casual) plus emoji and exclamation-mark heuristics. Returns the
+        /// first formality bracket whose threshold is met, preferring the
+        /// stronger signals (Formal &gt; Informal &gt; Casual &gt; Professional).
+        /// </summary>
         private static PromptFormality AnalyzeTone(string text)
         {
             var lower = text.ToLowerInvariant();
@@ -393,6 +570,11 @@ namespace Prompt
             return PromptFormality.Neutral;
         }
 
+        /// <summary>
+        /// Heuristic routing tier selector. Returns one of <c>"specialist"</c>,
+        /// <c>"premium"</c>, <c>"fast"</c>, or <c>"standard"</c> based on
+        /// capability breadth, token budget, and domain confidence.
+        /// </summary>
         private static string SuggestRouting(PromptMetadata m)
         {
             if (m.Capabilities.Count >= 4 ||
@@ -410,6 +592,11 @@ namespace Prompt
             return "standard";
         }
 
+        /// <summary>
+        /// Builds derived key/value tags (word-count bucket, pattern,
+        /// interaction style, code language list) from a fully populated
+        /// <see cref="PromptMetadata"/>.
+        /// </summary>
         private static Dictionary<string, string> BuildTags(PromptMetadata m)
         {
             var tags = new Dictionary<string, string>
@@ -428,6 +615,11 @@ namespace Prompt
             return tags;
         }
 
+        /// <summary>
+        /// Safe wrapper around <see cref="Regex.Matches(string)"/> that
+        /// returns 0 on <see cref="RegexMatchTimeoutException"/> rather than
+        /// propagating the exception. Used to keep extraction total-functional.
+        /// </summary>
         private static int CountMatches(Regex rx, string text)
         {
             try { return rx.Matches(text).Count; }
