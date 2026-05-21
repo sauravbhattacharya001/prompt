@@ -544,7 +544,12 @@ namespace Prompt
             return "Severe";
         }
 
-        private static int EstimateTokens(string s) => Math.Max(1, s.Length / 4);
+        // Delegates to the canonical char-based estimator (issue #191).
+        // Note: previous local impl floored to a minimum of 1 for non-empty
+        // input; TextAnalysisHelpers returns 0 for empty/null and ceil(len/4)
+        // otherwise, which matches the rest of the library.
+        private static int EstimateTokens(string s) =>
+            TextAnalysisHelpers.EstimateTokens(s);
 
         private static List<string> Dedupe(List<string> items, int max)
         {

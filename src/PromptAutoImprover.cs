@@ -1005,12 +1005,10 @@ namespace Prompt
             return _config.FocusCategories == null || _config.FocusCategories.Contains(category);
         }
 
-        private static int EstimateTokens(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return 0;
-            // Rough estimate: ~4 chars per token for English
-            return (int)Math.Ceiling(text.Length / 4.0);
-        }
+        // Delegates to the canonical char-based estimator in TextAnalysisHelpers
+        // (issue #191: converge duplicated ~4-chars-per-token implementations).
+        private static int EstimateTokens(string text) =>
+            TextAnalysisHelpers.EstimateTokens(text);
 
         private static List<string> SplitSentences(string text)
         {

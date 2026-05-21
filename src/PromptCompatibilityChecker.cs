@@ -454,7 +454,11 @@ namespace Prompt
         {
             public bool IsMatch(string text) => EstimateTokens(text) > 4000;
             public string GetMatchedText(string text) => $"~{EstimateTokens(text)} estimated tokens";
-            private static int EstimateTokens(string text) => (int)(text.Length / 3.5);
+            // Delegates to the canonical char-based estimator (issue #191).
+            // Previous local impl used (int)(len / 3.5); converged on the
+            // ~4-chars-per-token formula shared with the rest of the library.
+            private static int EstimateTokens(string text) =>
+                TextAnalysisHelpers.EstimateTokens(text);
         }
 
         private class MultiLanguageDetector : ICustomDetector

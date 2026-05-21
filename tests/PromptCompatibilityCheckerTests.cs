@@ -217,7 +217,7 @@ namespace Prompt.Tests
         public void LongPrompt_FlagsWarning()
         {
             // ~4000 tokens ≈ 14000 chars
-            var longText = new string('x', 15000);
+            var longText = new string('x', 17000);
             var report = _checker.Analyze(longText);
             Assert.Contains(report.Findings, f => f.RuleId == "LONG_PROMPT");
         }

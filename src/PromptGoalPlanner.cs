@@ -337,7 +337,7 @@ namespace Prompt
                     Description = desc,
                     Complexity = complexity,
                     Tags = new List<string>(tags),
-                    EstimatedTokens = EstimateTokens(complexity, goal.Length)
+                    EstimatedTokens = EstimateTokensForComplexity(complexity, goal.Length)
                 };
 
                 // Assign dependencies based on strategy
@@ -884,7 +884,7 @@ namespace Prompt
             return sb.ToString().Trim();
         }
 
-        private static int EstimateTokens(TaskComplexity complexity, int goalLength)
+        private static int EstimateTokensForComplexity(TaskComplexity complexity, int goalLength)
         {
             int baseTokens = complexity switch
             {

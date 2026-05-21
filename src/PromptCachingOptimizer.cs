@@ -170,7 +170,7 @@ namespace Prompt
             RegexOptions.Compiled | RegexOptions.Multiline);
 
         /// <summary>Estimate token count from text (word-count × 1.3).</summary>
-        private static int EstimateTokens(string text)
+        private static int EstimateTokensByWords(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return 0;
             int words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
@@ -184,7 +184,7 @@ namespace Prompt
                 return new CachingAnalysis();
 
             var segments = DetectSegments(prompt);
-            int total = EstimateTokens(prompt);
+            int total = EstimateTokensByWords(prompt);
             int cacheable = segments
                 .Where(s => s.Type != SegmentType.DynamicSuffix)
                 .Sum(s => s.EstimatedTokens);
@@ -231,7 +231,7 @@ namespace Prompt
             {
                 var segs = DetectSegments(p);
                 allSegments.AddRange(segs);
-                totalTokens += EstimateTokens(p);
+                totalTokens += EstimateTokensByWords(p);
             }
 
             // Deduplicate segment types for the report
@@ -301,14 +301,14 @@ namespace Prompt
                 for (int j = i + 1; j < list.Count; j++)
                 {
                     string prefix = CommonPrefix(list[i], list[j]);
-                    if (EstimateTokens(prefix) < minPrefixTokens) continue;
+                    if (EstimateTokensByWords(prefix) < minPrefixTokens) continue;
 
                     // Merge into existing group if prefix overlaps substantially
                     bool merged = false;
                     foreach (var kvp in groups)
                     {
                         string shared = CommonPrefix(kvp.Key, prefix);
-                        if (EstimateTokens(shared) >= minPrefixTokens)
+                        if (EstimateTokensByWords(shared) >= minPrefixTokens)
                         {
                             if (!kvp.Value.Contains(i)) kvp.Value.Add(i);
                             if (!kvp.Value.Contains(j)) kvp.Value.Add(j);
@@ -326,7 +326,7 @@ namespace Prompt
             return groups
                 .Select(kvp =>
                 {
-                    int tokens = EstimateTokens(kvp.Key);
+                    int tokens = EstimateTokensByWords(kvp.Key);
                     return new PrefixGroup
                     {
                         CommonPrefix = kvp.Key.Length > 200 ? kvp.Key[..200] + "..." : kvp.Key,
@@ -459,7 +459,7 @@ namespace Prompt
                 {
                     Content = text,
                     Type = SegmentType.SystemInstruction,
-                    EstimatedTokens = EstimateTokens(text),
+                    EstimatedTokens = EstimateTokensByWords(text),
                     CacheHitProbability = 0.95,
                     Recommendation = "Keep at prompt start for maximum cache reuse."
                 });
@@ -472,7 +472,7 @@ namespace Prompt
                 {
                     Content = text,
                     Type = SegmentType.FewShotExamples,
-                    EstimatedTokens = EstimateTokens(text),
+                    EstimatedTokens = EstimateTokensByWords(text),
                     CacheHitProbability = 0.85,
                     Recommendation = "Consolidate examples into a contiguous block after system instructions."
                 });
@@ -489,7 +489,7 @@ namespace Prompt
                     {
                         Content = text,
                         Type = type,
-                        EstimatedTokens = EstimateTokens(text),
+                        EstimatedTokens = EstimateTokensByWords(text),
                         CacheHitProbability = type == SegmentType.StaticPrefix ? 0.90 : 0.60,
                         Recommendation = type == SegmentType.ContextBlock
                             ? "Large context — keep stable portions before dynamic queries."
@@ -507,7 +507,7 @@ namespace Prompt
                     {
                         Content = text,
                         Type = SegmentType.DynamicSuffix,
-                        EstimatedTokens = EstimateTokens(text),
+                        EstimatedTokens = EstimateTokensByWords(text),
                         CacheHitProbability = 0.05,
                         Recommendation = "Dynamic content — place at end after all cacheable segments."
                     });
