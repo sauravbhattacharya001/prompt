@@ -390,22 +390,64 @@ namespace Prompt
                     {
                         Version = vEl.GetProperty("version").GetInt32(),
                         Text = vEl.GetProperty("text").GetString() ?? "",
-                        Message = vEl.TryGetProperty("message", out var msg) ? msg.GetString() ?? "" : "",
-                        CreatedAt = vEl.TryGetProperty("createdAt", out var ca) ? ca.GetDateTime() : DateTime.UtcNow,
-                        IsRollback = vEl.TryGetProperty("isRollback", out var rb) && rb.GetBoolean(),
+                        Message = TryGetStringEither(vEl, "message", "message") ?? "",
+                        CreatedAt = TryGetDateTimeEither(vEl, "created_at", "createdAt") ?? DateTime.UtcNow,
+                        IsRollback = TryGetBoolEither(vEl, "is_rollback", "isRollback") ?? false,
                     };
-                    if (vEl.TryGetProperty("score", out var sc) && sc.ValueKind == JsonValueKind.Number)
+                    if (TryGetPropertyEither(vEl, "score", "score", out var sc) && sc.ValueKind == JsonValueKind.Number)
                         version.Score = sc.GetDouble();
-                    if (vEl.TryGetProperty("rolledBackFrom", out var rbf) && rbf.ValueKind == JsonValueKind.Number)
+                    if (TryGetPropertyEither(vEl, "rolled_back_from", "rolledBackFrom", out var rbf) && rbf.ValueKind == JsonValueKind.Number)
                         version.RolledBackFrom = rbf.GetInt32();
-                    if (vEl.TryGetProperty("charDelta", out var cd) && cd.ValueKind == JsonValueKind.Number)
+                    if (TryGetPropertyEither(vEl, "char_delta", "charDelta", out var cd) && cd.ValueKind == JsonValueKind.Number)
                         version.CharDelta = cd.GetInt32();
+                    if (TryGetPropertyEither(vEl, "tags", "tags", out var tg) && tg.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var tagProp in tg.EnumerateObject())
+                        {
+                            if (tagProp.Value.ValueKind == JsonValueKind.String)
+                                version.Tags[tagProp.Name] = tagProp.Value.GetString() ?? "";
+                        }
+                    }
 
                     mgr._versions.Add(version);
                 }
             }
 
             return mgr;
+        }
+
+        // Helpers tolerating either snake_case (the format ExportJson actually
+        // emits because of [JsonPropertyName] attributes) or camelCase
+        // (legacy / hand-written payloads). Prior to this, ImportJson only
+        // read camelCase, so a round-trip through ExportJson silently lost
+        // CreatedAt, IsRollback, RolledBackFrom, CharDelta, and Tags.
+        private static bool TryGetPropertyEither(JsonElement el, string nameA, string nameB, out JsonElement value)
+        {
+            if (el.TryGetProperty(nameA, out value)) return true;
+            if (!string.Equals(nameA, nameB, StringComparison.Ordinal) && el.TryGetProperty(nameB, out value)) return true;
+            value = default;
+            return false;
+        }
+
+        private static string? TryGetStringEither(JsonElement el, string nameA, string nameB)
+        {
+            return TryGetPropertyEither(el, nameA, nameB, out var v) && v.ValueKind == JsonValueKind.String
+                ? v.GetString()
+                : null;
+        }
+
+        private static DateTime? TryGetDateTimeEither(JsonElement el, string nameA, string nameB)
+        {
+            if (!TryGetPropertyEither(el, nameA, nameB, out var v)) return null;
+            return v.ValueKind == JsonValueKind.String && v.TryGetDateTime(out var dt) ? dt : null;
+        }
+
+        private static bool? TryGetBoolEither(JsonElement el, string nameA, string nameB)
+        {
+            if (!TryGetPropertyEither(el, nameA, nameB, out var v)) return null;
+            return v.ValueKind == JsonValueKind.True ? true
+                 : v.ValueKind == JsonValueKind.False ? false
+                 : (bool?)null;
         }
 
         /// <summary>
