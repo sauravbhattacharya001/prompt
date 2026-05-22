@@ -148,15 +148,23 @@ namespace Prompt
         }
 
         /// <summary>
-        /// CSV-safe escape: wraps value in quotes if it contains commas, quotes, or newlines.
+        /// RFC 4180-compliant CSV field escape. Wraps the value in double quotes
+        /// and doubles any embedded quotes when it contains any of the special
+        /// characters: comma, double quote, line feed (\n), or carriage return
+        /// (\r). The previous implementation overlooked \r, which corrupts
+        /// records exported on Windows where user-supplied text often contains
+        /// \r\n line endings (the bare CR would terminate the record early in
+        /// strict parsers).
         /// </summary>
         internal static string CsvEscape(string value)
         {
             if (string.IsNullOrEmpty(value)) return string.Empty;
-            if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
+            if (value.IndexOfAny(CsvSpecialChars) >= 0)
                 return "\"" + value.Replace("\"", "\"\"") + "\"";
             return value;
         }
+
+        private static readonly char[] CsvSpecialChars = { ',', '"', '\n', '\r' };
 
         /// <summary>
         /// Counts non-overlapping occurrences of a pattern in text.

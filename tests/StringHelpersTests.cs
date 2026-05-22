@@ -187,6 +187,27 @@ namespace Prompt.Tests
             Assert.Equal("\"line1\nline2\"", StringHelpers.CsvEscape("line1\nline2"));
         }
 
+        [Fact]
+        public void CsvEscape_WithCarriageReturn_WrapsInQuotes()
+        {
+            // Regression: prior to the fix, a bare \r (or \r\n on Windows) was
+            // not treated as a CSV special character, producing records that
+            // strict RFC 4180 parsers terminated early.
+            Assert.Equal("\"line1\rline2\"", StringHelpers.CsvEscape("line1\rline2"));
+        }
+
+        [Fact]
+        public void CsvEscape_WithCrLf_WrapsInQuotes()
+        {
+            Assert.Equal("\"line1\r\nline2\"", StringHelpers.CsvEscape("line1\r\nline2"));
+        }
+
+        [Fact]
+        public void CsvEscape_WithCrAndQuote_EscapesAndWraps()
+        {
+            Assert.Equal("\"say \"\"hi\"\"\rnow\"", StringHelpers.CsvEscape("say \"hi\"\rnow"));
+        }
+
         // ─── CountOccurrences ───
 
         [Fact]
