@@ -336,7 +336,7 @@ namespace Prompt
             var stalePhraseHits = new List<string>();
             foreach (var phrase in StalePhrases)
             {
-                var rx = new Regex(@"\b" + Regex.Escape(phrase) + @"\b", RegexOptions.IgnoreCase);
+                var rx = new Regex(@"\b" + Regex.Escape(phrase) + @"\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
                 if (rx.IsMatch(lower)) stalePhraseHits.Add(phrase);
             }
             if (stalePhraseHits.Count > 0)

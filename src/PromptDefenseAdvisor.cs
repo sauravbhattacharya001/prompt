@@ -278,7 +278,7 @@ namespace Prompt
         };
 
         private static Regex Re(string p, RegexOptions extra = RegexOptions.None)
-            => new Regex(p, RegexOptions.IgnoreCase | RegexOptions.Compiled | extra);
+            => new Regex(p, RegexOptions.IgnoreCase | RegexOptions.Compiled | extra, TimeSpan.FromMilliseconds(500));
 
         /// <summary>Analyze a prompt and produce an advisory report.</summary>
         public DefenseAdvisoryReport Analyze(string prompt, DefenseContext? context = null)

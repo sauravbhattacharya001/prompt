@@ -148,7 +148,7 @@ namespace Prompt
     /// detector.AddRule(new BiasRule
     /// {
     ///     Category = BiasCategory.Cultural,
-    ///     Pattern = new Regex(@"\bnormal\s+people\b", RegexOptions.IgnoreCase),
+    ///     Pattern = new Regex(@"\bnormal\s+people\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
     ///     Description = "Implies some people are abnormal",
     ///     Suggestion = "most people",
     ///     Severity = BiasSeverity.Medium
