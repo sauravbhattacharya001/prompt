@@ -233,12 +233,127 @@ namespace Prompt
 
         private GoldenStatus ClassifyStatus(double sim) => sim >= _matchThreshold ? GoldenStatus.Match : sim >= _driftThreshold ? GoldenStatus.Drift : GoldenStatus.Regression;
 
-        public enum GoldenStatus { Match, Drift, Regression, Error }
-        public enum DiffType { Removed, Added }
-        public class GoldenEntry { public string Id { get; set; } = ""; public string Input { get; set; } = ""; public string GoldenOutput { get; set; } = ""; public List<string> Tags { get; set; } = new(); public DateTimeOffset RecordedAt { get; set; } public int Version { get; set; } = 1; public string? LastActual { get; set; } public DateTimeOffset? LastComparedAt { get; set; } public double? LastSimilarity { get; set; } }
-        public class CompareResult { public string Id { get; set; } = ""; public GoldenStatus Status { get; set; } public double SimilarityScore { get; set; } public string GoldenOutput { get; set; } = ""; public string ActualOutput { get; set; } = ""; public List<DiffSegment> Diffs { get; set; } = new(); public DateTimeOffset ComparedAt { get; set; } }
-        public class DiffSegment { public DiffType Type { get; set; } public string Text { get; set; } = ""; }
-        public class BatchReport { public string SuiteName { get; set; } = ""; public List<CompareResult> Results { get; set; } = new(); public int TotalCount { get; set; } public int MatchCount { get; set; } public int DriftCount { get; set; } public int RegressionCount { get; set; } public int ErrorCount { get; set; } public double AverageSimilarity { get; set; } public DateTimeOffset RunAt { get; set; } }
-        private class GoldenExport { public string SuiteName { get; set; } = ""; public double MatchThreshold { get; set; } public double DriftThreshold { get; set; } public List<GoldenEntry> Entries { get; set; } = new(); public DateTimeOffset ExportedAt { get; set; } }
+        /// <summary>
+        /// Classification of a golden comparison outcome.
+        /// </summary>
+        public enum GoldenStatus
+        {
+            /// <summary>Output similarity is at or above the match threshold.</summary>
+            Match,
+            /// <summary>Similarity sits between the drift and match thresholds (acceptable but worth review).</summary>
+            Drift,
+            /// <summary>Similarity has fallen below the drift threshold (regression).</summary>
+            Regression,
+            /// <summary>The run function threw an exception; no similarity was computed.</summary>
+            Error,
+        }
+
+        /// <summary>
+        /// Type of word-level change reported in a <see cref="DiffSegment"/>.
+        /// </summary>
+        public enum DiffType
+        {
+            /// <summary>Words present in the golden output but missing from the actual output.</summary>
+            Removed,
+            /// <summary>Words present in the actual output but missing from the golden output.</summary>
+            Added,
+        }
+
+        /// <summary>
+        /// A single golden test entry: an input plus the expected (golden) output
+        /// and bookkeeping for the most recent comparison.
+        /// </summary>
+        public class GoldenEntry
+        {
+            /// <summary>Unique identifier for this entry within the suite.</summary>
+            public string Id { get; set; } = "";
+            /// <summary>Prompt input text that produced <see cref="GoldenOutput"/>.</summary>
+            public string Input { get; set; } = "";
+            /// <summary>Expected (golden) output to compare future runs against.</summary>
+            public string GoldenOutput { get; set; } = "";
+            /// <summary>Free-form tags used to filter entries in batch runs.</summary>
+            public List<string> Tags { get; set; } = new();
+            /// <summary>UTC timestamp at which this entry's current golden output was recorded.</summary>
+            public DateTimeOffset RecordedAt { get; set; }
+            /// <summary>Monotonic version, incremented each time the golden output is approved/updated.</summary>
+            public int Version { get; set; } = 1;
+            /// <summary>Most recent actual output observed by <see cref="Compare"/>, or <c>null</c> if none.</summary>
+            public string? LastActual { get; set; }
+            /// <summary>UTC timestamp of the most recent comparison, or <c>null</c> if never compared.</summary>
+            public DateTimeOffset? LastComparedAt { get; set; }
+            /// <summary>Similarity score (0.0-1.0) of the most recent comparison, or <c>null</c> if never compared.</summary>
+            public double? LastSimilarity { get; set; }
+        }
+
+        /// <summary>
+        /// Result of comparing an actual output against a stored golden output.
+        /// </summary>
+        public class CompareResult
+        {
+            /// <summary>Identifier of the <see cref="GoldenEntry"/> that was compared.</summary>
+            public string Id { get; set; } = "";
+            /// <summary>Classification of the comparison outcome.</summary>
+            public GoldenStatus Status { get; set; }
+            /// <summary>Bigram-overlap similarity score in the range [0.0, 1.0].</summary>
+            public double SimilarityScore { get; set; }
+            /// <summary>The expected (golden) output that was used as the baseline.</summary>
+            public string GoldenOutput { get; set; } = "";
+            /// <summary>The actual output produced by the run being compared.</summary>
+            public string ActualOutput { get; set; } = "";
+            /// <summary>Word-level diff segments highlighting added and removed words.</summary>
+            public List<DiffSegment> Diffs { get; set; } = new();
+            /// <summary>UTC timestamp at which the comparison was performed.</summary>
+            public DateTimeOffset ComparedAt { get; set; }
+        }
+
+        /// <summary>
+        /// A single word-level difference between golden and actual outputs.
+        /// </summary>
+        public class DiffSegment
+        {
+            /// <summary>Whether the words in <see cref="Text"/> were added or removed.</summary>
+            public DiffType Type { get; set; }
+            /// <summary>Space-joined words involved in this diff segment.</summary>
+            public string Text { get; set; } = "";
+        }
+
+        /// <summary>
+        /// Aggregate report produced by <see cref="RunBatch"/>, summarising the
+        /// outcome across every entry executed in a single batch.
+        /// </summary>
+        public class BatchReport
+        {
+            /// <summary>Name of the golden test suite this report was produced from.</summary>
+            public string SuiteName { get; set; } = "";
+            /// <summary>Per-entry comparison results in execution order.</summary>
+            public List<CompareResult> Results { get; set; } = new();
+            /// <summary>Total number of entries executed in this batch.</summary>
+            public int TotalCount { get; set; }
+            /// <summary>Count of entries whose <see cref="CompareResult.Status"/> is <see cref="GoldenStatus.Match"/>.</summary>
+            public int MatchCount { get; set; }
+            /// <summary>Count of entries classified as <see cref="GoldenStatus.Drift"/>.</summary>
+            public int DriftCount { get; set; }
+            /// <summary>Count of entries classified as <see cref="GoldenStatus.Regression"/>.</summary>
+            public int RegressionCount { get; set; }
+            /// <summary>Count of entries whose run function threw an exception.</summary>
+            public int ErrorCount { get; set; }
+            /// <summary>Arithmetic mean of <see cref="CompareResult.SimilarityScore"/> across all entries (0.0 when the batch is empty).</summary>
+            public double AverageSimilarity { get; set; }
+            /// <summary>UTC timestamp at which the batch run completed.</summary>
+            public DateTimeOffset RunAt { get; set; }
+        }
+
+        /// <summary>
+        /// Internal DTO used by <see cref="ExportJson"/> / <see cref="ImportJson"/>
+        /// to round-trip an entire suite to and from JSON.
+        /// </summary>
+        private class GoldenExport
+        {
+            public string SuiteName { get; set; } = "";
+            public double MatchThreshold { get; set; }
+            public double DriftThreshold { get; set; }
+            public List<GoldenEntry> Entries { get; set; } = new();
+            public DateTimeOffset ExportedAt { get; set; }
+        }
     }
 }
