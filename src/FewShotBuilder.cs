@@ -75,6 +75,7 @@ namespace Prompt
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string? Label { get; }
 
+        /// <summary>Initializes a new few-shot example with input, expected output, and optional explanation.</summary>
         [JsonConstructor]
         public FewShotExample(string input, string output, string? label = null)
         {

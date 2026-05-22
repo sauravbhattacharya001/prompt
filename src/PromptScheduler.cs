@@ -38,6 +38,7 @@ namespace Prompt
         /// <summary>Prompt text that was executed.</summary>
         public string PromptText { get; }
 
+        /// <summary>Creates an execution result capturing run time, success/failure, duration, output, and any error message.</summary>
         public ScheduleExecutionResult(DateTimeOffset executedAt, bool success, TimeSpan duration, string promptText, string? errorMessage = null)
         {
             ExecutedAt = executedAt;
@@ -92,6 +93,7 @@ namespace Prompt
             ? TimeSpan.FromMilliseconds(History.Average(h => h.Duration.TotalMilliseconds))
             : TimeSpan.Zero;
 
+        /// <summary>Creates a scheduled job that runs the given template under the supplied cron-like schedule string.</summary>
         public ScheduledPromptJob(string name, PromptTemplate template, string cronExpression)
         {
             Id = Guid.NewGuid().ToString("N")[..12];

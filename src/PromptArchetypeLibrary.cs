@@ -123,15 +123,19 @@ namespace Prompt
     /// </summary>
     public class ArchetypeVariable
     {
+        /// <summary>Placeholder name as referenced inside the template (e.g. <c>{name}</c>).</summary>
         [JsonPropertyName("name")]
         public string Name { get; set; } = string.Empty;
 
+        /// <summary>Human-readable description of what the variable represents.</summary>
         [JsonPropertyName("description")]
         public string Description { get; set; } = string.Empty;
 
+        /// <summary>When <c>true</c>, callers must supply a value or rendering fails.</summary>
         [JsonPropertyName("required")]
         public bool Required { get; set; } = true;
 
+        /// <summary>Optional fallback value used when the caller does not supply one and <see cref="Required"/> is <c>false</c>.</summary>
         [JsonPropertyName("defaultValue")]
         public string? DefaultValue { get; set; }
     }

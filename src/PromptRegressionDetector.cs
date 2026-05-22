@@ -63,6 +63,7 @@ namespace Prompt
             Tags = tags ?? new List<string>();
         }
 
+        /// <summary>Creates an immutable baseline snapshot of a prompt at a point in time (name, template text, captured variables, model, timestamp, and recorded outputs).</summary>
         [JsonConstructor]
         public PromptBaseline(string promptId, string version, Dictionary<string, string> inputs,
             string output, DateTime recordedAt, List<string> tags)
@@ -117,6 +118,7 @@ namespace Prompt
         [JsonPropertyName("inputs")]
         public Dictionary<string, string> Inputs { get; }
 
+        /// <summary>Creates a regression finding describing a specific behavioural delta detected against a baseline.</summary>
         public RegressionFinding(string promptId, string baselineVersion, string currentVersion,
             RegressionSeverity severity, double similarity, List<string> differences,
             string baselineOutput, string currentOutput, Dictionary<string, string> inputs)
@@ -166,6 +168,7 @@ namespace Prompt
         [JsonPropertyName("threshold")]
         public RegressionSeverity Threshold { get; }
 
+        /// <summary>Creates a regression report aggregating individual findings under a top-level severity.</summary>
         public RegressionReport(List<RegressionFinding> findings, RegressionSeverity threshold)
         {
             GeneratedAt = DateTime.UtcNow;

@@ -67,12 +67,14 @@ namespace Prompt
         /// <summary>Total weight of all nodes in the cycle.</summary>
         public double TotalWeight { get; }
 
+        /// <summary>Creates a dependency cycle with the listed nodes (in traversal order) and an aggregate severity score.</summary>
         public DependencyCycle(IReadOnlyList<string> path, double totalWeight)
         {
             Path = path;
             TotalWeight = totalWeight;
         }
 
+        /// <summary>Returns the cycle as <c>A -&gt; B -&gt; C -&gt; A</c> with its severity score.</summary>
         public override string ToString()
             => string.Join(" → ", Path) + " → " + Path[0];
     }
@@ -97,6 +99,7 @@ namespace Prompt
         /// <summary>Per-node slack (latest - earliest start). Zero = critical.</summary>
         public IReadOnlyDictionary<string, double> Slack { get; }
 
+        /// <summary>Creates a critical-path result containing the ordered node list, total weight, and per-node weight, depth, and centrality maps.</summary>
         public CriticalPathResult(
             IReadOnlyList<string> path,
             double totalWeight,

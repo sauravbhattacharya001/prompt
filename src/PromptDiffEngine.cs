@@ -35,6 +35,7 @@ namespace Prompt
         /// <summary>Gets the line number in the new version (null for deletes).</summary>
         public int? NewLineNumber { get; init; }
 
+        /// <summary>Returns a unified-diff-style line such as <c>+ text</c> or <c>- text</c>.</summary>
         public override string ToString()
         {
             var prefix = Operation switch

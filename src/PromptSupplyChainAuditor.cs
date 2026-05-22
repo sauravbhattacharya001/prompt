@@ -183,6 +183,7 @@ namespace Prompt
         /// <summary>Optional failure reason.</summary>
         public string? FailureReason { get; set; }
 
+        /// <summary>Creates a single reliability event timestamp plus its success/failure flag.</summary>
         public ReliabilityEvent(DateTimeOffset timestamp, bool success)
         {
             Timestamp = timestamp;
@@ -220,6 +221,7 @@ namespace Prompt
         /// <summary>Detailed remediation guidance.</summary>
         public string? RemediationDetail { get; set; }
 
+        /// <summary>Creates a supply-chain audit finding with a stable id, severity, and human-readable message.</summary>
         public SupplyChainFinding(string findingId, string supplierId, string description)
         {
             FindingId = findingId;

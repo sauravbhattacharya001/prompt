@@ -54,6 +54,7 @@ namespace Prompt
         /// <summary>Whether multiple intents scored closely (within 0.15 of top).</summary>
         public bool IsAmbiguous { get; set; }
 
+        /// <summary>Returns a short human-readable form like <c>Question (87%)</c>, with an <c>(ambiguous)</c> suffix when the top intents are close.</summary>
         public override string ToString()
         {
             var amb = IsAmbiguous ? " (ambiguous)" : "";
@@ -66,9 +67,12 @@ namespace Prompt
     /// </summary>
     public class IntentScore
     {
+        /// <summary>The intent this score refers to.</summary>
         public PromptIntent Intent { get; set; }
+        /// <summary>Score for the intent in the range 0.0 – 1.0 (higher = stronger match).</summary>
         public double Score { get; set; }
 
+        /// <summary>Returns <c>Intent: 0.00</c>-style debug text.</summary>
         public override string ToString() => $"{Intent}: {Score:F2}";
     }
 
@@ -247,6 +251,7 @@ namespace Prompt
                 ? Distribution.MaxBy(kv => kv.Value)!.Key
                 : (PromptIntent?)null;
 
+        /// <summary>Returns a multi-line histogram of intents with counts and percentages.</summary>
         public override string ToString()
         {
             var lines = Distribution

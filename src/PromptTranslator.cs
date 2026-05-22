@@ -287,9 +287,13 @@ namespace Prompt
     /// </summary>
     public class TranslationMemoryEntry
     {
+        /// <summary>ISO 639-1 / BCP-47 source language code (e.g. <c>en</c>).</summary>
         public string SourceLanguage { get; set; } = "";
+        /// <summary>ISO 639-1 / BCP-47 target language code (e.g. <c>es</c>).</summary>
         public string TargetLanguage { get; set; } = "";
+        /// <summary>Original source-language text.</summary>
         public string SourceText { get; set; } = "";
+        /// <summary>Translated text in <see cref="TargetLanguage"/>.</summary>
         public string TargetText { get; set; } = "";
     }
 }

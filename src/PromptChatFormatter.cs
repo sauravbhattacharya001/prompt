@@ -54,20 +54,25 @@ namespace Prompt
         /// </summary>
         public class ChatMessage
         {
+            /// <summary>The chat role: <c>system</c>, <c>user</c>, <c>assistant</c>, or <c>tool</c>.</summary>
             [JsonPropertyName("role")]
             public string Role { get; set; } = "";
 
+            /// <summary>Message body text. Empty string when only tool/function calls are attached.</summary>
             [JsonPropertyName("content")]
             public string Content { get; set; } = "";
 
+            /// <summary>Creates an empty message; intended for serializers.</summary>
             public ChatMessage() { }
 
+            /// <summary>Creates a message with the given role and content. Throws <see cref="ArgumentNullException"/> if either is null.</summary>
             public ChatMessage(string role, string content)
             {
                 Role = role ?? throw new ArgumentNullException(nameof(role));
                 Content = content ?? throw new ArgumentNullException(nameof(content));
             }
 
+            /// <summary>Returns a <c>[role]: content</c> debug string.</summary>
             public override string ToString() => $"[{Role}]: {Content}";
         }
 
