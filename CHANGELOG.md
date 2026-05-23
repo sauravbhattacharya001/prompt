@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **PromptLatencyBudgetAdvisor** - 12th agentic sibling: detects latency-cost risks in prompts (oversized prompt, chain-of-thought expansion, unbounded output, exhaustive coverage, serial tool chains, retry loops, heavy multimodal inputs, serializable fanout, missing output cap, streaming disabled) and produces a budgeted P0-first playbook with estimated savings, plus an optimized draft annotated with a `# LATENCY_BUDGET` block. Pure, deterministic, no I/O. 26 passing xUnit tests.
+
 ## [5.24.0] - 2026-05-21
 
 ### Added
