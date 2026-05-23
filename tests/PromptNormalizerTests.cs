@@ -47,6 +47,40 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void RemoveTrailingPunctuation_RemovesQuestionMarks()
+        {
+            // Regression: prior implementation only stripped '.' and '!',
+            // leaving '?' in place which caused identical-meaning prompts to
+            // produce different fingerprints ("Why?" vs "Why").
+            var n = new PromptNormalizer().RemoveTrailingPunctuation();
+            Assert.Equal("Why", n.Normalize("Why?"));
+            Assert.Equal("Hmm", n.Normalize("Hmm?!."));
+        }
+
+        [Fact]
+        public void CollapseBlankLines_ZeroOrNegativeThrows()
+        {
+            var n = new PromptNormalizer();
+            Assert.Throws<ArgumentOutOfRangeException>(() => n.CollapseBlankLines(0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => n.CollapseBlankLines(-1));
+        }
+
+        [Fact]
+        public void CollapseBlankLines_Default_CapsAtOneBlankLine()
+        {
+            // Default maxConsecutive=1 caps consecutive newlines at 2 (one blank line).
+            var n = new PromptNormalizer().CollapseBlankLines();
+            Assert.Equal("a\n\nb", n.Normalize("a\n\n\n\nb"));
+        }
+
+        [Fact]
+        public void CollapseBlankLines_AllowsUpToTwoBlankLines()
+        {
+            var n = new PromptNormalizer().CollapseBlankLines(2);
+            Assert.Equal("a\n\n\nb", n.Normalize("a\n\n\n\n\nb"));
+        }
+
+        [Fact]
         public void LowercaseDirectives_LowercasesKnownPrefixes()
         {
             var n = new PromptNormalizer().LowercaseDirectives();

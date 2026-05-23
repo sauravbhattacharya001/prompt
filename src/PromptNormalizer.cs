@@ -78,11 +78,32 @@ namespace Prompt
         }
 
         /// <summary>
-        /// Collapses 3+ consecutive blank lines into exactly 2.
+        /// Caps the number of consecutive newlines between non-blank lines so
+        /// that runs of blank lines never exceed the configured size.
         /// </summary>
+        /// <param name="maxConsecutive">
+        /// The maximum allowed run of consecutive newlines. The default of
+        /// <c>1</c> caps any run of blank lines at one blank line (i.e. two
+        /// newlines in a row).
+        /// </param>
+        /// <example>
+        /// <code>
+        /// // Default (maxConsecutive=1): at most one blank line
+        /// new PromptNormalizer().CollapseBlankLines().Normalize("a\n\n\n\nb");
+        /// // => "a\n\nb"
+        ///
+        /// // Allow up to two blank lines
+        /// new PromptNormalizer().CollapseBlankLines(2).Normalize("a\n\n\n\n\nb");
+        /// // => "a\n\n\nb"
+        /// </code>
+        /// </example>
+        /// <exception cref="ArgumentOutOfRangeException">If <paramref name="maxConsecutive"/> is less than 1.</exception>
         public PromptNormalizer CollapseBlankLines(int maxConsecutive = 1)
         {
             ThrowIfFrozen();
+            if (maxConsecutive < 1)
+                throw new ArgumentOutOfRangeException(nameof(maxConsecutive), maxConsecutive,
+                    "maxConsecutive must be at least 1.");
             var pattern = @"(\n\s*){" + (maxConsecutive + 1) + @",}";
             var replacement = string.Concat(Enumerable.Repeat("\n", maxConsecutive + 1));
             _rules.Add(text => Regex.Replace(text, pattern, replacement));
@@ -90,15 +111,18 @@ namespace Prompt
         }
 
         /// <summary>
-        /// Removes trailing punctuation (periods, exclamation marks) from the last line.
-        /// Useful for normalizing prompts that may or may not end with punctuation.
+        /// Removes trailing sentence-ending punctuation (<c>.</c>, <c>!</c>, <c>?</c>)
+        /// from the end of the prompt. Useful for normalizing prompts that may or
+        /// may not end with punctuation so they compare and fingerprint equally.
         /// </summary>
         public PromptNormalizer RemoveTrailingPunctuation()
         {
             ThrowIfFrozen();
-            _rules.Add(text => text.TrimEnd('.', '!'));
+            _rules.Add(text => text.TrimEnd(TrailingPunctuation));
             return this;
         }
+
+        private static readonly char[] TrailingPunctuation = { '.', '!', '?' };
 
         /// <summary>
         /// Lowercases common directive prefixes like "You are", "Act as", "Respond",
@@ -109,8 +133,7 @@ namespace Prompt
             ThrowIfFrozen();
             _rules.Add(text =>
             {
-                var directives = new[] { "You are", "Act as", "Respond as", "Behave as", "Pretend you are" };
-                foreach (var d in directives)
+                foreach (var d in KnownDirectives)
                 {
                     text = Regex.Replace(text, Regex.Escape(d), d.ToLowerInvariant(), RegexOptions.IgnoreCase);
                 }
@@ -118,6 +141,11 @@ namespace Prompt
             });
             return this;
         }
+
+        private static readonly string[] KnownDirectives =
+        {
+            "You are", "Act as", "Respond as", "Behave as", "Pretend you are"
+        };
 
         /// <summary>
         /// Strips HTML tags from the prompt text.
