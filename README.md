@@ -12,7 +12,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/ci.yml?style=flat-square&label=CI&logo=github)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/ci.yml)
 [![Publish](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/nuget-publish.yml?style=flat-square&label=Publish&logo=github)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/nuget-publish.yml)
 [![codecov](https://img.shields.io/codecov/c/github/sauravbhattacharya001/prompt?style=flat-square&logo=codecov)](https://codecov.io/gh/sauravbhattacharya001/prompt)
-![Tests](https://img.shields.io/badge/tests-5993%20passed-brightgreen?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-6700%2B%20passing-brightgreen?style=flat-square)
 [![Docker](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/docker.yml?style=flat-square&label=Docker&logo=docker)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/docker.yml)
 [![Pages](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/pages.yml?style=flat-square&label=Docs&logo=github)](https://sauravbhattacharya001.github.io/prompt/)
 [![GitHub Release](https://img.shields.io/github/v/release/sauravbhattacharya001/prompt?style=flat-square&logo=github&color=blue)](https://github.com/sauravbhattacharya001/prompt/releases)
@@ -64,7 +64,7 @@ Most Azure OpenAI wrappers give you a thin HTTP client and call it a day. **Prom
 - **Templates + Chains** — build reusable, composable prompt pipelines without string concatenation
 - **Safety built in** — injection detection, token budgeting, and quality scoring out of the box
 - **177 specialized classes** — from A/B testing to workflow orchestration, every prompt engineering pattern is covered
-- **Production-ready** — 5,900+ tests, NuGet package, Docker image, full docs site
+- **Production-ready** — 6,700+ tests, NuGet package, Docker image, full docs site
 
 If you've ever copy-pasted prompt strings across files, hand-rolled retry logic, or wondered if your prompt is vulnerable to injection — this library exists so you don't have to.
 
@@ -1049,7 +1049,7 @@ Contributions are welcome! See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the fu
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Write tests — the project maintains 5,993+ xUnit tests
+3. Write tests — the project maintains 6,700+ xUnit tests
 4. Ensure CI passes (`dotnet build && dotnet test`)
 5. Open a Pull Request
 

@@ -261,7 +261,12 @@ namespace Prompt
 
             _rules.Add(new InjectionRule("INJ002", "Disregard Directive",
                 InjectionCategory.IgnorePrevious, InjectionRisk.Critical,
-                @"(disregard|forget|override|bypass|skip)\s+(all\s+)?(previous|prior|above|earlier|your)\s+(instructions|directives|rules|prompts|guidelines|constraints)",
+                // Allow chained qualifiers ("your prior", "all your previous", "any of the above")
+                // and make the temporal adjective optional so "forget your rules" / "bypass
+                // your constraints" are still flagged. Previously the noun had to immediately
+                // follow exactly one of {previous, prior, ..., your}, which missed common
+                // injection wordings caught by the test suite (#193).
+                @"(disregard|forget|override|bypass|skip|ignore)\s+((all|your|the|any|my|our|of)\s+)*(previous|prior|above|earlier|preceding|former|original)?\s*(instructions|directives|rules|prompts|guidelines|constraints|context|safeguards)",
                 "Variant wording to override prior instructions."));
 
             // System prompt override
@@ -310,7 +315,12 @@ namespace Prompt
             // Prompt leak attempts
             _rules.Add(new InjectionRule("INJ011", "Prompt Leak Request",
                 InjectionCategory.PromptLeak, InjectionRisk.High,
-                @"(show|reveal|display|print|output|repeat|echo|tell\s+me|what\s+(is|are))\s+(your|the)\s+(system\s+)?(prompt|instructions|directives|rules|guidelines|initial\s+message)",
+                // Two combined alternatives:
+                //   1. "show/reveal/... [me|us] your/the [system|original|hidden] prompt/instructions/..."
+                //   2. "what is/are your/the ... prompt/instructions/..."
+                // Previously "show me your system prompt" was missed because the regex required
+                // the verb to be directly followed by (your|the) with no allowance for "me"/"us".
+                @"((show|reveal|display|print|output|repeat|echo|tell|leak|expose|dump)\s+(me\s+|us\s+)?(your|the)|what\s+(is|are|was|were)\s+(your|the))\s+(system\s+|original\s+|initial\s+|hidden\s+|secret\s+|underlying\s+)?(prompt|instructions|directives|rules|guidelines|initial\s+message|system\s+message)",
                 "Asks the model to reveal its system prompt."));
 
             _rules.Add(new InjectionRule("INJ012", "Verbatim Repeat Request",
@@ -332,7 +342,10 @@ namespace Prompt
             // Encoded payloads
             _rules.Add(new InjectionRule("INJ015", "Base64 Instruction",
                 InjectionCategory.EncodedPayload, InjectionRisk.Medium,
-                @"(decode|execute|run|follow|interpret)\s+(this\s+)?(base64|b64|encoded|rot13|hex)\b",
+                // Allow any determiner (this/the/that/a/any/some) between the verb and the
+                // encoding name. The previous pattern only accepted "this", missing common
+                // phrasings like "execute the rot13 encoded message".
+                @"(decode|execute|run|follow|interpret)\s+((this|the|that|a|any|some|following)\s+)?(base64|b64|encoded|rot13|hex)\b",
                 "Instructs to decode and follow an encoded payload."));
 
             _rules.Add(new InjectionRule("INJ016", "Suspicious Base64 Block",

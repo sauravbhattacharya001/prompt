@@ -65,10 +65,21 @@ public class SerializationGuardsTests : IDisposable
     [Fact]
     public void ThrowIfPayloadTooLarge_MultiByte_CountsUtf8Bytes()
     {
-        // Each emoji is 4 UTF-8 bytes — so MaxJsonPayloadBytes/4 emojis = at limit
-        int emojiCount = SerializationGuards.MaxJsonPayloadBytes / 4;
-        // One more emoji pushes over
-        var json = new string('\u2605', emojiCount + 1);
+        // U+1F680 ROCKET is a surrogate pair (2 chars, 4 UTF-8 bytes).
+        // MaxJsonPayloadBytes/4 rockets = exactly at the limit; one more byte (we append a
+        // single ASCII '.') tips it over and exercises the >MaxJsonPayloadBytes path.
+        const string rocket = "\uD83D\uDE80";
+        int rocketCount = SerializationGuards.MaxJsonPayloadBytes / 4;
+        var sb = new System.Text.StringBuilder(rocketCount * 2 + 1);
+        for (int i = 0; i < rocketCount; i++) sb.Append(rocket);
+        sb.Append('.');
+        var json = sb.ToString();
+        // Sanity: confirm the byte count exceeds the limit before exercising the guard,
+        // so a future change to MaxJsonPayloadBytes/encoding doesn't silently turn this
+        // into a no-op test that asserts on the wrong precondition.
+        Assert.True(
+            System.Text.Encoding.UTF8.GetByteCount(json) > SerializationGuards.MaxJsonPayloadBytes,
+            "test setup is wrong: payload should exceed the configured limit");
         Assert.Throws<InvalidOperationException>(
             () => SerializationGuards.ThrowIfPayloadTooLarge(json));
     }
