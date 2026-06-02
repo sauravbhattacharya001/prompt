@@ -478,7 +478,12 @@ namespace Prompt
             {
                 visited.Add(node);
                 stack.Add(node);
-                foreach (var next in adj[node])
+                if (!adj.TryGetValue(node, out var neighbors))
+                {
+                    stack.Remove(node);
+                    return false;
+                }
+                foreach (var next in neighbors)
                 {
                     if (!visited.Contains(next) && Dfs(next)) return true;
                     if (stack.Contains(next)) return true;

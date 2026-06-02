@@ -474,6 +474,7 @@ namespace Prompt
             return JsonSerializer.Serialize(state, new JsonSerializerOptions
             {
                 WriteIndented = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 Converters = { new JsonStringEnumConverter() }
             });
         }

@@ -212,7 +212,7 @@ namespace Prompt.Tests
             var v = new PromptOutputValidator()
                 .MaxLength(5)
                 .MustContain("xyz");
-            var r = v.Validate("this is too long without xyz match... wait");
+            var r = v.Validate("this is too long without any match at all");
             Assert.False(r.IsValid);
             Assert.Equal(2, r.Violations.Count);
         }

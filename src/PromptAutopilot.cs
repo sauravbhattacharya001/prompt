@@ -441,7 +441,7 @@ namespace Prompt
 
             // No ambiguous words
             int ambiguousCount = CountPhraseHits(p, AmbiguousWords);
-            score -= ambiguousCount * 5;
+            score -= ambiguousCount * 8;
 
             return ClampScore(score);
         }

@@ -606,6 +606,7 @@ namespace Prompt
                 {
                     validation.Errors[field.Name] = error;
                     validation.IsValid = false;
+                    continue;
                 }
 
                 validation.Fields[field.Name] = ExtractValue(element, field.Type);

@@ -271,6 +271,7 @@
         public void Clear()
         {
             _cache.Clear();
+            _inflight.Clear();
             lock (_evictLock)
             {
                 _accessOrder.Clear();

@@ -11,7 +11,7 @@ namespace Prompt
     public class OutputValidationResult
     {
         /// <summary>Gets whether the output passed all validation rules.</summary>
-        public bool IsValid => Violations.Count == 0;
+        public bool IsValid => !Violations.Any(v => v.Severity == ViolationSeverity.Error);
 
         /// <summary>Gets the validated output text.</summary>
         public string Output { get; internal set; } = "";

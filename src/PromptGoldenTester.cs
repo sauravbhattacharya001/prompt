@@ -164,7 +164,7 @@ namespace Prompt
         /// <returns>A formatted JSON string representing the entire golden test suite.</returns>
         public string ExportJson()
         {
-            return JsonSerializer.Serialize(new GoldenExport { SuiteName = _name, MatchThreshold = _matchThreshold, DriftThreshold = _driftThreshold, Entries = _entries.Values.OrderBy(e => e.Id).ToList(), ExportedAt = DateTimeOffset.UtcNow }, new JsonSerializerOptions { WriteIndented = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull });
+            return JsonSerializer.Serialize(new GoldenExport { SuiteName = _name, MatchThreshold = _matchThreshold, DriftThreshold = _driftThreshold, Entries = _entries.Values.OrderBy(e => e.Id).ToList(), ExportedAt = DateTimeOffset.UtcNow }, new JsonSerializerOptions { WriteIndented = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
         }
 
         /// <summary>

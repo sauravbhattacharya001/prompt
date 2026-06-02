@@ -190,8 +190,8 @@ namespace Prompt
         {
             if (string.IsNullOrEmpty(text)) return text;
 
-            // Remove comment-style canaries
-            text = Regex.Replace(text, @"\n?<!-- canary:CNRY-[0-9a-f]{32} -->", "");
+            // Remove comment-style canaries (handles both prepend \n-after and append \n-before)
+            text = Regex.Replace(text, @"\n?<!-- canary:CNRY-[0-9a-f]{32} -->\n?", "");
 
             // Remove instruction tag canaries
             text = Regex.Replace(text, @"\n?\[SYSTEM_TRACE id=""CNRY-[0-9a-f]{32}""\]", "");

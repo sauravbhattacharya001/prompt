@@ -218,7 +218,7 @@ namespace Prompt
         public static PersonaResult FromJson(string json)
         {
             SerializationGuards.ValidateJsonInput(json);
-            var definition = JsonSerializer.Deserialize<PersonaDefinition>(json)
+            var definition = JsonSerializer.Deserialize<PersonaDefinition>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true, Converters = { new JsonStringEnumConverter() } })
                 ?? throw new ArgumentException("Invalid persona JSON.", nameof(json));
             return new PersonaResult(definition);
         }
@@ -550,7 +550,7 @@ namespace Prompt
             PersonaTone.Concise => "Direct, brief, and to-the-point",
             PersonaTone.Verbose => "Detailed, thorough, and comprehensive",
             PersonaTone.Supportive => "Encouraging, patient, and affirming",
-            PersonaTone.Socratic => "Question-driven, guiding discovery through inquiry",
+            PersonaTone.Socratic => "Socratic: Question-driven, guiding discovery through inquiry",
             PersonaTone.Witty => "Clever, humorous, and engaging",
             _ => tone.ToString()
         };

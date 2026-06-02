@@ -211,6 +211,9 @@ namespace Prompt
             if (_nodes.ContainsKey(node.Id))
                 throw new ArgumentException($"Node '{node.Id}' already exists.", nameof(node));
             _nodes[node.Id] = node;
+            // Register reverse edges for any pre-existing dependencies
+            foreach (var dep in node.Dependencies)
+                AddReverseEdge(dep, node.Id);
             return this;
         }
 
