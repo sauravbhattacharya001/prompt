@@ -1,0 +1,28 @@
+# CODEOWNERS — Code Ownership for sauravbhattacharya001/prompt
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default: all changes require review from the repo owner
+* @sauravbhattacharya001
+
+# Core library source — critical path
+/src/ @sauravbhattacharya001
+
+# Tests — still needs review to maintain quality
+/tests/ @sauravbhattacharya001
+
+# CI/CD and workflows — infra changes are high-impact
+/.github/workflows/ @sauravbhattacharya001
+
+# Security policies and configurations
+/SECURITY.md @sauravbhattacharya001
+/.github/codeql/ @sauravbhattacharya001
+/.github/dependabot.yml @sauravbhattacharya001
+
+# Documentation
+/docs/ @sauravbhattacharya001
+/README.md @sauravbhattacharya001
+
+# Build and packaging
+/Dockerfile @sauravbhattacharya001
+/*.sln @sauravbhattacharya001
+/src/**/*.csproj @sauravbhattacharya001
