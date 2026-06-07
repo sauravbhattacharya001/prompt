@@ -1,0 +1,51 @@
+name: Publish NuGet Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 5.24.0)'
+        required: true
+        type: string
+      push_to_nuget:
+        description: 'Push to NuGet.org'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore
+      run: dotnet restore src/Prompt.csproj
+
+    - name: Build
+      run: dotnet build src/Prompt.csproj -c Release -p:Version=${{ inputs.version }} --no-restore
+
+    - name: Test
+      run: dotnet test tests/Prompt.Tests.csproj -c Release --verbosity normal
+      continue-on-error: false
+
+    - name: Pack
+      run: dotnet pack src/Prompt.csproj -c Release -p:Version=${{ inputs.version }} --no-build -o ./nupkg
+
+    - name: Push to GitHub Packages
+      run: |
+        dotnet nuget push ./nupkg/*.nupkg --source "https://nuget.pkg.github.com/sauravbhattacharya001/index.json" --api-key ${{ secrets.GITHUB_TOKEN }} --skip-duplicate
+
+    - name: Push to NuGet.org
+      if: inputs.push_to_nuget == true
+      run: |
+        dotnet nuget push ./nupkg/*.nupkg --source "https://api.nuget.org/v3/index.json" --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
