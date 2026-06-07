@@ -8,7 +8,7 @@
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Title>Prompt</Title>
     <Description>Library for prompting LLMs</Description>
-    <PackageId>prompt-llm-aoi</PackageId>
+    <PackageId>promptlib</PackageId>
     <RepositoryUrl>https://github.com/sauravbhattacharya001/prompt</RepositoryUrl>
     <PackageProjectUrl>https://github.com/sauravbhattacharya001/prompt</PackageProjectUrl>
     <PackageTags>llm;aoi</PackageTags>
