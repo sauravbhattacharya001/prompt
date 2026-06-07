@@ -4,15 +4,15 @@
 
 **A comprehensive .NET library for Azure OpenAI prompt engineering**
 
-[![NuGet](https://img.shields.io/nuget/v/prompt-llm-aoi?style=flat-square&logo=nuget&color=004880)](https://www.nuget.org/packages/prompt-llm-aoi)
-[![NuGet Downloads](https://img.shields.io/nuget/dt/prompt-llm-aoi?style=flat-square&logo=nuget&color=004880)](https://www.nuget.org/packages/prompt-llm-aoi)
+[![NuGet](https://img.shields.io/nuget/v/promptlib?style=flat-square&logo=nuget&color=004880)](https://www.nuget.org/packages/promptlib)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/promptlib?style=flat-square&logo=nuget&color=004880)](https://www.nuget.org/packages/promptlib)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-blueviolet?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/codeql.yml?style=flat-square&label=CodeQL&logo=github)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/codeql.yml)
 [![CI](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/ci.yml?style=flat-square&label=CI&logo=github)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/ci.yml)
 [![Publish](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/nuget-publish.yml?style=flat-square&label=Publish&logo=github)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/nuget-publish.yml)
 [![codecov](https://img.shields.io/codecov/c/github/sauravbhattacharya001/prompt?style=flat-square&logo=codecov)](https://codecov.io/gh/sauravbhattacharya001/prompt)
-![Tests](https://img.shields.io/badge/tests-6700%2B%20passing-brightgreen?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-6858%20passing-brightgreen?style=flat-square)
 [![Docker](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/docker.yml?style=flat-square&label=Docker&logo=docker)](https://github.com/sauravbhattacharya001/prompt/actions/workflows/docker.yml)
 [![Pages](https://img.shields.io/github/actions/workflow/status/sauravbhattacharya001/prompt/pages.yml?style=flat-square&label=Docs&logo=github)](https://sauravbhattacharya001.github.io/prompt/)
 [![GitHub Release](https://img.shields.io/github/v/release/sauravbhattacharya001/prompt?style=flat-square&logo=github&color=blue)](https://github.com/sauravbhattacharya001/prompt/releases)
@@ -83,6 +83,7 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 ### Prompt Engineering
 - **Templates** — `PromptTemplate` with `{{variable}}` placeholders, defaults, validation, and composition
 - **Chains** — `PromptChain` pipelines multiple prompts sequentially, each step's output feeding into the next
+- **Tool Agent** — `PromptToolAgent` agentic tool-use loop (ReAct pattern) with parallel execution, timeouts, and guardrail hooks
 - **Composer** — `PromptComposer` fluent builder for structured prompts (persona, context, task, constraints, examples, output format)
 - **Few-shot builder** — `FewShotBuilder` for structured few-shot prompt construction with 5 formats and token-budget awareness
 - **Library** — `PromptLibrary` central template registry with search, categories, tags, and 8 built-in templates
@@ -99,9 +100,9 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 - **Serialization** — All classes support JSON round-trip (ToJson/FromJson/SaveToFileAsync/LoadFromFileAsync)
 
 ### Infrastructure
-- **5,900+ tests** — Comprehensive xUnit test suite
+- **6,858 tests** — Comprehensive xUnit test suite
 - **Cross-platform** — Environment variable resolution on Windows, Linux, and macOS
-- **NuGet ready** — Published as [`prompt-llm-aoi`](https://www.nuget.org/packages/prompt-llm-aoi)
+- **NuGet ready** — Published as [`promptlib`](https://www.nuget.org/packages/promptlib)
 
 ### Full Class Library
 
@@ -352,7 +353,7 @@ If you've ever copy-pasted prompt strings across files, hand-rolled retry logic,
 ## Installation
 
 ```bash
-dotnet add package prompt-llm-aoi
+dotnet add package promptlib
 ```
 
 ## Configuration
@@ -975,7 +976,7 @@ Multi-step prompt pipeline where each step's output feeds into subsequent steps 
 | SDK | [Azure.AI.OpenAI](https://www.nuget.org/packages/Azure.AI.OpenAI) 2.1.0 |
 | Retry | Azure.Core pipeline (exponential backoff with jitter) |
 | Security | [CodeQL](https://github.com/sauravbhattacharya001/prompt/actions/workflows/codeql.yml) |
-| Package | [NuGet](https://www.nuget.org/packages/prompt-llm-aoi) |
+| Package | [NuGet](https://www.nuget.org/packages/promptlib) |
 
 ## Architecture
 
