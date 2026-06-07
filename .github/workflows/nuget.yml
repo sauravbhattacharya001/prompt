@@ -36,7 +36,6 @@ jobs:
 
     - name: Test
       run: dotnet test tests/Prompt.Tests.csproj -c Release --verbosity normal -- RunConfiguration.CollectSourceInformation=true
-      continue-on-error: true
 
     - name: Pack
       run: dotnet pack src/Prompt.csproj -c Release -p:Version=${{ inputs.version }} --no-build -o ./nupkg
