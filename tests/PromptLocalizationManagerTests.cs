@@ -119,7 +119,9 @@ namespace Prompt.Tests
             mgr.AddTranslation("greet", "es", "¡Hola!");
 
             Assert.True(mgr.RemoveTranslation("greet", "es"));
-            Assert.Null(mgr.GetPrompt("greet", "es"));
+            // After removal, the exact "es" translation should be gone
+            Assert.False(mgr.HasTranslation("greet", "es"));
+            // The "en" translation should still exist
             Assert.Equal("Hello!", mgr.GetPrompt("greet", "en"));
         }
 

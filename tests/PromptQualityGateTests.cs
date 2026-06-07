@@ -125,8 +125,15 @@ namespace Prompt.Tests
         [Fact]
         public void Evaluate_ApproachingTokenLimit_WarnsButPasses()
         {
-            // GoodPrompt is 79 chars → ~20 tokens. Set max to 24 so 80% = ~19.2, just under 20
-            var gate = new PromptQualityGate { MaxTokens = 24 };
+            // Dynamically compute the right MaxTokens so estimated tokens land
+            // in the 80%-100% warning band regardless of estimator changes.
+            int estimated = PromptGuard.EstimateTokens(GoodPrompt);
+            // Set max so that estimated > max*0.8 but estimated <= max
+            int maxTokens = estimated + 1; // ensures estimated <= max (passes)
+            // Verify it's above 80%: estimated > maxTokens * 0.8
+            Assert.True(estimated > maxTokens * 0.8, $"Estimated {estimated} should be > 80% of {maxTokens}");
+
+            var gate = new PromptQualityGate { MaxTokens = maxTokens };
             var verdict = gate.Evaluate(GoodPrompt);
             var tokenResult = verdict.Results.First(r => r.CheckName == "token-estimate");
             Assert.True(tokenResult.Passed);

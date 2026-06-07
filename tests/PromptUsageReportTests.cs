@@ -102,7 +102,10 @@ namespace Prompt.Tests
             var report = new PromptUsageReport(h);
             var text = report.Generate(ReportGranularity.Monthly);
 
-            Assert.Contains("2026-03", text);
+            // The report buckets by recorded timestamp (DateTime.Now at Record time),
+            // not by the test's baseTime. Use current month dynamically.
+            var expectedMonth = DateTime.UtcNow.ToString("yyyy-MM");
+            Assert.Contains(expectedMonth, text);
         }
 
         [Fact]

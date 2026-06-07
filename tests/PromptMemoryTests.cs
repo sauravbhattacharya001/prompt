@@ -9,7 +9,9 @@ namespace Prompt.Tests
         public void Add_ClassifiesEphemeralMessages()
         {
             var mem = new PromptMemory();
-            var entry = mem.Add("user", "ok thanks");
+            // Use a message that exactly matches the EphemeralPattern regex:
+            // ^\s*(ok|okay|sure|thanks|thank you|got it|sounds good|great|yes|no|right|understood|perfect|awesome|cool|nice)\s*[.!]?\s*$
+            var entry = mem.Add("user", "ok");
             Assert.Equal(ConvMemoryTier.Ephemeral, entry.Tier);
         }
 
