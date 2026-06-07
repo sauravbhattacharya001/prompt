@@ -42,11 +42,21 @@ jobs:
       run: dotnet pack src/Prompt.csproj -c Release -p:Version=${{ inputs.version }} --no-build -o ./nupkg
 
     - name: Push to GitHub Packages
+      shell: pwsh
       run: |
-        dotnet nuget push ./nupkg/*.nupkg --source "https://nuget.pkg.github.com/sauravbhattacharya001/index.json" --api-key ${{ secrets.GITHUB_TOKEN }} --skip-duplicate
+        Get-ChildItem ./nupkg -Filter *.nupkg | ForEach-Object {
+          dotnet nuget push $_.FullName --source "https://nuget.pkg.github.com/sauravbhattacharya001/index.json" --api-key $env:GH_TOKEN --skip-duplicate
+        }
       continue-on-error: true
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Push to NuGet.org
       if: inputs.push_to_nuget == true
+      shell: pwsh
       run: |
-        dotnet nuget push ./nupkg/*.nupkg --source "https://api.nuget.org/v3/index.json" --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
+        Get-ChildItem ./nupkg -Filter *.nupkg | ForEach-Object {
+          dotnet nuget push $_.FullName --source "https://api.nuget.org/v3/index.json" --api-key $env:NUGET_API_KEY --skip-duplicate
+        }
+      env:
+        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
