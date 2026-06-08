@@ -29,7 +29,7 @@ namespace Prompt
     /// </code>
     /// </para>
     /// </remarks>
-    public class Conversation
+    public class Conversation : IDisposable
     {
         /// <summary>
         /// Maximum number of messages allowed in a conversation to prevent
@@ -54,6 +54,7 @@ namespace Prompt
         private readonly List<ChatMessage> _messages = new();
         private readonly object _lock = new();
         private readonly SemaphoreSlim _sendLock = new(1, 1);
+        private bool _disposed;
         private int _maxMessages = DefaultMaxMessages;
 
         // Per-conversation model parameters (defaults match Main.cs)
@@ -398,6 +399,7 @@ namespace Prompt
         /// </summary>
         private (List<ChatMessage> Snapshot, ChatCompletionOptions Options, ChatClient Client) PrepareRequest(string userMessage)
         {
+            ThrowIfDisposed();
             List<ChatMessage> snapshot;
             lock (_lock)
             {
@@ -455,6 +457,30 @@ namespace Prompt
                 else
                     break; // Only system messages left, can't trim further
             }
+        }
+
+        /// <summary>
+        /// Releases the semaphore used for send concurrency control.
+        /// After disposal, <see cref="SendAsync"/> and <see cref="SendStreamAsync"/>
+        /// will throw <see cref="ObjectDisposedException"/>.
+        /// </summary>
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                _sendLock.Dispose();
+                _disposed = true;
+            }
+        }
+
+        /// <summary>
+        /// Throws if this conversation has been disposed.
+        /// </summary>
+        private void ThrowIfDisposed()
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Conversation),
+                    "Cannot use a disposed Conversation instance.");
         }
 
         /// <summary>
@@ -578,7 +604,8 @@ namespace Prompt
                         TopP = _topP,
                         FrequencyPenalty = _frequencyPenalty,
                         PresencePenalty = _presencePenalty,
-                        MaxRetries = _maxRetries
+                        MaxRetries = _maxRetries,
+                        MaxMessages = _maxMessages
                     }
                 };
 
@@ -637,6 +664,9 @@ namespace Prompt
                 conv.MaxRetries = data.Parameters.MaxRetries;
             }
 
+            // Restore MaxMessages: use saved value if present, otherwise keep default
+            int restoredMaxMessages = data.Parameters?.MaxMessages ?? DefaultMaxMessages;
+
             // Restore messages — set MaxMessages high during restore to
             // avoid trimming, then apply the restored conversation's limit.
             // Batch all message additions under a single lock acquisition
@@ -666,7 +696,7 @@ namespace Prompt
             }
 
             // Restore default max messages limit
-            conv._maxMessages = DefaultMaxMessages;
+            conv._maxMessages = Math.Max(2, restoredMaxMessages);
 
             return conv;
         }
@@ -774,6 +804,9 @@ namespace Prompt
 
             [JsonPropertyName("maxRetries")]
             public int MaxRetries { get; set; } = 3;
+
+            [JsonPropertyName("maxMessages")]
+            public int MaxMessages { get; set; } = DefaultMaxMessages;
         }
     }
 }
