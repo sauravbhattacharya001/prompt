@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **PromptGuard** — extend Unicode-bypass stripping to close two prompt-injection detection bypasses. `DetectInjection`/`DetectInjectionPatterns`/`Analyze`/`Sanitize` now strip the WORD JOINER and invisible math operators (U+2060–U+2064) and supplementary-plane Unicode Tag characters (U+E0000–U+E007F), in addition to the previously-handled zero-width and bidi-override ranges. Previously an attacker could split an injection keyword with a word joiner (e.g. `ig\u2060nore all previous instructions`) or smuggle Tag characters and slip past `PromptGuard` entirely, even though `PromptSanitizer` already defended against them. The two security classes are now consistent. 11 regression tests added (including an astral-plane-emoji guard so real supplementary-plane characters are preserved).
+
 ### Added
 - **PromptLatencyBudgetAdvisor** - 12th agentic sibling: detects latency-cost risks in prompts (oversized prompt, chain-of-thought expansion, unbounded output, exhaustive coverage, serial tool chains, retry loops, heavy multimodal inputs, serializable fanout, missing output cap, streaming disabled) and produces a budgeted P0-first playbook with estimated savings, plus an optimized draft annotated with a `# LATENCY_BUDGET` block. Pure, deterministic, no I/O. 26 passing xUnit tests.
 

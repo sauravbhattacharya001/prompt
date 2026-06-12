@@ -293,16 +293,39 @@ namespace Prompt
         /// regex word-boundary matching without being visible to users:
         /// ZERO WIDTH SPACE (U+200B), ZERO WIDTH NON-JOINER (U+200C),
         /// ZERO WIDTH JOINER (U+200D), LEFT-TO-RIGHT MARK (U+200E),
-        /// RIGHT-TO-LEFT MARK (U+200F), BOM/ZWNBSP (U+FEFF).
+        /// RIGHT-TO-LEFT MARK (U+200F), WORD JOINER (U+2060), the invisible
+        /// math operators (U+2061–U+2064), and BOM/ZWNBSP (U+FEFF).
         /// </summary>
+        /// <remarks>
+        /// U+2060–U+2064 were previously missing from this range, which let an
+        /// attacker split an injection keyword with a WORD JOINER
+        /// (e.g. "ig\u2060nore all previous instructions") and slip past both
+        /// <see cref="DetectInjection"/> and <see cref="Sanitize"/>. They are
+        /// kept in sync with <see cref="PromptSanitizer"/>, which already
+        /// stripped them.
+        /// </remarks>
         private static readonly Regex ZeroWidthPattern = new(
-            "[\u200B-\u200F\uFEFF]",
+            "[\u200B-\u200F\u2060-\u2064\uFEFF]",
+            RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+
+        /// <summary>
+        /// Matches Unicode Tag characters (U+E0000–U+E007F), which live in the
+        /// supplementary plane and are encoded as a surrogate pair
+        /// (high = U+DB40, low = U+DC00–U+DC7F). Tag characters are invisible
+        /// and are a documented prompt-injection smuggling vector: an attacker
+        /// can interleave them inside otherwise-innocuous text to hide
+        /// instructions or break keyword matching. They must be stripped before
+        /// any regex-based detection runs.
+        /// </summary>
+        private static readonly Regex TagCharsPattern = new(
+            "\uDB40[\uDC00-\uDC7F]",
             RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         /// <summary>
         /// Strips all Unicode characters commonly used to bypass text-based
-        /// security checks: bidi overrides, zero-width characters, and
-        /// invisible formatting marks.
+        /// security checks: bidi overrides, zero-width characters, invisible
+        /// formatting marks, the word joiner / invisible math operators, and
+        /// supplementary-plane Tag characters.
         /// </summary>
         /// <param name="text">The text to normalize.</param>
         /// <returns>Text with bypass characters removed.</returns>
@@ -313,6 +336,7 @@ namespace Prompt
 
             var result = BidiOverridePattern.Replace(text, "");
             result = ZeroWidthPattern.Replace(result, "");
+            result = TagCharsPattern.Replace(result, "");
             return result;
         }
 
