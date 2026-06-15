@@ -497,13 +497,20 @@ namespace Prompt
             };
         }
 
+        // Few-shot prompts must be byte-for-byte identical regardless of host OS so that
+        // cached/hashed/snapshotted prompts and downstream tests are reproducible. Therefore
+        // formatters emit '\n' explicitly rather than StringBuilder.AppendLine, which would
+        // emit Environment.NewLine ("\r\n" on Windows, "\n" on Unix) and make output
+        // platform-dependent. This matches FormatQuery and the default "\n\n" separator.
+        private const char Lf = '\n';
+
         private string FormatLabeled(FewShotExample ex)
         {
             var sb = new StringBuilder();
             if (ex.Label != null)
-                sb.AppendLine($"[{ex.Label}]");
-            sb.AppendLine($"{_inputLabel}: {ex.Input}");
-            sb.Append($"{_outputLabel}: {ex.Output}");
+                sb.Append('[').Append(ex.Label).Append(']').Append(Lf);
+            sb.Append(_inputLabel).Append(": ").Append(ex.Input).Append(Lf);
+            sb.Append(_outputLabel).Append(": ").Append(ex.Output);
             return sb.ToString();
         }
 
@@ -511,9 +518,9 @@ namespace Prompt
         {
             var sb = new StringBuilder();
             if (ex.Label != null)
-                sb.AppendLine($"[{ex.Label}]");
-            sb.AppendLine($"User: {ex.Input}");
-            sb.Append($"Assistant: {ex.Output}");
+                sb.Append('[').Append(ex.Label).Append(']').Append(Lf);
+            sb.Append("User: ").Append(ex.Input).Append(Lf);
+            sb.Append("Assistant: ").Append(ex.Output);
             return sb.ToString();
         }
 
@@ -529,22 +536,22 @@ namespace Prompt
         private string FormatNumbered(FewShotExample ex, int number)
         {
             var sb = new StringBuilder();
-            sb.AppendLine($"Example {number}:");
+            sb.Append("Example ").Append(number).Append(':').Append(Lf);
             if (ex.Label != null)
-                sb.AppendLine($"  Category: {ex.Label}");
-            sb.AppendLine($"  {_inputLabel}: {ex.Input}");
-            sb.Append($"  {_outputLabel}: {ex.Output}");
+                sb.Append("  Category: ").Append(ex.Label).Append(Lf);
+            sb.Append("  ").Append(_inputLabel).Append(": ").Append(ex.Input).Append(Lf);
+            sb.Append("  ").Append(_outputLabel).Append(": ").Append(ex.Output);
             return sb.ToString();
         }
 
         private string FormatXml(FewShotExample ex)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("<example>");
+            sb.Append("<example>").Append(Lf);
             if (ex.Label != null)
-                sb.AppendLine($"  <label>{EscapeXml(ex.Label)}</label>");
-            sb.AppendLine($"  <input>{EscapeXml(ex.Input)}</input>");
-            sb.AppendLine($"  <output>{EscapeXml(ex.Output)}</output>");
+                sb.Append("  <label>").Append(EscapeXml(ex.Label)).Append("</label>").Append(Lf);
+            sb.Append("  <input>").Append(EscapeXml(ex.Input)).Append("</input>").Append(Lf);
+            sb.Append("  <output>").Append(EscapeXml(ex.Output)).Append("</output>").Append(Lf);
             sb.Append("</example>");
             return sb.ToString();
         }

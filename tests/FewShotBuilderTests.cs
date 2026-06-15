@@ -406,7 +406,7 @@ namespace Prompt.Tests
                 .AddExample("a", "1");
 
             var result = builder.Build();
-            Assert.Equal("Input: a\r\nOutput: 1", result);
+            Assert.Equal("Input: a\nOutput: 1", result);
         }
 
         [Fact]

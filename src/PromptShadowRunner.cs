@@ -66,6 +66,16 @@ namespace Prompt
 
         /// <summary>Tags for filtering and grouping comparisons.</summary>
         public List<string> Tags { get; set; } = new();
+
+        /// <summary>
+        /// Monotonic request-order sequence number, assigned when the originating
+        /// <see cref="PromptShadowRunner.ExecuteAsync"/> call begins. Used to keep stored
+        /// comparisons in deterministic request order so eviction is true FIFO even though
+        /// shadow executions complete asynchronously and may finish out of order. Not part
+        /// of the serialized contract.
+        /// </summary>
+        [JsonIgnore]
+        internal long Sequence { get; set; }
     }
 
     /// <summary>
@@ -175,6 +185,7 @@ namespace Prompt
         private Func<string, string, bool>? _matchFunction;
         private Action<ShadowComparison>? _onComparison;
         private int _maxStoredComparisons = 10_000;
+        private long _sequenceCounter;
 
         /// <summary>
         /// Creates a new shadow runner.
@@ -245,7 +256,10 @@ namespace Prompt
             var comparison = new ShadowComparison
             {
                 Prompt = prompt,
-                Tags = tags?.ToList() ?? new List<string>()
+                Tags = tags?.ToList() ?? new List<string>(),
+                // Stamp request order up front so eviction stays FIFO regardless of the
+                // order in which the fire-and-forget shadow tasks below complete.
+                Sequence = Interlocked.Increment(ref _sequenceCounter)
             };
 
             // Run primary
@@ -284,10 +298,12 @@ namespace Prompt
                     .Select(s => RunShadowAsync(s, prompt, primaryResponse, comparison));
                 await Task.WhenAll(shadowTasks);
 
-                // Store comparison
+                // Store comparison in request order (by Sequence) so that eviction below
+                // removes the genuinely oldest request, not merely whichever shadow task
+                // happened to finish first.
                 lock (_lock)
                 {
-                    _comparisons.Add(comparison);
+                    InsertOrderedBySequence(comparison);
                     while (_comparisons.Count > _maxStoredComparisons)
                         _comparisons.RemoveAt(0);
                 }
@@ -350,6 +366,20 @@ namespace Prompt
                     comparison.Matches[config.Label] = null;
                 }
             }
+        }
+
+        /// <summary>
+        /// Inserts a comparison into <see cref="_comparisons"/> keeping the list sorted by
+        /// <see cref="ShadowComparison.Sequence"/> (ascending = oldest first). Scans from the
+        /// end because completions are usually close to request order, making the common case
+        /// O(1). Must be called while holding <see cref="_lock"/>.
+        /// </summary>
+        private void InsertOrderedBySequence(ShadowComparison comparison)
+        {
+            int i = _comparisons.Count - 1;
+            while (i >= 0 && _comparisons[i].Sequence > comparison.Sequence)
+                i--;
+            _comparisons.Insert(i + 1, comparison);
         }
 
         /// <summary>
