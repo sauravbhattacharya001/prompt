@@ -314,7 +314,7 @@ namespace Prompt
         private static readonly (string pattern, string replacement, SentimentTone target, string reason)[] ShiftRules =
         {
             // Polite → Assertive
-            (@"\bplease\s+", "", SentimentTone.Assertive, "Remove hedging for directness"),
+            (@"\bplease\b[\s,]*", "", SentimentTone.Assertive, "Remove hedging for directness"),
             (@"\bcould you\b", "You should", SentimentTone.Assertive, "Strengthen request to directive"),
             (@"\bwould you\b", "You must", SentimentTone.Assertive, "Strengthen request to command"),
             (@"\bif you could\b", "You need to", SentimentTone.Assertive, "Remove conditional phrasing"),
@@ -363,7 +363,11 @@ namespace Prompt
             report.QuestionCount = text.Count(c => c == '?');
             report.ExclamationCount = text.Count(c => c == '!');
 
-            // Detect imperative sentences (start with a verb-like word, no subject)
+            // Detect imperative sentences (start with a verb-like word, no subject).
+            // We skip sentences that open with a subject/article, end in a question mark,
+            // or begin with a politeness marker or discourse connector ("Please ...",
+            // "Furthermore, ..."), since those introduce requests or declaratives rather
+            // than true imperatives and would otherwise inflate the assertive score.
             int imperativeCount = 0;
             foreach (Match s in sentences)
             {
@@ -374,7 +378,8 @@ namespace Prompt
                 if (firstWord.Success)
                 {
                     string fw = firstWord.Value.ToLowerInvariant();
-                    if (!IsSubjectWord(fw) && !IsArticle(fw) && !trimmed.EndsWith("?"))
+                    if (!IsSubjectWord(fw) && !IsArticle(fw) && !IsNonImperativeOpener(fw)
+                        && !trimmed.EndsWith("?"))
                         imperativeCount++;
                 }
             }
@@ -516,7 +521,53 @@ namespace Prompt
                 if (tone != targetTone) continue;
                 result = Regex.Replace(result, pattern, replacement, RegexOptions.IgnoreCase);
             }
-            return result.Trim();
+            return NormalizeRewrite(result);
+        }
+
+        /// <summary>
+        /// Clean up the artifacts left behind after applying tone-shift replacements:
+        /// collapses doubled spaces, removes whitespace stranded before punctuation, and
+        /// restores sentence-start capitalization. For example, rewriting
+        /// "Please summarize this." toward an assertive tone removes the leading "Please "
+        /// and this step re-capitalizes the result to "Summarize this." rather than leaving
+        /// a lowercase sentence start.
+        /// </summary>
+        private static string NormalizeRewrite(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return "";
+
+            // Collapse runs of whitespace and drop spaces left dangling before punctuation
+            // (e.g. "... code  please ?" -> "... code?").
+            string cleaned = Regex.Replace(text, @"[ \t]{2,}", " ");
+            cleaned = Regex.Replace(cleaned, @"\s+([,.;:!?])", "$1");
+            cleaned = cleaned.Trim();
+
+            if (cleaned.Length == 0)
+                return "";
+
+            // Re-capitalize the first letter of the text and the first letter that follows
+            // each sentence terminator, since removals can expose a lowercased word.
+            var chars = cleaned.ToCharArray();
+            bool atSentenceStart = true;
+            for (int i = 0; i < chars.Length; i++)
+            {
+                char c = chars[i];
+                if (atSentenceStart && char.IsLetter(c))
+                {
+                    chars[i] = char.ToUpperInvariant(c);
+                    atSentenceStart = false;
+                }
+                else if (c is '.' or '!' or '?')
+                {
+                    atSentenceStart = true;
+                }
+                else if (!char.IsWhiteSpace(c))
+                {
+                    atSentenceStart = false;
+                }
+            }
+            return new string(chars);
         }
 
         private static bool IsSubjectWord(string w) =>
@@ -527,5 +578,15 @@ namespace Prompt
         private static bool IsArticle(string w) =>
             w is "a" or "an" or "the" or "my" or "your" or "his" or "her" or
                  "its" or "our" or "their" or "some" or "any" or "each" or "every";
+
+        // Politeness markers and discourse/sentence-adverb connectors that open a
+        // request or declarative clause. A sentence beginning with one of these is not
+        // treated as imperative (e.g. "Please summarize this.", "Furthermore, we agree.").
+        private static bool IsNonImperativeOpener(string w) =>
+            w is "please" or "kindly" or "thanks" or "thank" or
+                 "furthermore" or "moreover" or "however" or "nevertheless" or
+                 "nonetheless" or "therefore" or "consequently" or "accordingly" or
+                 "additionally" or "meanwhile" or "otherwise" or "hence" or "thus" or
+                 "regarding" or "notwithstanding";
     }
 }

@@ -223,7 +223,7 @@ namespace Prompt
                 for (int i = 1; i < parts.Count; i++)
                 {
                     var filterExpr = parts[i].Trim();
-                    var filterParts = filterExpr.Split(':');
+                    var filterParts = SplitFilterArgs(filterExpr);
                     var filterName = filterParts[0].Trim().ToLowerInvariant();
                     if (!IsKnownFilter(filterName))
                         issues.Add($"Unknown filter '{filterName}' on variable '{varName}'.");
@@ -288,9 +288,9 @@ namespace Prompt
             for (int i = 1; i < parts.Count; i++)
             {
                 var filterExpr = parts[i].Trim();
-                var filterParts = filterExpr.Split(':');
+                var filterParts = SplitFilterArgs(filterExpr);
                 var filterName = filterParts[0].Trim().ToLowerInvariant();
-                var args = filterParts.Length > 1
+                var args = filterParts.Count > 1
                     ? filterParts.Skip(1).ToArray()
                     : Array.Empty<string>();
 
@@ -381,6 +381,52 @@ namespace Prompt
             return parts;
         }
 
+        /// <summary>
+        /// Splits a single filter expression into its name and arguments on
+        /// unescaped colons, so that argument values may themselves contain a
+        /// literal colon via the <c>\:</c> escape (and a literal backslash via
+        /// <c>\\</c>). This mirrors the <c>\|</c> escape that <see cref="SplitPipes"/>
+        /// already honors for the pipe separator.
+        /// <para>
+        /// Without this, any argument containing a colon was silently mangled —
+        /// most visibly <c>format_date</c> with time components
+        /// (<c>HH:mm:ss</c>, <c>yyyy-MM-dd HH:mm:ss</c>) which the
+        /// <see cref="AllowedDateFormats"/> allow-list explicitly supports, and
+        /// <c>replace</c> when either operand contained a colon (e.g. clock
+        /// times or URLs).
+        /// </para>
+        /// </summary>
+        /// <returns>
+        /// A list whose first element is the (unescaped) filter name and whose
+        /// remaining elements are the (unescaped) arguments.
+        /// </returns>
+        private static List<string> SplitFilterArgs(string filterExpr)
+        {
+            var parts = new List<string>();
+            var current = new StringBuilder();
+            for (int i = 0; i < filterExpr.Length; i++)
+            {
+                char c = filterExpr[i];
+                if (c == '\\' && i + 1 < filterExpr.Length &&
+                    (filterExpr[i + 1] == ':' || filterExpr[i + 1] == '\\'))
+                {
+                    current.Append(filterExpr[i + 1]);
+                    i++;
+                }
+                else if (c == ':')
+                {
+                    parts.Add(current.ToString());
+                    current.Clear();
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
+            parts.Add(current.ToString());
+            return parts;
+        }
+
         private static string ConvertToString(object obj) => obj switch
         {
             null => "",
@@ -464,7 +510,13 @@ namespace Prompt
         {
             if (!DateTime.TryParse(input, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime dt))
                 return input;
-            string fmt = args.Length > 0 ? args[0] : "yyyy-MM-dd";
+            // A date/time format pattern legitimately contains colons
+            // (e.g. "HH:mm:ss"). SplitFilterArgs splits the filter expression on
+            // unescaped colons, so a multi-segment pattern arrives here as
+            // several args; rejoin them with ':' to reconstruct the original
+            // pattern. This lets the natural "format_date:HH:mm:ss" syntax work
+            // without forcing the caller to backslash-escape every colon.
+            string fmt = args.Length > 0 ? string.Join(":", args) : "yyyy-MM-dd";
             if (!AllowedDateFormats.Contains(fmt))
                 fmt = "yyyy-MM-dd";
             return dt.ToString(fmt, CultureInfo.InvariantCulture);

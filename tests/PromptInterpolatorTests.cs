@@ -174,6 +174,85 @@ namespace Prompt.Tests
             Assert.Equal("03/08/2026", result.Output);
         }
 
+        // ── Regression: filter arguments containing colons ──────────────────
+        // The filter argument splitter previously split on EVERY ':' with no
+        // escape handling, so any allow-listed date/time pattern with a time
+        // component (HH:mm:ss, yyyy-MM-dd HH:mm:ss, …) was shredded into
+        // ["HH","mm","ss"], only the first fragment was used as the format, and
+        // because "HH" is not in AllowedDateFormats it silently fell back to
+        // "yyyy-MM-dd" — dropping the time entirely with no warning. The
+        // allow-list explicitly contains these patterns, so they must round-trip.
+
+        [Fact]
+        public void FormatDateFilter_TimeOnlyPattern_PreservesColons()
+        {
+            var result = _interpolator.Interpolate(
+                "{{ts | format_date:HH:mm:ss}}",
+                new Dictionary<string, object> { ["ts"] = "2026-03-08T15:42:07" });
+            Assert.Equal("15:42:07", result.Output);
+        }
+
+        [Fact]
+        public void FormatDateFilter_DateTimePattern_PreservesColons()
+        {
+            var result = _interpolator.Interpolate(
+                "{{ts | format_date:yyyy-MM-dd HH:mm:ss}}",
+                new Dictionary<string, object> { ["ts"] = "2026-03-08T15:42:07" });
+            Assert.Equal("2026-03-08 15:42:07", result.Output);
+        }
+
+        [Fact]
+        public void FormatDateFilter_SlashDateTimePattern_PreservesColons()
+        {
+            var result = _interpolator.Interpolate(
+                "{{ts | format_date:MM/dd/yyyy HH:mm:ss}}",
+                new Dictionary<string, object> { ["ts"] = "2026-03-08T15:42:07" });
+            Assert.Equal("03/08/2026 15:42:07", result.Output);
+        }
+
+        [Fact]
+        public void FormatDateFilter_HourMinutePattern_PreservesColon()
+        {
+            var result = _interpolator.Interpolate(
+                "{{ts | format_date:HH:mm}}",
+                new Dictionary<string, object> { ["ts"] = "2026-03-08T15:42:07" });
+            Assert.Equal("15:42", result.Output);
+        }
+
+        [Fact]
+        public void FormatDateFilter_TimePatternThenReplace_Chains()
+        {
+            // format_date produces "15:42:07"; the colon must be escaped (\:) in
+            // the replace argument so it is treated as a literal, not a separator.
+            var result = _interpolator.Interpolate(
+                "{{ts | format_date:HH:mm:ss | replace:\\::-}}",
+                new Dictionary<string, object> { ["ts"] = "2026-03-08T15:42:07" });
+            Assert.Equal("15-42-07", result.Output);
+        }
+
+        [Fact]
+        public void ReplaceFilter_EscapedColonInOperands()
+        {
+            // Replacing a clock time "8:42" -> "08:42" requires colons inside the
+            // replace operands; \: escapes them so they are not treated as the
+            // argument separator.
+            var result = _interpolator.Interpolate(
+                "{{t | replace:8\\::08\\:}}",
+                new Dictionary<string, object> { ["t"] = "8:42" });
+            Assert.Equal("08:42", result.Output);
+        }
+
+        [Fact]
+        public void ReplaceFilter_LiteralBackslashEscape()
+        {
+            // \\ in a filter argument is an escaped backslash and must survive as
+            // a single literal backslash.
+            var result = _interpolator.Interpolate(
+                "{{p | replace:a:\\\\}}",
+                new Dictionary<string, object> { ["p"] = "a/b" });
+            Assert.Equal("\\/b", result.Output);
+        }
+
         [Fact]
         public void Base64RoundTrip()
         {

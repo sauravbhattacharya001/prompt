@@ -248,12 +248,45 @@ namespace Prompt
             if (value.Length <= 4) return new string('*', value.Length);
             return cat switch
             {
-                SecretCategory.Email => value[..2] + "***@***" + (value.Contains('@') ? value[value.LastIndexOf('.')..] : ""),
+                SecretCategory.Email => RedactEmail(value),
                 SecretCategory.CreditCard => "****-****-****-" + value[^4..],
                 SecretCategory.SSN => "***-**-" + value[^4..],
                 SecretCategory.PhoneNumber => "***-***-" + value[^4..],
                 _ => value[..3] + new string('*', Math.Max(value.Length - 6, 3)) + value[^3..]
             };
+        }
+
+        /// <summary>
+        /// Redacts an email so only the first character of the local part and
+        /// the trailing TLD remain visible, e.g. <c>john.doe@example.com</c> =&gt;
+        /// <c>j***@***.com</c>.
+        /// </summary>
+        /// <remarks>
+        /// The previous implementation used <c>value[..2]</c> on the whole match,
+        /// which grabbed the first two characters of the entire address rather
+        /// than of the local part. For a single-character local part (e.g.
+        /// <c>x@y.io</c>) that included the literal <c>@</c>, producing a
+        /// malformed redaction (<c>x@***@***.io</c>) that leaked the address
+        /// structure. This splits on the first <c>@</c> so the masking is
+        /// correct regardless of local-part length.
+        /// </remarks>
+        private static string RedactEmail(string value)
+        {
+            int at = value.IndexOf('@');
+            // No '@' (shouldn't happen for the email rule, but stay defensive):
+            // fall back to the generic masking shape.
+            if (at <= 0)
+                return value[..1] + new string('*', value.Length - 1);
+
+            string local = value[..at];
+            string domain = value[(at + 1)..];
+
+            // Preserve only the final TLD label (the part from the last dot),
+            // matching the prior intent of revealing the top-level domain.
+            int lastDot = domain.LastIndexOf('.');
+            string tld = lastDot >= 0 ? domain[lastDot..] : string.Empty;
+
+            return local[..1] + "***@***" + tld;
         }
 
         private void LoadBuiltInRules()

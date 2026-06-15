@@ -53,6 +53,68 @@ public class PromptSecretScannerTests
         Assert.Contains(result.Findings, f => f.Rule.Category == SecretCategory.Email);
     }
 
+    // ── Email redaction correctness ──────────────────────────────
+    // Regression: the redactor used value[..2] on the whole match, which
+    // grabbed the first two chars of the entire address. For a single-char
+    // local part it captured the literal '@' and produced a malformed
+    // redaction (e.g. "x@y.io" -> "x@***@***.io") that leaked structure.
+
+    [Fact]
+    public void RedactEmail_NeverLeaksAtSymbolFromLocalPart()
+    {
+        var scanner = new PromptSecretScanner();
+        // Single-character local part is the trigger for the old bug.
+        var redacted = scanner.Redact("mail x@y.io done");
+        // Exactly one '@' should survive (the separator in the mask), never two.
+        Assert.Equal(1, redacted.Count(c => c == '@'));
+        Assert.DoesNotContain("@***@", redacted);
+        Assert.Equal("mail x***@***.io done", redacted);
+    }
+
+    [Fact]
+    public void RedactEmail_RevealsFirstLocalCharAndTld()
+    {
+        var scanner = new PromptSecretScanner();
+        Assert.Equal("Contact j***@***.com here",
+            scanner.Redact("Contact john.doe@example.com here"));
+    }
+
+    [Fact]
+    public void RedactEmail_SingleCharLocalPart_DoesNotExposeDomain()
+    {
+        var scanner = new PromptSecretScanner();
+        // "a@b.com" is 7 chars so it passes the length gate and hits the
+        // Email branch; the host "b" must not appear in the redaction.
+        var redacted = scanner.Redact("send a@b.com now");
+        Assert.Equal("send a***@***.com now", redacted);
+        Assert.DoesNotContain("a@b", redacted);
+    }
+
+    [Fact]
+    public void RedactEmail_MultiLabelDomain_KeepsOnlyFinalTld()
+    {
+        var scanner = new PromptSecretScanner();
+        var redacted = scanner.Redact("Reach a.b.c.d@sub.domain.co.uk now");
+        // Only the final ".uk" label is revealed; the rest of the domain is masked.
+        Assert.Equal("Reach a***@***.uk now", redacted);
+        Assert.DoesNotContain("domain", redacted);
+        Assert.DoesNotContain(".co.", redacted);
+    }
+
+    [Fact]
+    public void RedactEmail_RedactedTextIsReconstructibleFromFindings()
+    {
+        var scanner = new PromptSecretScanner();
+        var input = "a@b.com and john.doe@example.com and x@y.io";
+        var result = scanner.Scan(input);
+
+        var expected = input;
+        foreach (var f in result.Findings.OrderByDescending(f => f.Position))
+            expected = expected.Remove(f.Position, f.Length).Insert(f.Position, f.RedactedText);
+
+        Assert.Equal(expected, result.RedactedText);
+    }
+
     [Fact]
     public void DetectsPrivateKeyHeader()
     {
