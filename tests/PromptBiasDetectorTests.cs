@@ -232,14 +232,14 @@ namespace Prompt.Tests
             {
                 Category = BiasCategory.Cultural,
                 Severity = BiasSeverity.High,
-                Pattern = new Regex(@"\bzalenix-banned-word\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
+                Pattern = new Regex(@"\bcustom-banned-word\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
                 Description = "Custom test rule",
                 Suggestion = "neutral-word"
             });
 
             Assert.Equal(before + 1, detector.RuleCount);
 
-            var report = detector.Analyze("This is a zalenix-banned-word example.");
+            var report = detector.Analyze("This is a custom-banned-word example.");
             Assert.Contains(report.Findings, f => f.Category == BiasCategory.Cultural && f.Severity == BiasSeverity.High);
             Assert.Contains("neutral-word", report.DebiasedText);
         }

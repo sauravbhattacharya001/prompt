@@ -509,7 +509,7 @@ namespace Prompt
             // Insights
             if (fleet.AutonomousInsights.Count > 0)
             {
-                sb.AppendLine("<div class='section'><h2>🤖 Autonomous Insights</h2>");
+                sb.AppendLine("<div class='section'><h2>Insights</h2>");
                 foreach (var insight in fleet.AutonomousInsights)
                     sb.AppendLine($"<div class='insight'>{Esc(insight)}</div>");
                 sb.AppendLine("</div>");
