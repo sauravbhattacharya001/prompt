@@ -162,6 +162,66 @@ TokenEstimate estimate = counter.Estimate(prompt);
 Console.WriteLine($"~{estimate.TokenCount} tokens");
 ```
 
+## Providers
+
+The library is vendor-neutral. By default it targets **Azure OpenAI** (no code
+changes required), but it can talk to every major LLM provider through a single
+`ILlmProvider` abstraction.
+
+Supported: **Azure OpenAI** (default), **OpenAI**, **Anthropic (Claude)**,
+**Google (Gemini)**, **Mistral**, **Groq**, **DeepSeek**, **xAI (Grok)**,
+**OpenRouter**, **Together**, **Fireworks**, and **Ollama** (local).
+
+### Option 1 — pick a provider with environment variables
+
+The high-level `Main.GetResponseAsync(...)` API is unchanged. Set
+`PROMPT_PROVIDER` to switch backends; leave it unset (or `azure`) to keep the
+existing Azure OpenAI behavior.
+
+```bash
+# Azure OpenAI (default) — unchanged
+AZURE_OPENAI_API_URI=...   AZURE_OPENAI_API_KEY=...   AZURE_OPENAI_API_MODEL=gpt-4o
+
+# Or switch to another provider:
+PROMPT_PROVIDER=anthropic   ANTHROPIC_API_KEY=...   PROMPT_MODEL=claude-3-5-sonnet-latest
+PROMPT_PROVIDER=openai      OPENAI_API_KEY=...      PROMPT_MODEL=gpt-4o
+PROMPT_PROVIDER=gemini      GEMINI_API_KEY=...      PROMPT_MODEL=gemini-1.5-pro
+PROMPT_PROVIDER=groq        GROQ_API_KEY=...        PROMPT_MODEL=llama-3.3-70b-versatile
+PROMPT_PROVIDER=ollama      PROMPT_MODEL=llama3        # local, no key needed
+```
+
+Each provider also reads generic `PROMPT_API_KEY` / `PROMPT_MODEL` (and an
+optional `PROMPT_BASE_URL`) if you prefer one consistent set of variables.
+
+```csharp
+using Prompt;
+
+// Uses whatever PROMPT_PROVIDER selects (Azure by default)
+string? reply = await Main.GetResponseAsync("Explain retries in one line.");
+```
+
+### Option 2 — construct a provider explicitly
+
+Use a specific provider directly (handy when one app talks to several vendors):
+
+```csharp
+using Prompt;
+
+// Anthropic Claude
+var claude = new AnthropicProvider(apiKey, "claude-3-5-sonnet-latest");
+var llm = new LlmClient(claude);
+string? answer = await llm.GetResponseAsync("Summarize the CAP theorem.");
+
+// OpenAI-compatible presets (OpenAI, Mistral, Groq, DeepSeek, Grok,
+// OpenRouter, Together, Fireworks, Ollama)
+var groq = OpenAICompatProvider.Groq(apiKey, "llama-3.3-70b-versatile");
+await foreach (var chunk in new LlmClient(groq).GetResponseStreamAsync("Stream a haiku."))
+    Console.Write(chunk.Delta);
+```
+
+All providers support both `GetResponseAsync` (full response) and
+`GetResponseStreamAsync` (token streaming).
+
 ## License
 
 Released under the [MIT License](LICENSE). Copyright (c) 2023 Saurav Bhattacharya.

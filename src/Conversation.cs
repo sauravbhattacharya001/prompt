@@ -1,16 +1,14 @@
 namespace Prompt
 {
-    using System.ClientModel;
+    using System.Collections.Generic;
     using System.Runtime.CompilerServices;
     using System.Text;
     using System.Text.Json;
     using System.Text.Json.Serialization;
     using System.Threading;
-    using Azure.AI.OpenAI;
-    using OpenAI.Chat;
 
     /// <summary>
-    /// Represents a multi-turn conversation with Azure OpenAI. Maintains
+    /// Represents a multi-turn conversation with a language model. Maintains
     /// message history so the model has full context of the conversation.
     /// </summary>
     /// <remarks>
@@ -18,6 +16,13 @@ namespace Prompt
     /// Unlike <see cref="Main.GetResponseAsync"/>, which sends a single
     /// prompt and forgets everything, <c>Conversation</c> accumulates
     /// messages across multiple turns — enabling back-and-forth dialogue.
+    /// </para>
+    /// <para>
+    /// By default the conversation targets whichever backend
+    /// <see cref="ProviderFactory.CreateFromEnvironment"/> resolves (Azure OpenAI
+    /// unless <c>PROMPT_PROVIDER</c> says otherwise). Pass an explicit
+    /// <see cref="ILlmProvider"/> to target a specific vendor without environment
+    /// configuration.
     /// </para>
     /// <para>
     /// Example usage:
@@ -51,13 +56,14 @@ namespace Prompt
         /// </summary>
         internal const int MaxDeserializedMessages = 10_000;
 
-        private readonly List<ChatMessage> _messages = new();
+        private readonly List<ChatMsg> _messages = new();
         private readonly object _lock = new();
         private readonly SemaphoreSlim _sendLock = new(1, 1);
+        private readonly ILlmProvider? _provider;
         private bool _disposed;
         private int _maxMessages = DefaultMaxMessages;
 
-        // Per-conversation model parameters (defaults match Main.cs)
+        // Per-conversation model parameters (defaults match PromptOptions)
         private float _temperature = 0.7f;
         private int _maxTokens = 800;
         private float _topP = 0.95f;
@@ -75,7 +81,7 @@ namespace Prompt
         public Conversation(string? systemPrompt = null)
         {
             if (!string.IsNullOrWhiteSpace(systemPrompt))
-                _messages.Add(new SystemChatMessage(systemPrompt));
+                _messages.Add(ChatMsg.FromSystem(systemPrompt!));
         }
 
         /// <summary>
@@ -95,13 +101,43 @@ namespace Prompt
                 throw new ArgumentNullException(nameof(options));
 
             if (!string.IsNullOrWhiteSpace(systemPrompt))
-                _messages.Add(new SystemChatMessage(systemPrompt));
+                _messages.Add(ChatMsg.FromSystem(systemPrompt!));
 
             _temperature = options.Temperature;
             _maxTokens = options.MaxTokens;
             _topP = options.TopP;
             _frequencyPenalty = options.FrequencyPenalty;
             _presencePenalty = options.PresencePenalty;
+        }
+
+        /// <summary>
+        /// Creates a new conversation bound to an explicit
+        /// <see cref="ILlmProvider"/>, optionally with a system prompt and
+        /// model parameters. Use this to target a specific vendor (for example
+        /// <see cref="AnthropicProvider"/> or an <see cref="OpenAICompatProvider"/>
+        /// preset) without relying on environment variables.
+        /// </summary>
+        /// <param name="systemPrompt">Optional system prompt.</param>
+        /// <param name="provider">
+        /// The backend to send turns to. When <c>null</c>, the provider is
+        /// resolved from the environment on each send.
+        /// </param>
+        /// <param name="options">Optional model parameter configuration.</param>
+        public Conversation(string? systemPrompt, ILlmProvider? provider, PromptOptions? options = null)
+        {
+            if (!string.IsNullOrWhiteSpace(systemPrompt))
+                _messages.Add(ChatMsg.FromSystem(systemPrompt!));
+
+            if (options != null)
+            {
+                _temperature = options.Temperature;
+                _maxTokens = options.MaxTokens;
+                _topP = options.TopP;
+                _frequencyPenalty = options.FrequencyPenalty;
+                _presencePenalty = options.PresencePenalty;
+            }
+
+            _provider = provider;
         }
 
         /// <summary>
@@ -256,12 +292,10 @@ namespace Prompt
             await _sendLock.WaitAsync(cancellationToken);
             try
             {
-                var (snapshot, completionOptions, chatClient) = PrepareRequest(message);
+                var (snapshot, options, provider) = PrepareRequest(message);
 
-                ChatCompletion completion = await chatClient.CompleteChatAsync(
-                    snapshot, completionOptions, cancellationToken);
-
-                string? responseText = completion?.Content?.FirstOrDefault()?.Text;
+                string? responseText = await provider.CompleteAsync(
+                    snapshot, options, cancellationToken);
 
                 if (responseText != null)
                     AppendAssistantMessage(responseText);
@@ -294,52 +328,17 @@ namespace Prompt
             await _sendLock.WaitAsync(cancellationToken);
             try
             {
-                var (snapshot, completionOptions, chatClient) = PrepareRequest(message);
+                var (snapshot, options, provider) = PrepareRequest(message);
 
                 var accumulated = new StringBuilder();
-                string? finishReason = null;
 
-                await foreach (StreamingChatCompletionUpdate update in
-                    chatClient.CompleteChatStreamingAsync(
-                        snapshot, completionOptions, cancellationToken))
+                await foreach (StreamChunk chunk in
+                    provider.CompleteStreamAsync(snapshot, options, cancellationToken))
                 {
-                    foreach (ChatMessageContentPart part in update.ContentUpdate)
-                    {
-                        string delta = part.Text ?? "";
-                        accumulated.Append(delta);
+                    if (!string.IsNullOrEmpty(chunk.Delta))
+                        accumulated.Append(chunk.Delta);
 
-                        if (update.FinishReason != null)
-                            finishReason = update.FinishReason.Value.ToString();
-
-                        bool isComplete = update.FinishReason != null;
-
-                        // Cache ToString() to avoid double allocation for
-                        // FullText and EstimateTokens on the same chunk.
-                        string fullTextSoFar = accumulated.ToString();
-
-                        yield return new StreamChunk
-                        {
-                            Delta = delta,
-                            FullText = fullTextSoFar,
-                            IsComplete = isComplete,
-                            FinishReason = isComplete ? finishReason : null,
-                            TokensUsed = PromptGuard.EstimateTokens(fullTextSoFar)
-                        };
-                    }
-                }
-
-                // Emit final chunk if stream ended without explicit finish
-                if (finishReason == null)
-                {
-                    string finalText = accumulated.ToString();
-                    yield return new StreamChunk
-                    {
-                        Delta = "",
-                        FullText = finalText,
-                        IsComplete = true,
-                        FinishReason = "stop",
-                        TokensUsed = PromptGuard.EstimateTokens(finalText)
-                    };
+                    yield return chunk;
                 }
 
                 // Add assembled response to conversation history
@@ -367,7 +366,7 @@ namespace Prompt
 
             lock (_lock)
             {
-                _messages.Add(new UserChatMessage(message));
+                _messages.Add(ChatMsg.FromUser(message));
                 TrimMessagesUnsafe();
             }
         }
@@ -386,39 +385,50 @@ namespace Prompt
 
             lock (_lock)
             {
-                _messages.Add(new AssistantChatMessage(message));
+                _messages.Add(ChatMsg.FromAssistant(message));
                 TrimMessagesUnsafe();
             }
         }
 
         /// <summary>
-        /// Prepares a request by adding the user message, trimming history,
-        /// snapshotting messages, building completion options, and obtaining
-        /// the chat client.  Consolidates the setup logic shared by
-        /// <see cref="SendAsync"/> and <see cref="SendStreamAsync"/>.
+        /// Resolves the provider for a send: the explicitly supplied provider if
+        /// the conversation was constructed with one, otherwise the environment
+        /// default honoring the current <see cref="MaxRetries"/>.
         /// </summary>
-        private (List<ChatMessage> Snapshot, ChatCompletionOptions Options, ChatClient Client) PrepareRequest(string userMessage)
+        private ILlmProvider ResolveProvider()
+            => _provider ?? ProviderFactory.CreateFromEnvironment(_maxRetries);
+
+        /// <summary>
+        /// Builds a <see cref="PromptOptions"/> snapshot from the per-conversation
+        /// parameters for the current send.
+        /// </summary>
+        private PromptOptions BuildOptions() => new PromptOptions
+        {
+            Temperature = _temperature,
+            MaxTokens = _maxTokens,
+            TopP = _topP,
+            FrequencyPenalty = _frequencyPenalty,
+            PresencePenalty = _presencePenalty,
+        };
+
+        /// <summary>
+        /// Prepares a request by adding the user message, trimming history,
+        /// snapshotting messages, building options, and resolving the provider.
+        /// Consolidates the setup logic shared by <see cref="SendAsync"/> and
+        /// <see cref="SendStreamAsync"/>.
+        /// </summary>
+        private (List<ChatMsg> Snapshot, PromptOptions Options, ILlmProvider Provider) PrepareRequest(string userMessage)
         {
             ThrowIfDisposed();
-            List<ChatMessage> snapshot;
+            List<ChatMsg> snapshot;
             lock (_lock)
             {
-                _messages.Add(new UserChatMessage(userMessage));
+                _messages.Add(ChatMsg.FromUser(userMessage));
                 TrimMessagesUnsafe();
-                snapshot = new List<ChatMessage>(_messages);
+                snapshot = new List<ChatMsg>(_messages);
             }
 
-            var completionOptions = new PromptOptions
-            {
-                Temperature = _temperature,
-                MaxTokens = _maxTokens,
-                TopP = _topP,
-                FrequencyPenalty = _frequencyPenalty,
-                PresencePenalty = _presencePenalty,
-            }.ToChatCompletionOptions();
-
-            ChatClient chatClient = Main.GetOrCreateChatClient(_maxRetries);
-            return (snapshot, completionOptions, chatClient);
+            return (snapshot, BuildOptions(), ResolveProvider());
         }
 
         /// <summary>
@@ -428,7 +438,7 @@ namespace Prompt
         {
             lock (_lock)
             {
-                _messages.Add(new AssistantChatMessage(response));
+                _messages.Add(ChatMsg.FromAssistant(response));
                 TrimMessagesUnsafe();
             }
         }
@@ -448,7 +458,7 @@ namespace Prompt
                 return;
 
             // Determine the starting index of non-system messages once
-            int firstNonSystem = (_messages.Count > 0 && _messages[0] is SystemChatMessage) ? 1 : 0;
+            int firstNonSystem = (_messages.Count > 0 && _messages[0].Role == ChatMsg.System) ? 1 : 0;
 
             while (_messages.Count > _maxMessages)
             {
@@ -492,13 +502,12 @@ namespace Prompt
             lock (_lock)
             {
                 // Preserve the system prompt if it exists
-                ChatMessage? systemMsg = _messages.Count > 0
-                    && _messages[0] is SystemChatMessage
-                    ? _messages[0] : null;
+                bool hasSystem = _messages.Count > 0 && _messages[0].Role == ChatMsg.System;
+                ChatMsg systemMsg = hasSystem ? _messages[0] : default;
 
                 _messages.Clear();
 
-                if (systemMsg != null)
+                if (hasSystem)
                     _messages.Add(systemMsg);
             }
         }
@@ -518,68 +527,11 @@ namespace Prompt
                 var history = new List<(string, string)>(_messages.Count);
                 foreach (var msg in _messages)
                 {
-                    history.Add((GetRole(msg), ExtractContent(msg)));
+                    history.Add((msg.Role, msg.Content));
                 }
                 return history;
             }
         }
-
-        /// <summary>
-        /// Extracts text content from a <see cref="ChatMessage"/>.
-        /// Uses a single-part fast path to avoid <see cref="StringBuilder"/>
-        /// allocation for the common case. Falls back to <see cref="StringBuilder"/>
-        /// only when a message has multiple text content parts.
-        /// </summary>
-        private static string ExtractContent(ChatMessage msg)
-        {
-            if (msg.Content == null)
-                return "";
-
-            // Fast path: most messages have exactly one text part.
-            // Avoid StringBuilder allocation entirely for the common case.
-            string? singleText = null;
-            bool hasMultiple = false;
-
-            foreach (var part in msg.Content)
-            {
-                if (part.Text != null)
-                {
-                    if (singleText == null)
-                    {
-                        singleText = part.Text;
-                    }
-                    else
-                    {
-                        hasMultiple = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!hasMultiple)
-                return singleText ?? "";
-
-            // Slow path: multiple text parts — use StringBuilder
-            var sb = new StringBuilder();
-            foreach (var part in msg.Content)
-            {
-                if (part.Text != null)
-                    sb.Append(part.Text);
-            }
-            return sb.ToString();
-        }
-
-        /// <summary>
-        /// Maps a <see cref="ChatMessage"/> to its role string
-        /// ("system", "user", "assistant", or "unknown").
-        /// </summary>
-        private static string GetRole(ChatMessage msg) => msg switch
-        {
-            SystemChatMessage => "system",
-            UserChatMessage => "user",
-            AssistantChatMessage => "assistant",
-            _ => "unknown"
-        };
 
         // ──────────────── Serialization ────────────────
 
@@ -611,7 +563,7 @@ namespace Prompt
 
                 foreach (var msg in _messages)
                 {
-                    data.Messages.Add(new MessageData { Role = GetRole(msg), Content = ExtractContent(msg) });
+                    data.Messages.Add(new MessageData { Role = msg.Role, Content = msg.Content });
                 }
 
                 var options = SerializationGuards.WriteOptions(indented);
@@ -683,13 +635,13 @@ namespace Prompt
                     switch (msg.Role?.ToLowerInvariant())
                     {
                         case "system":
-                            conv._messages.Add(new SystemChatMessage(msg.Content));
+                            conv._messages.Add(ChatMsg.FromSystem(msg.Content));
                             break;
                         case "user":
-                            conv._messages.Add(new UserChatMessage(msg.Content));
+                            conv._messages.Add(ChatMsg.FromUser(msg.Content));
                             break;
                         case "assistant":
-                            conv._messages.Add(new AssistantChatMessage(msg.Content));
+                            conv._messages.Add(ChatMsg.FromAssistant(msg.Content));
                             break;
                     }
                 }

@@ -1,119 +1,62 @@
-﻿namespace Prompt
+namespace Prompt
 {
-    using System.ClientModel;
-    using System.ClientModel.Primitives;
+    using System.Collections.Generic;
     using System.Runtime.CompilerServices;
-    using System.Text;
-    using Azure.AI.OpenAI;
     using OpenAI.Chat;
 
     /// <summary>
-    /// Entry point for sending chat completions requests to Azure OpenAI.
+    /// Entry point for sending chat completions requests. By default this targets
+    /// Azure OpenAI (preserving the library's original zero-configuration
+    /// behavior), but the active backend can be switched to any supported vendor
+    /// via the <c>PROMPT_PROVIDER</c> environment variable. See
+    /// <see cref="ProviderFactory"/> for the full list and the variables each
+    /// provider reads.
     /// </summary>
     /// <remarks>
-    /// Requires the following user-level environment variables:
+    /// <para>
+    /// With <c>PROMPT_PROVIDER</c> unset (or set to <c>azure</c>), the following
+    /// user-level environment variables are required, exactly as before:
+    /// </para>
     /// <list type="bullet">
     ///   <item><c>AZURE_OPENAI_API_URI</c> – Azure OpenAI endpoint URI</item>
     ///   <item><c>AZURE_OPENAI_API_KEY</c> – Azure OpenAI API key</item>
     ///   <item><c>AZURE_OPENAI_API_MODEL</c> – Deployed model name (e.g. gpt-4)</item>
     /// </list>
+    /// <para>
+    /// For an explicit, environment-free alternative, construct a provider
+    /// directly (for example <see cref="AnthropicProvider"/> or an
+    /// <see cref="OpenAICompatProvider"/> preset) and wrap it in
+    /// <see cref="LlmClient"/>.
+    /// </para>
     /// </remarks>
     public class Main
     {
-        // Cached client instances for connection reuse (fixes #6).
-        // AzureOpenAIClient and ChatClient are thread-safe and designed
-        // to be long-lived singletons, so we avoid recreating them on
-        // every call.
-        //
-        // _cachedChatClient is marked volatile so that the double-checked
-        // locking pattern in GetOrCreateChatClient works correctly across
-        // all CPU architectures. Without volatile, a thread could observe
-        // a non-null _cachedChatClient before the write to _cachedMaxRetries
-        // has been flushed — leading to use of a stale companion field.
-        private static readonly object _clientLock = new object();
-        private static AzureOpenAIClient? _cachedAzureClient;
-        private static volatile ChatClient? _cachedChatClient;
-        private static volatile int _cachedMaxRetries = -1;
-
         /// <summary>
-        /// Creates an <see cref="AzureOpenAIClientOptions"/> with retry configuration.
-        /// Uses exponential backoff (1s base, 30s max) which handles 429 rate-limit
-        /// and 503 service-unavailable responses automatically via the Azure.Core pipeline.
-        /// </summary>
-        private static AzureOpenAIClientOptions CreateClientOptions(int maxRetries = 3)
-        {
-            var options = new AzureOpenAIClientOptions();
-            options.RetryPolicy = new ClientRetryPolicy(maxRetries);
-            return options;
-        }
-
-        /// <summary>
-        /// Returns a cached <see cref="ChatClient"/>, creating it on first use.
-        /// If <paramref name="maxRetries"/> differs from the previously cached value,
-        /// the client is automatically recreated with the new retry policy (fixes #7).
-        /// Thread-safe via double-check locking.
+        /// Returns the cached Azure <see cref="ChatClient"/>, creating it on first
+        /// use. Retained for backward compatibility; the Azure plumbing now lives
+        /// in <see cref="AzureOpenAIProvider"/>, to which this delegates.
         /// </summary>
         internal static ChatClient GetOrCreateChatClient(int maxRetries = 3)
-        {
-            if (_cachedChatClient != null && _cachedMaxRetries == maxRetries)
-                return _cachedChatClient;
-
-            lock (_clientLock)
-            {
-                if (_cachedChatClient != null && _cachedMaxRetries == maxRetries)
-                    return _cachedChatClient;
-
-                var uri = GetRequiredEnvVar("AZURE_OPENAI_API_URI",
-                    "Set it pointing to your Azure OpenAI endpoint.");
-
-                if (!Uri.TryCreate(uri, UriKind.Absolute, out var endpoint)
-                    || (endpoint.Scheme != "https" && endpoint.Scheme != "http"))
-                {
-                    throw new InvalidOperationException(
-                        $"AZURE_OPENAI_API_URI value '{uri}' is not a valid HTTP(S) URI.");
-                }
-
-                var key = GetRequiredEnvVar("AZURE_OPENAI_API_KEY",
-                    "Set it with your Azure OpenAI API key.");
-
-                var model = GetRequiredEnvVar("AZURE_OPENAI_API_MODEL",
-                    "Set it with your deployed model name (e.g. gpt-4).");
-
-                var clientOptions = CreateClientOptions(maxRetries);
-                _cachedAzureClient = new AzureOpenAIClient(
-                    endpoint,
-                    new ApiKeyCredential(key),
-                    clientOptions);
-
-                _cachedChatClient = _cachedAzureClient.GetChatClient(model);
-                _cachedMaxRetries = maxRetries;
-                return _cachedChatClient;
-            }
-        }
+            => AzureOpenAIProvider.GetOrCreateChatClient(maxRetries);
 
         /// <summary>
-        /// Resets the cached client so the next call to <see cref="GetResponseAsync"/>
-        /// re-reads environment variables and applies a fresh retry policy.
-        /// Useful when environment variables change at runtime or when a different
-        /// <c>maxRetries</c> value is needed.
+        /// Resets the cached client so the next call re-reads environment
+        /// variables and applies a fresh retry policy. Useful when environment
+        /// variables change at runtime or when a different <c>maxRetries</c> value
+        /// is needed.
         /// </summary>
         public static void ResetClient()
         {
-            lock (_clientLock)
-            {
-                _cachedChatClient = null;
-                _cachedAzureClient = null;
-                _cachedMaxRetries = -1;
-            }
+            AzureOpenAIProvider.ResetCache();
         }
 
         /// <summary>
-        /// Validates common parameters, builds the chat message list, and
-        /// returns a prepared <see cref="ChatClient"/> with completion options.
-        /// Centralizes the duplicated setup logic shared by
-        /// <see cref="GetResponseAsync"/> and <see cref="GetResponseStreamAsync"/>.
+        /// Validates the common parameters shared by <see cref="GetResponseAsync"/>
+        /// and <see cref="GetResponseStreamAsync"/>, then builds the neutral
+        /// message list and resolves the active <see cref="ILlmProvider"/> from
+        /// the environment.
         /// </summary>
-        private static (ChatClient Client, List<ChatMessage> Messages, ChatCompletionOptions Options)
+        private static (ILlmProvider Provider, List<ChatMsg> Messages, PromptOptions Options)
             PrepareRequest(string prompt, string? systemPrompt, int maxRetries, PromptOptions? options)
         {
             if (string.IsNullOrWhiteSpace(prompt))
@@ -123,21 +66,19 @@
                 throw new ArgumentOutOfRangeException(nameof(maxRetries),
                     maxRetries, "maxRetries must be non-negative.");
 
-            var chatClient = GetOrCreateChatClient(maxRetries);
-
-            var messages = new List<ChatMessage>();
+            var messages = new List<ChatMsg>(2);
             if (!string.IsNullOrWhiteSpace(systemPrompt))
-                messages.Add(new SystemChatMessage(systemPrompt));
-            messages.Add(new UserChatMessage(prompt));
+                messages.Add(ChatMsg.FromSystem(systemPrompt!));
+            messages.Add(ChatMsg.FromUser(prompt));
 
+            var provider = ProviderFactory.CreateFromEnvironment(maxRetries);
             var opts = options ?? new PromptOptions();
-            var completionOptions = opts.ToChatCompletionOptions();
 
-            return (chatClient, messages, completionOptions);
+            return (provider, messages, opts);
         }
 
         /// <summary>
-        /// Sends a prompt to Azure OpenAI and returns the response text.
+        /// Sends a prompt to the active provider and returns the response text.
         /// </summary>
         /// <param name="prompt">The user prompt to send as a user message.</param>
         /// <param name="systemPrompt">Optional system prompt to set the assistant's behavior.</param>
@@ -163,17 +104,14 @@
             PromptOptions? options = null,
             CancellationToken cancellationToken = default)
         {
-            var (chatClient, messages, completionOptions) =
+            var (provider, messages, opts) =
                 PrepareRequest(prompt, systemPrompt, maxRetries, options);
 
-            ChatCompletion completion = await chatClient.CompleteChatAsync(
-                messages, completionOptions, cancellationToken);
-
-            return completion?.Content?.FirstOrDefault()?.Text;
+            return await provider.CompleteAsync(messages, opts, cancellationToken);
         }
 
         /// <summary>
-        /// Sends a prompt to Azure OpenAI and streams the response as an
+        /// Sends a prompt to the active provider and streams the response as an
         /// <see cref="IAsyncEnumerable{StreamChunk}"/>. Each chunk contains
         /// incremental text and accumulated state, enabling real-time display.
         /// </summary>
@@ -191,82 +129,14 @@
             PromptOptions? options = null,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            var (chatClient, messages, completionOptions) =
+            var (provider, messages, opts) =
                 PrepareRequest(prompt, systemPrompt, maxRetries, options);
 
-            var accumulated = new StringBuilder();
-            string? finishReason = null;
-
-            await foreach (StreamingChatCompletionUpdate update in
-                chatClient.CompleteChatStreamingAsync(messages, completionOptions, cancellationToken))
+            await foreach (StreamChunk chunk in
+                provider.CompleteStreamAsync(messages, opts, cancellationToken))
             {
-                foreach (ChatMessageContentPart part in update.ContentUpdate)
-                {
-                    string delta = part.Text ?? "";
-                    accumulated.Append(delta);
-
-                    if (update.FinishReason != null)
-                        finishReason = update.FinishReason.Value.ToString();
-
-                    bool isComplete = update.FinishReason != null;
-
-                    yield return new StreamChunk
-                    {
-                        Delta = delta,
-                        FullText = accumulated.ToString(),
-                        IsComplete = isComplete,
-                        FinishReason = isComplete ? finishReason : null,
-                        TokensUsed = PromptGuard.EstimateTokens(accumulated.ToString())
-                    };
-                }
+                yield return chunk;
             }
-
-            // If stream ended without explicit finish, emit a final chunk
-            if (finishReason == null)
-            {
-                yield return new StreamChunk
-                {
-                    Delta = "",
-                    FullText = accumulated.ToString(),
-                    IsComplete = true,
-                    FinishReason = "stop",
-                    TokensUsed = PromptGuard.EstimateTokens(accumulated.ToString())
-                };
-            }
-        }
-
-        /// <summary>
-        /// Reads an environment variable with a cross-platform fallback chain:
-        /// Process → User (Windows only) → Machine (Windows only).
-        /// </summary>
-        /// <remarks>
-        /// <c>EnvironmentVariableTarget.User</c> only works on Windows.
-        /// On Linux/macOS it silently returns <c>null</c>, so we try
-        /// <c>EnvironmentVariableTarget.Process</c> first, which reads
-        /// variables set via shell profiles, Docker, systemd, etc.
-        /// Fixes <see href="https://github.com/sauravbhattacharya001/prompt/issues/2">#2</see>.
-        /// </remarks>
-        private static string GetRequiredEnvVar(string name, string hint)
-        {
-            // Process-level covers shell exports, Docker env, CI, etc. — works everywhere
-            var value = Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process);
-
-            // On Windows, also check User and Machine scopes
-            if (string.IsNullOrWhiteSpace(value) && OperatingSystem.IsWindows())
-            {
-                value = Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.User);
-                if (string.IsNullOrWhiteSpace(value))
-                    value = Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Machine);
-            }
-
-            // Treat empty/whitespace-only values as unset — they are never
-            // valid for URIs, API keys, or model names and would cause
-            // confusing downstream errors if allowed through.
-            if (string.IsNullOrWhiteSpace(value))
-                throw new InvalidOperationException(
-                    $"Environment variable {name} is not set or is empty. {hint}");
-
-            return value;
         }
     }
 }
