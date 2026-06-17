@@ -243,5 +243,36 @@ namespace Prompt.Tests
                 ChatProvider.Anthropic);
             Assert.True(result.TotalParts >= 2);
         }
+
+        [Fact]
+        public void Format_Anthropic_MultipleSystemBlocks_AllPreserved()
+        {
+            // Two system blocks separated by a user turn are NOT consecutive, so
+            // MergeConsecutive cannot fold them. Anthropic exposes a single
+            // top-level system field, so both blocks must be concatenated rather
+            // than the second one being silently dropped.
+            var result = _formatter.Format(
+                "system: You are helpful.\nuser: Hi.\nsystem: Always answer in French.",
+                ChatProvider.Anthropic);
+
+            Assert.NotNull(result.SystemMessage);
+            Assert.Contains("You are helpful.", result.SystemMessage);
+            Assert.Contains("Always answer in French.", result.SystemMessage);
+            Assert.DoesNotContain(result.Messages, m => m.Role == "system");
+        }
+
+        [Fact]
+        public void FormatAsJson_Gemini_MultipleSystemBlocks_AllInSystemInstruction()
+        {
+            var json = _formatter.FormatAsJson(
+                "system: You are helpful.\nuser: Hi.\nsystem: Always answer in French.",
+                ChatProvider.Gemini);
+
+            var doc = JsonDocument.Parse(json);
+            Assert.True(doc.RootElement.TryGetProperty("system_instruction", out var si));
+            var text = si.GetProperty("parts")[0].GetProperty("text").GetString();
+            Assert.Contains("You are helpful.", text);
+            Assert.Contains("Always answer in French.", text);
+        }
     }
 }

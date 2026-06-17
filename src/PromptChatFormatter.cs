@@ -347,16 +347,29 @@ namespace Prompt
         #region Private helpers
 
         /// <summary>
-        /// Extracts the system message (if any) into <see cref="FormatResult.SystemMessage"/>
+        /// Extracts the system message(s) into <see cref="FormatResult.SystemMessage"/>
         /// and remaps remaining roles.  Both Anthropic and Gemini use this pattern —
         /// only the alias for the "assistant" role differs ("assistant" vs "model").
         /// </summary>
+        /// <remarks>
+        /// A prompt can yield more than one system message when explicit
+        /// <c>system:</c> prefixes are separated by other roles (e.g.
+        /// <c>system: …</c> / <c>user: …</c> / <c>system: …</c>); those system
+        /// blocks are not adjacent, so <see cref="MergeConsecutive"/> never folds
+        /// them together. Anthropic and Gemini expose only a single top-level
+        /// system field, so every system block is concatenated (blank-line
+        /// separated) rather than keeping just the first and silently dropping
+        /// the rest.
+        /// </remarks>
         private static void ExtractSystemAndRemapRoles(
             List<ChatMessage> messages, FormatResult result, string assistantAlias)
         {
-            var systemMsg = messages.FirstOrDefault(m => m.Role == "system");
-            if (systemMsg != null)
-                result.SystemMessage = systemMsg.Content;
+            var systemParts = messages
+                .Where(m => m.Role == "system")
+                .Select(m => m.Content)
+                .ToList();
+            if (systemParts.Count > 0)
+                result.SystemMessage = string.Join("\n\n", systemParts);
 
             result.Messages = new List<ChatMessage>(messages.Count);
             foreach (var m in messages)
