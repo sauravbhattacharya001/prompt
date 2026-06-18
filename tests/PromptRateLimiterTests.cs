@@ -466,6 +466,81 @@ public class PromptRateLimiterTests
             limiter.WaitAndAcquireAsync("m", maxWaitMs: 200));
     }
 
+    [Fact]
+    public void TryAcquire_RequestLargerThanTpmBudget_DeniesWithZeroWait()
+    {
+        // Root-cause guard for the WaitAndAcquireAsync busy-spin: when a single
+        // request's estimated tokens exceed the entire per-minute budget and the
+        // token window is empty, there is no record whose expiry could free room,
+        // so TryAcquire reports WaitMs = 0. WaitAndAcquireAsync must treat that as
+        // "poll later", not "retry immediately".
+        var limiter = new PromptRateLimiter();
+        limiter.AddProfile(new RateLimitProfile
+        {
+            Name = "m",
+            RequestsPerMinute = 1000,
+            TokensPerMinute = 1000,
+            MaxConcurrent = 100
+        });
+
+        var result = limiter.TryAcquire("m", estimatedTokens: 5000);
+
+        Assert.False(result.Permitted);
+        Assert.Contains("TPM", result.DenialReason);
+        Assert.Equal(0, result.WaitMs);
+    }
+
+    [Fact]
+    public async Task WaitAndAcquireAsync_RequestLargerThanTpmBudget_TimesOutWithoutBusySpin()
+    {
+        // Regression test: an impossible request (estimated tokens > whole TPM
+        // budget) produces WaitMs = 0 on every attempt. Before the fix the
+        // backoff collapsed to 0 and the loop hot-spun, pegging a CPU core until
+        // maxWaitMs. After the fix each attempt yields at least MinPollIntervalMs,
+        // so the call still times out but does so by waiting rather than spinning.
+        var limiter = new PromptRateLimiter();
+        limiter.AddProfile(new RateLimitProfile
+        {
+            Name = "m",
+            RequestsPerMinute = 1000,
+            TokensPerMinute = 1000,
+            MaxConcurrent = 100
+        });
+
+        const int maxWaitMs = 200;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        await Assert.ThrowsAsync<TimeoutException>(() =>
+            limiter.WaitAndAcquireAsync("m", estimatedTokens: 5000, maxWaitMs: maxWaitMs));
+        sw.Stop();
+
+        // It must actually wait out the budget (proving it polled rather than
+        // falling straight through), and must not run wildly past the deadline.
+        Assert.True(sw.ElapsedMilliseconds >= maxWaitMs - 50,
+            $"Returned too early ({sw.ElapsedMilliseconds}ms); expected to wait ~{maxWaitMs}ms.");
+        Assert.True(sw.ElapsedMilliseconds < maxWaitMs + 2000,
+            $"Took far longer than the deadline ({sw.ElapsedMilliseconds}ms).");
+    }
+
+    [Fact]
+    public async Task WaitAndAcquireAsync_RequestLargerThanTpmBudget_HonoursCancellation()
+    {
+        // The poll-floor path must remain responsive to cancellation: an
+        // impossible request should cancel promptly, not hang until maxWaitMs.
+        var limiter = new PromptRateLimiter();
+        limiter.AddProfile(new RateLimitProfile
+        {
+            Name = "m",
+            RequestsPerMinute = 1000,
+            TokensPerMinute = 1000,
+            MaxConcurrent = 100
+        });
+
+        using var cts = new CancellationTokenSource(100);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            limiter.WaitAndAcquireAsync("m", estimatedTokens: 5000,
+                cancellationToken: cts.Token, maxWaitMs: 60_000));
+    }
+
     // ── GetUsage ──
 
     [Fact]

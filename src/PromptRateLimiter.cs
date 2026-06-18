@@ -163,6 +163,12 @@ namespace Prompt
     /// </remarks>
     public class PromptRateLimiter
     {
+        // Minimum delay between acquire retries in WaitAndAcquireAsync. Guards
+        // against a busy-spin when a denial reports WaitMs=0 (e.g. a request
+        // larger than the entire per-minute budget) by ensuring every loop
+        // iteration yields instead of hot-looping until the timeout.
+        private const int MinPollIntervalMs = 25;
+
         private readonly Dictionary<string, ProfileState> _profiles = new(StringComparer.OrdinalIgnoreCase);
         private readonly object _lock = new();
 
@@ -436,7 +442,18 @@ namespace Prompt
                 var baseDelay = Math.Min(result.WaitMs, 5000);
                 var backoff = Math.Min(baseDelay * (1L << Math.Min(attempt, 5)), 10_000);
                 var jitter = random.Next(0, (int)Math.Max(1, backoff / 4));
-                var delay = Math.Min(backoff + jitter, maxWaitMs - stopwatch.ElapsedMilliseconds);
+                var remaining = maxWaitMs - stopwatch.ElapsedMilliseconds;
+                var delay = Math.Min(backoff + jitter, remaining);
+
+                // Some denials report WaitMs=0 (e.g. a request whose estimated
+                // tokens exceed the entire per-minute budget, so no existing
+                // record will ever expire to make room). In that case the
+                // computed backoff collapses to 0; without a floor this loop
+                // would spin tightly and peg a CPU core until maxWaitMs. Always
+                // yield at least a short poll interval while time remains so the
+                // wait stays cheap and honours cancellation between attempts.
+                if (delay <= 0)
+                    delay = Math.Min(MinPollIntervalMs, remaining);
 
                 if (delay > 0)
                     await Task.Delay((int)delay, cancellationToken);
