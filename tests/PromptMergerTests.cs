@@ -158,6 +158,61 @@ public class PromptMergerTests
     }
 
     [Fact]
+    public void Summarize_ConflictingDefaultNotReferencedInBody_StillDetected()
+    {
+        // t1 references {{x}}; t2's body is a literal but it ALSO carries a
+        // default for x with a different value. Merge(ThrowOnConflict) throws
+        // on this, so Summarize() must report it (regression: the old code
+        // keyed conflict detection on {{var}} body references and missed it).
+        var t1 = new PromptTemplate("{{x}}", new Dictionary<string, string> { ["x"] = "a" });
+        var t2 = new PromptTemplate("literal only", new Dictionary<string, string> { ["x"] = "b" });
+
+        var merger = PromptMerger.Create().Add(t1, "T1").Add(t2, "T2");
+
+        var summary = merger.Summarize();
+        Assert.True(summary.HasConflicts);
+        Assert.Single(summary.Conflicts);
+
+        // Summarize() and Merge(ThrowOnConflict) must agree: a reported
+        // conflict means the throwing merge actually throws.
+        Assert.Throws<InvalidOperationException>(() =>
+            merger.WithConflictResolution(ConflictResolution.ThrowOnConflict).Merge());
+    }
+
+    [Fact]
+    public void Summarize_GlobalVsTemplateDefaultConflict_Detected()
+    {
+        // A global default and a template default disagree on the same key.
+        // BuildDefaults seeds from globals first, so ThrowOnConflict throws —
+        // Summarize() must treat global defaults as a conflict source too.
+        var t1 = new PromptTemplate("{{x}}", new Dictionary<string, string> { ["x"] = "template" });
+
+        var merger = PromptMerger.Create()
+            .WithDefaults(new Dictionary<string, string> { ["x"] = "global" })
+            .Add(t1, "T1");
+
+        Assert.True(merger.Summarize().HasConflicts);
+        Assert.Throws<InvalidOperationException>(() =>
+            merger.WithConflictResolution(ConflictResolution.ThrowOnConflict).Merge());
+    }
+
+    [Fact]
+    public void Summarize_IdenticalDefaults_NoConflict()
+    {
+        // Same default value from two entries is not a conflict, and the
+        // throwing merge agrees (it does not throw on equal values).
+        var t1 = new PromptTemplate("{{x}}", new Dictionary<string, string> { ["x"] = "same" });
+        var t2 = new PromptTemplate("{{x}}", new Dictionary<string, string> { ["x"] = "same" });
+
+        var merger = PromptMerger.Create().Add(t1).Add(t2);
+
+        Assert.False(merger.Summarize().HasConflicts);
+        var ex = Record.Exception(() =>
+            merger.WithConflictResolution(ConflictResolution.ThrowOnConflict).Merge());
+        Assert.Null(ex);
+    }
+
+    [Fact]
     public void Merge_GlobalDefaults_LowestPriority()
     {
         var t1 = new PromptTemplate("{{x}} {{y}}.", new Dictionary<string, string> { ["x"] = "from_template" });

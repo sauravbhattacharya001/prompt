@@ -171,43 +171,73 @@ namespace Prompt
 
         /// <summary>
         /// Returns a summary of the merge plan: how many entries, which variables
-        /// are defined, and any conflicts detected.
+        /// are referenced, and any conflicting default values detected.
         /// </summary>
+        /// <remarks>
+        /// A conflict is reported when two or more sources (entry-level defaults
+        /// and/or global defaults) supply <em>different</em> default values for
+        /// the same variable. This mirrors what <see cref="Merge"/> actually
+        /// merges, so a summary that reports no conflicts will not throw under
+        /// <see cref="ConflictResolution.ThrowOnConflict"/>. Note that a default
+        /// can conflict even if the variable is never referenced in any template
+        /// body.
+        /// </remarks>
         public MergeSummary Summarize()
         {
-            var allVariables = new HashSet<string>();
-            var variableSources = new Dictionary<string, List<string>>();
-            var conflicts = new List<string>();
+            var allVariables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // Collect every default value contributed for each variable, in
+            // merge order, tagged with its source. Conflict detection must be
+            // driven by the defaults themselves (which is what Merge() merges),
+            // NOT by which entries reference {{var}} in their body — a template
+            // can define a default for a variable it never references, and
+            // Merge(ThrowOnConflict) throws on those too. Keying on body
+            // references produced false negatives where Summarize() reported
+            // no conflict yet Merge() threw.
+            var defaultSources = new Dictionary<string, List<(string Source, string Value)>>(StringComparer.OrdinalIgnoreCase);
+
+            void RecordDefault(string key, string value, string source)
+            {
+                if (!defaultSources.TryGetValue(key, out var list))
+                {
+                    list = new List<(string, string)>();
+                    defaultSources[key] = list;
+                }
+                list.Add((source, value));
+            }
+
+            // Global defaults participate in the merge (and in ThrowOnConflict),
+            // so they must be considered a conflict source as well.
+            foreach (var kv in _globalDefaults)
+                RecordDefault(kv.Key, kv.Value, "global defaults");
 
             for (int i = 0; i < _entries.Count; i++)
             {
                 var entry = _entries[i];
                 var label = entry.Label ?? $"Entry[{i}]";
-                var vars = entry.GetVariables();
 
-                foreach (var v in vars)
-                {
+                foreach (var v in entry.GetVariables())
                     allVariables.Add(v);
-                    if (!variableSources.ContainsKey(v))
-                        variableSources[v] = new List<string>();
-                    variableSources[v].Add(label);
-                }
+
+                foreach (var kv in entry.GetDefaults())
+                    RecordDefault(kv.Key, kv.Value, label);
             }
 
-            foreach (var kv in variableSources)
+            var conflicts = new List<string>();
+            foreach (var kv in defaultSources)
             {
-                if (kv.Value.Count > 1)
-                {
-                    // Check if multiple entries have different defaults for this variable
-                    var distinctDefaults = _entries
-                        .Where(e => e.GetDefaults().ContainsKey(kv.Key))
-                        .Select(e => e.GetDefaults()[kv.Key])
-                        .Distinct()
-                        .ToList();
+                var contributions = kv.Value;
+                if (contributions.Count <= 1)
+                    continue;
 
-                    if (distinctDefaults.Count > 1)
-                        conflicts.Add($"Variable '{kv.Key}' has conflicting defaults from: {string.Join(", ", kv.Value)}");
-                }
+                // A conflict exists only when at least two sources disagree on
+                // the value. Identical defaults across sources are harmless.
+                var distinctValues = contributions.Select(c => c.Value).Distinct(StringComparer.Ordinal).ToList();
+                if (distinctValues.Count <= 1)
+                    continue;
+
+                var sources = contributions.Select(c => c.Source).Distinct().ToList();
+                conflicts.Add($"Variable '{kv.Key}' has conflicting defaults from: {string.Join(", ", sources)}");
             }
 
             return new MergeSummary(
