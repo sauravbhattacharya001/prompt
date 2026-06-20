@@ -364,7 +364,10 @@ namespace Prompt
                 {
                     row[headers[j]] = cells[j];
                 }
-                if (row.Count > 0)
+                // Emit the row unless every cell was blank (a separator-residue or
+                // empty line carries no data). Note: row.Count reflects distinct
+                // headers, so checking the cells directly is what tells us emptiness.
+                if (row.Count > 0 && cells.Any(c => c.Length > 0))
                     rows.Add(row);
             }
 
@@ -688,11 +691,14 @@ namespace Prompt
 
         private static List<string> ParseTableRow(string line)
         {
+            // Split into cells positionally. Empty interior/leading/trailing cells
+            // are preserved (not filtered out) so that each value stays aligned to
+            // its column header — dropping a blank cell would slide every later
+            // value one column to the left, silently corrupting the parsed row.
             return line
                 .Trim('|')
                 .Split('|')
                 .Select(cell => cell.Trim())
-                .Where(cell => !string.IsNullOrEmpty(cell))
                 .ToList();
         }
     }

@@ -345,6 +345,45 @@ namespace Prompt.Tests
             Assert.Empty(rows);
         }
 
+        [Fact]
+        public void ExtractTable_EmptyInteriorCell_KeepsColumnsAligned()
+        {
+            // Bob's Age cell is empty. The remaining cells must stay aligned to
+            // their headers: City='Portland' must NOT slide left into Age.
+            string response = "| Name | Age | City |\n|------|-----|------|\n| Alice | 30 | Seattle |\n| Bob |  | Portland |";
+            var rows = ResponseParser.ExtractTable(response);
+            Assert.Equal(2, rows.Count);
+            Assert.Equal("Alice", rows[0]["Name"]);
+            Assert.Equal("30", rows[0]["Age"]);
+            Assert.Equal("Seattle", rows[0]["City"]);
+            Assert.Equal("Bob", rows[1]["Name"]);
+            Assert.Equal("", rows[1]["Age"]);
+            Assert.Equal("Portland", rows[1]["City"]);
+        }
+
+        [Fact]
+        public void ExtractTable_EmptyLeadingCell_KeepsColumnsAligned()
+        {
+            // First data cell is empty; Age/City must still land in Age/City.
+            string response = "| Name | Age | City |\n|------|-----|------|\n|  | 42 | Denver |";
+            var rows = ResponseParser.ExtractTable(response);
+            Assert.Single(rows);
+            Assert.Equal("", rows[0]["Name"]);
+            Assert.Equal("42", rows[0]["Age"]);
+            Assert.Equal("Denver", rows[0]["City"]);
+        }
+
+        [Fact]
+        public void ExtractTable_AllEmptyDataRow_IsSkipped()
+        {
+            // A row that is entirely blank carries no data and must not be emitted.
+            string response = "| Name | Age |\n|------|-----|\n| Alice | 30 |\n|  |  |";
+            var rows = ResponseParser.ExtractTable(response);
+            Assert.Single(rows);
+            Assert.Equal("Alice", rows[0]["Name"]);
+            Assert.Equal("30", rows[0]["Age"]);
+        }
+
         // ═══════════════════════════════════════════════════════
         // Pattern Extraction
         // ═══════════════════════════════════════════════════════
