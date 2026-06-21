@@ -321,7 +321,10 @@ namespace Prompt
         }
 
         /// <summary>
-        /// Renames a tag across all prompts. Preserves tag hierarchy.
+        /// Renames a tag across all prompts. Preserves tag hierarchy: renaming a
+        /// parent tag (e.g. <c>"domain"</c>) also renames every descendant tag
+        /// (<c>"domain/medical"</c> → <c>"category/medical"</c>), even when the
+        /// parent itself is not directly applied to any prompt.
         /// </summary>
         /// <param name="oldTag">Current tag name.</param>
         /// <param name="newTag">New tag name.</param>
@@ -332,20 +335,23 @@ namespace Prompt
             oldTag = oldTag.Trim();
             newTag = newTag.Trim();
 
-            if (!_tagIndex.ContainsKey(oldTag))
+            // Child tags can exist even when the exact parent tag is not directly
+            // applied (tags are stored verbatim, not expanded up the hierarchy),
+            // so the rename must consider descendants independently of an exact hit.
+            var childTags = _tagIndex.Keys
+                .Where(t => t.StartsWith(oldTag + "/", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            bool hasExact = _tagIndex.ContainsKey(oldTag);
+            if (!hasExact && childTags.Count == 0)
                 return 0;
 
-            var affected = _tagIndex[oldTag].ToList();
+            var affected = hasExact ? _tagIndex[oldTag].ToList() : new List<string>();
             foreach (var promptId in affected)
             {
                 Untag(promptId, oldTag);
                 Tag(promptId, newTag);
             }
-
-            // Also rename child tags
-            var childTags = _tagIndex.Keys
-                .Where(t => t.StartsWith(oldTag + "/", StringComparison.OrdinalIgnoreCase))
-                .ToList();
 
             foreach (var childTag in childTags)
             {
