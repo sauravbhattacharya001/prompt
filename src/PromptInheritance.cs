@@ -284,9 +284,14 @@ namespace Prompt
                 allBlocks.Add(blockName);
 
                 // Walk the inheritance chain to find the most-derived override
-                string? resolved = ResolveBlock(blockName, defaultContent);
+                string resolved = ResolveBlock(blockName, defaultContent, out bool wasOverridden);
 
-                if (resolved != defaultContent)
+                // Classify by whether an override actually exists in the chain,
+                // not by string equality: a child may legitimately override a
+                // block with content equal to the default (or with a {{super}}-only
+                // override that resolves back to the default), and that is still
+                // an override, not a parent-supplied default.
+                if (wasOverridden)
                     overriddenBlocks.Add(blockName);
                 else
                     parentBlocks.Add(blockName);
@@ -302,7 +307,12 @@ namespace Prompt
         /// Resolves a block's content by walking the inheritance chain.
         /// The most-derived override wins.
         /// </summary>
-        private string ResolveBlock(string blockName, string defaultContent)
+        /// <param name="wasOverridden">
+        /// Set to <c>true</c> when an override for <paramref name="blockName"/> was
+        /// found somewhere in the inheritance chain (even if it resolves to the same
+        /// text as the default); <c>false</c> when the default content was used.
+        /// </param>
+        private string ResolveBlock(string blockName, string defaultContent, out bool wasOverridden)
         {
             // Collect overrides from the entire chain (most-derived first)
             var chain = new List<InheritablePrompt>();
@@ -315,12 +325,14 @@ namespace Prompt
 
             // Find the most-derived override
             string content = defaultContent;
+            wasOverridden = false;
             for (int i = 0; i < chain.Count; i++)
             {
                 if (chain[i]._blockOverrides.TryGetValue(blockName, out var overrideContent))
                 {
                     // Replace {{super}} with the parent's content
                     content = SuperPattern.Replace(overrideContent, defaultContent);
+                    wasOverridden = true;
                     break;
                 }
             }

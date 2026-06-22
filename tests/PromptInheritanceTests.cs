@@ -223,6 +223,56 @@ namespace Prompt.Tests
             Assert.Equal(1, result.Depth);
         }
 
+        [Fact]
+        public void RenderDetailed_OverrideEqualToDefault_StillReportedAsOverridden()
+        {
+            // A child that overrides a block with content identical to the default
+            // has still overridden it. RenderDetailed must classify by whether an
+            // override exists in the chain, not by string equality with the default.
+            var parent = new InheritablePrompt(
+                "{% block a %}same{% endblock %} {% block b %}default_b{% endblock %}");
+            var child = parent.CreateChild(new Dictionary<string, string>
+            {
+                ["a"] = "same"
+            });
+
+            var result = child.RenderDetailed();
+            Assert.Equal("same default_b", result.Text);
+            Assert.Contains("a", result.OverriddenBlocks);
+            Assert.DoesNotContain("a", result.ParentBlocks);
+            Assert.Contains("b", result.ParentBlocks);
+        }
+
+        [Fact]
+        public void RenderDetailed_SuperOnlyOverride_ReportedAsOverridden()
+        {
+            // {{super}}-only override resolves back to the parent's content but is
+            // a genuine override, so it must be reported in OverriddenBlocks.
+            var parent = new InheritablePrompt("{% block msg %}World{% endblock %}");
+            var child = parent.CreateChild(new Dictionary<string, string>
+            {
+                ["msg"] = "{{super}}"
+            });
+
+            var result = child.RenderDetailed();
+            Assert.Equal("World", result.Text);
+            Assert.Contains("msg", result.OverriddenBlocks);
+            Assert.DoesNotContain("msg", result.ParentBlocks);
+        }
+
+        [Fact]
+        public void RenderDetailed_NoOverrides_AllReportedAsParent()
+        {
+            var prompt = new InheritablePrompt(
+                "{% block a %}x{% endblock %} {% block b %}y{% endblock %}");
+
+            var result = prompt.RenderDetailed();
+            Assert.Equal("x y", result.Text);
+            Assert.Empty(result.OverriddenBlocks);
+            Assert.Contains("a", result.ParentBlocks);
+            Assert.Contains("b", result.ParentBlocks);
+        }
+
         // ── OverriddenBlockNames ──
 
         [Fact]
