@@ -376,7 +376,8 @@ namespace Prompt
             {
                 foreach (var ex in examples.EnumerateArray())
                 {
-                    if (ex.TryGetProperty("input", out var inp) && ex.TryGetProperty("output", out var outp))
+                    if (ex.TryGetProperty("input", out var inp) && inp.ValueKind == JsonValueKind.String &&
+                        ex.TryGetProperty("output", out var outp) && outp.ValueKind == JsonValueKind.String)
                     {
                         composer._examples.Add((inp.GetString()!.Trim(), outp.GetString()!.Trim()));
                     }
@@ -393,7 +394,8 @@ namespace Prompt
             {
                 foreach (var s in sections.EnumerateArray())
                 {
-                    if (s.TryGetProperty("label", out var lbl) && s.TryGetProperty("content", out var cnt))
+                    if (s.TryGetProperty("label", out var lbl) && lbl.ValueKind == JsonValueKind.String &&
+                        s.TryGetProperty("content", out var cnt) && cnt.ValueKind == JsonValueKind.String)
                     {
                         composer._customSections.Add((lbl.GetString()!.Trim(), cnt.GetString()!.Trim()));
                     }

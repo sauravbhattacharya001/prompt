@@ -1001,4 +1001,61 @@ public class PromptComposerTests
             .Build();
         Assert.Contains("single line", prompt, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ───────────────────── FromJson defensive parsing ─────────────────────
+    // A malformed-but-syntactically-valid payload (wrong-typed/null example or
+    // section values) must degrade gracefully like missing fields do, never
+    // throw — matching FromJson_HandlesMissingFieldsGracefully and the
+    // ValueKind-guarded constraints loop. Previously these threw
+    // NullReferenceException (JSON null) / InvalidOperationException (number/bool).
+
+    [Fact]
+    public void FromJson_ExampleWithNonStringInput_SkippedNotThrown()
+    {
+        var json = "{\"examples\":[{\"input\":5,\"output\":\"valid\"}]}";
+        var composer = PromptComposer.FromJson(json);
+        Assert.Equal("", composer.Build());
+        Assert.Equal(0, composer.SectionCount());
+    }
+
+    [Fact]
+    public void FromJson_ExampleWithNullValue_SkippedNotThrown()
+    {
+        var json = "{\"examples\":[{\"input\":null,\"output\":\"valid\"}]}";
+        var composer = PromptComposer.FromJson(json);
+        Assert.Equal("", composer.Build());
+        Assert.Equal(0, composer.SectionCount());
+    }
+
+    [Fact]
+    public void FromJson_ExampleWithBooleanOutput_SkippedNotThrown()
+    {
+        var json = "{\"examples\":[{\"input\":\"q\",\"output\":true}]}";
+        var composer = PromptComposer.FromJson(json);
+        Assert.Equal("", composer.Build());
+        Assert.Equal(0, composer.SectionCount());
+    }
+
+    [Fact]
+    public void FromJson_CustomSectionWithNonStringValue_SkippedNotThrown()
+    {
+        var json = "{\"customSections\":[{\"label\":3,\"content\":\"c\"},{\"label\":\"L\",\"content\":null}]}";
+        var composer = PromptComposer.FromJson(json);
+        Assert.Equal("", composer.Build());
+        Assert.Equal(0, composer.SectionCount());
+    }
+
+    [Fact]
+    public void FromJson_SkipsOnlyMalformedEntry_KeepsValidOnes()
+    {
+        // One bad example (numeric input) and one good one — only the good
+        // example survives; the bad entry is dropped, not the whole array.
+        var json = "{\"examples\":[{\"input\":5,\"output\":\"bad\"},{\"input\":\"good-in\",\"output\":\"good-out\"}]}";
+        var composer = PromptComposer.FromJson(json);
+        var prompt = composer.Build();
+        Assert.Contains("Input: good-in", prompt);
+        Assert.Contains("Output: good-out", prompt);
+        Assert.DoesNotContain("bad", prompt);
+        Assert.Equal(1, composer.SectionCount()); // only the examples section
+    }
 }
