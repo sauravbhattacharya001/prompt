@@ -368,7 +368,11 @@ namespace Prompt
 
                 new SecretRule("credit-card", "Credit Card Number", SecretCategory.CreditCard,
                     SecretSeverity.Critical,
-                    @"(?<!\d)(?:4\d{3}|5[1-5]\d{2}|3[47]\d{2}|6(?:011|5\d{2}))[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}(?!\d)",
+                    // Two brand groups: 16-digit cards (Visa/MC/Discover, grouped
+                    // 4-4-4-4) and 15-digit American Express (prefix 34/37, grouped
+                    // 4-6-5). Amex is 15 digits, so it needs its own branch — the
+                    // single 4-4-4-4 shape can never match a real Amex number.
+                    @"(?<!\d)(?:(?:4\d{3}|5[1-5]\d{2}|6(?:011|5\d{2}))[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}|3[47]\d{2}[\s\-]?\d{6}[\s\-]?\d{5})(?!\d)",
                     "Credit card number (Visa, MC, Amex, Discover)"),
 
                 new SecretRule("ssn", "Social Security Number", SecretCategory.SSN,

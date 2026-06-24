@@ -376,4 +376,46 @@ public class PromptSecretScannerTests
         var f = result.Findings.First(x => x.Rule.Id == "openai-key");
         Assert.Equal(2, f.Line);
     }
+
+    // -- Credit card detection (Visa/MC/Discover 16-digit + Amex 15-digit) --
+
+    [Theory]
+    [InlineData("4111111111111111")]      // Visa, 16 digits
+    [InlineData("4111 1111 1111 1111")]   // Visa, spaced
+    [InlineData("5500-0055-5555-5559")]   // MasterCard, dashed
+    [InlineData("6011000990139424")]      // Discover, 16 digits
+    public void DetectsCreditCard_SixteenDigitBrands(string card)
+    {
+        var scanner = new PromptSecretScanner();
+        var result = scanner.Scan($"pay with {card} today");
+        Assert.Contains(result.Findings, f => f.Rule.Id == "credit-card");
+    }
+
+    [Theory]
+    [InlineData("378282246310005")]    // Amex, 15 digits (canonical test number)
+    [InlineData("371449635398431")]    // Amex, 15 digits
+    [InlineData("3714 496353 98431")]  // Amex, grouped 4-6-5
+    public void DetectsAmexCreditCard_FifteenDigits(string card)
+    {
+        // Regression: the rule advertises Amex support, but a single 4-4-4-4
+        // (16-digit) shape can never match a 15-digit Amex number. Amex needs
+        // its own 4-6-5 branch; without it these leaked cards passed unredacted.
+        var scanner = new PromptSecretScanner();
+        var result = scanner.Scan($"amex {card} ok");
+
+        Assert.Contains(result.Findings, f => f.Rule.Id == "credit-card");
+        // The card must also be redacted out of the returned text (last 4 kept).
+        Assert.DoesNotContain(card, result.RedactedText);
+        Assert.Contains("0005", scanner.Scan("amex 378282246310005 ok").RedactedText);
+    }
+
+    [Fact]
+    public void CreditCardRule_DoesNotMatch_SsnShapedDigits()
+    {
+        // A 9-digit SSN-shaped sequence must not be picked up by the card rule
+        // (the Amex branch requires a 34/37 prefix and a full 15 digits).
+        var scanner = new PromptSecretScanner();
+        var result = scanner.Scan("ref 123 45 6789 only");
+        Assert.DoesNotContain(result.Findings, f => f.Rule.Id == "credit-card");
+    }
 }
