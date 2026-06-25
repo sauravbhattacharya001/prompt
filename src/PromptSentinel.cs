@@ -61,10 +61,16 @@ namespace Prompt
         public ThreatCategory Category { get; init; }
         /// <summary>Severity level.</summary>
         public ThreatSeverity Severity { get; init; }
-        /// <summary>Matched text snippet (truncated to 120 chars).</summary>
+        /// <summary>Matched text snippet (truncated to 120 chars for display).</summary>
         public string Evidence { get; init; } = "";
         /// <summary>Character offset of the match in the original text.</summary>
         public int Offset { get; init; }
+        /// <summary>
+        /// Length of the matched span in the original text. Unlike
+        /// <see cref="Evidence"/> (which is truncated for display), this is the
+        /// full, untruncated match length, so redaction covers the entire match.
+        /// </summary>
+        public int MatchLength { get; init; }
         /// <summary>Recommended defense action.</summary>
         public string Recommendation { get; init; } = "";
     }
@@ -238,6 +244,7 @@ namespace Prompt
                         Severity = ThreatSeverity.High,
                         Evidence = StringHelpers.Truncate(text, 120),
                         Offset = 0,
+                        MatchLength = text.Length,
                         Recommendation = $"{rule.Recommendation} (regex timed out — possible ReDoS payload)"
                     });
                     continue;
@@ -262,6 +269,7 @@ namespace Prompt
                             Severity = ThreatSeverity.High,
                             Evidence = StringHelpers.Truncate(text, 120),
                             Offset = 0,
+                            MatchLength = text.Length,
                             Recommendation = $"{rule.Recommendation} (regex timed out — possible ReDoS payload)"
                         });
                         break;
@@ -275,6 +283,7 @@ namespace Prompt
                         Severity = rule.Severity,
                         Evidence = StringHelpers.Truncate(text.Substring(m.Index, Math.Min(m.Length, text.Length - m.Index)), 120),
                         Offset = m.Index,
+                        MatchLength = Math.Min(m.Length, text.Length - m.Index),
                         Recommendation = rule.Recommendation
                     });
                 }
@@ -315,10 +324,14 @@ namespace Prompt
                 return (text, report);
 
             string result = text;
-            // Process findings in reverse offset order to preserve positions
+            // Process findings in reverse offset order to preserve positions.
+            // Redact the FULL matched span (MatchLength), not Evidence.Length —
+            // Evidence is truncated to 120 chars for display, so using its
+            // length would leave the tail of any match longer than 120 chars
+            // un-redacted (an injection payload could survive sanitization).
             foreach (var f in report.Findings.OrderByDescending(x => x.Offset))
             {
-                int len = Math.Min(f.Evidence.Length, result.Length - f.Offset);
+                int len = Math.Min(f.MatchLength, result.Length - f.Offset);
                 if (len > 0 && f.Offset >= 0 && f.Offset + len <= result.Length)
                 {
                     result = result.Substring(0, f.Offset)
