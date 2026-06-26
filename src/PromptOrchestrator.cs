@@ -472,7 +472,12 @@ namespace Prompt
                             $"Node '{node.Id}' exceeded timeout of {node.Timeout.TotalSeconds}s");
 
                     string output = await outputTask;
-                    sw.Stop();
+                    // NOTE: do not Stop() the stopwatch here. It is started once before the
+                    // retry loop and must keep running across attempts so that Duration
+                    // reflects the true wall-clock from node start to the producing attempt.
+                    // Stopping (and never restarting) on the first attempt froze Elapsed, so a
+                    // node that succeeded only after one or more retries reported just the first
+                    // failed attempt's time. Reading Elapsed does not require the watch to be stopped.
 
                     // Try to extract confidence from output (pattern: [confidence:0.XX])
                     double? confidence = ExtractConfidence(output);
@@ -532,7 +537,9 @@ namespace Prompt
                 }
                 catch (Exception ex)
                 {
-                    sw.Stop();
+                    // Keep the stopwatch running across retries (see note in the success path):
+                    // the failResult below records cumulative Duration, and a subsequent retry
+                    // attempt must continue timing from the original node start, not a frozen value.
                     LogEvent(execution, node.Id, OrchestratorEventType.NodeFailed,
                         $"Node '{node.Id}' failed: {ex.Message}");
 
