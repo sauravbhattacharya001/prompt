@@ -42,6 +42,51 @@ public class PromptStreamParserTests
     }
 
     [Fact]
+    public void CodeBlockWithFencesSplitAcrossChunks()
+    {
+        // Both the opening and closing ``` fences are split mid-fence across
+        // chunk boundaries. The parser must not consume the partial backticks
+        // as text; it should wait for the rest of each fence to arrive.
+        var parser = new PromptStreamParser();
+        parser.Feed(Chunk("text `"));
+        parser.Feed(Chunk("`"));
+        parser.Feed(Chunk("`py\nx = 1\n`"));
+        parser.Feed(Chunk("`"));
+        parser.Feed(Chunk("`\nmore\n"));
+        var summary = parser.Complete();
+        Assert.Single(summary.CodeBlocks);
+        Assert.Equal("py", summary.CodeBlocks[0].Tag);
+        Assert.Equal("x = 1", summary.CodeBlocks[0].Content);
+    }
+
+    [Fact]
+    public void CodeBlockFedCharByChar()
+    {
+        // The whole fenced block arrives one character at a time, which splits
+        // every ``` fence across chunks. Regression for partial-fence handling.
+        var text = "```rust\nfn main() {}\n```\n";
+        var parser = new PromptStreamParser();
+        foreach (var c in text)
+            parser.Feed(Chunk(c.ToString()));
+        var summary = parser.Complete();
+        Assert.Single(summary.CodeBlocks);
+        Assert.Equal("rust", summary.CodeBlocks[0].Tag);
+        Assert.Equal("fn main() {}", summary.CodeBlocks[0].Content);
+    }
+
+    [Fact]
+    public void TrailingLoneBacktickBecomesText()
+    {
+        // A single backtick that never becomes a fence must not stall the
+        // parser forever; on completion it is surfaced as plain text.
+        var parser = new PromptStreamParser();
+        parser.Feed(Chunk("hello `"));
+        var summary = parser.Complete();
+        Assert.Empty(summary.CodeBlocks);
+        Assert.Contains(summary.Items, i => i.Type == StreamContentType.Text && i.Content.Contains("hello"));
+    }
+
+    [Fact]
     public void CodeBlockNoLanguage()
     {
         var parser = new PromptStreamParser();

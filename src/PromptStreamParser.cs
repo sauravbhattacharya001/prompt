@@ -281,21 +281,42 @@ namespace Prompt
 
             while (i < text.Length)
             {
+                // A run of backticks at the very end of the buffer may be the
+                // leading edge of a ``` fence that has not fully arrived yet
+                // (e.g. char-by-char streaming). Without enough characters to
+                // decide, stop and wait for the next chunk instead of consuming
+                // the backticks as text — otherwise a fence split across chunk
+                // boundaries is silently dropped. Applies to both the opening
+                // fence and the in-code-block closing fence.
+                if (text[i] == '`'
+                    && (_inCodeBlock
+                        ? IsTypeEnabled(StreamContentType.CodeBlock)
+                        : IsTypeEnabled(StreamContentType.CodeBlock) && _jsonStart == -1)
+                    && IsPotentialPartialFence(text, i))
+                {
+                    _processedUpTo = i;
+                    return;
+                }
+
                 // Code block detection
                 if (IsTypeEnabled(StreamContentType.CodeBlock) && !_inCodeBlock && i + 2 < text.Length
                     && text[i] == '`' && text[i + 1] == '`' && text[i + 2] == '`')
                 {
-                    FlushListIfActive(i);
-                    FlushTableIfActive(i);
-                    _inCodeBlock = true;
-                    _codeBlockStart = i;
-                    _codeBlockContent.Clear();
+                    // The info line ends at the next newline. If it has not arrived
+                    // yet, wait WITHOUT mutating state — otherwise a complete opening
+                    // fence whose trailing newline lands in a later chunk would leave
+                    // _inCodeBlock set and be misread as a closing fence on re-entry.
                     var langEnd = text.IndexOf('\n', i + 3);
                     if (langEnd == -1)
                     {
                         _processedUpTo = i;
                         return;
                     }
+                    FlushListIfActive(i);
+                    FlushTableIfActive(i);
+                    _inCodeBlock = true;
+                    _codeBlockStart = i;
+                    _codeBlockContent.Clear();
                     _codeBlockLang = text.Substring(i + 3, langEnd - (i + 3)).Trim();
                     if (_codeBlockLang == "") _codeBlockLang = null;
                     i = langEnd + 1;
@@ -527,6 +548,30 @@ namespace Prompt
             }
 
             _processedUpTo = i;
+        }
+
+        /// <summary>
+        /// Returns true when the buffer, starting at <paramref name="pos"/>, holds a
+        /// run of backticks that reaches the end of the buffer without yet forming a
+        /// complete ``` fence (fewer than three backticks available). Such a run is an
+        /// incomplete fence that may continue in the next chunk, so processing must
+        /// pause rather than consume the partial backticks. A run already containing a
+        /// non-backtick (so it can never be a fence) or three-or-more backticks (a
+        /// complete fence) returns false and is processed normally.
+        /// </summary>
+        private static bool IsPotentialPartialFence(string text, int pos)
+        {
+            int backticks = 0;
+            for (int j = pos; j < text.Length; j++)
+            {
+                if (text[j] != '`')
+                    return false; // non-backtick reached: enough info, not a partial fence
+                backticks++;
+                if (backticks >= 3)
+                    return false; // a full fence is present: process it now
+            }
+            // Reached end of buffer with 1-2 backticks: could still grow into a fence.
+            return backticks > 0;
         }
 
         private static bool IsListItem(string line)
