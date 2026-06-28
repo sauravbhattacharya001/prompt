@@ -320,11 +320,19 @@ namespace Prompt
                 var inputCost = model.InputCost(inputTokens);
                 var outputCost = model.OutputCost(cappedOutput);
 
+                // A model can simultaneously be tight on context AND have its
+                // output capped; these are independent conditions. Collect both
+                // so the second message does not silently clobber the first
+                // (which previously hid the "context above 80%" signal whenever
+                // the output was also capped).
                 string? warning = null;
+                var warnings = new List<string>(2);
                 if (!exceedsContext && contextUsage > 80)
-                    warning = "Context window usage above 80%";
+                    warnings.Add("Context window usage above 80%");
                 if (estimatedOutputTokens > model.MaxOutputTokens)
-                    warning = $"Output capped to model max ({model.MaxOutputTokens})";
+                    warnings.Add($"Output capped to model max ({model.MaxOutputTokens})");
+                if (warnings.Count > 0)
+                    warning = string.Join("; ", warnings);
 
                 estimates.Add(new CostEstimate(
                     Model: model,

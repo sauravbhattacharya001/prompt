@@ -402,6 +402,42 @@ public class PromptCostEstimatorTests
         Assert.Contains("capped", limited.Warning);
     }
 
+    [Fact]
+    public void Estimate_TightContext_EmitsContextWarning()
+    {
+        var est = new PromptCostEstimator();
+        // Small context, generous output cap: only the context-tightness
+        // condition fires (output is not capped).
+        est.AddModel(new ModelPricing("tight", "Co", "Tight", 1m, 2m, 10_000, 10_000));
+        var report = est.Estimate("Hello", 9_000);
+        var tight = report.Estimates.First(e => e.Model.ModelId == "tight");
+        Assert.False(tight.ExceedsContext);
+        Assert.True(tight.ContextUsagePercent > 80);
+        Assert.NotNull(tight.Warning);
+        Assert.Contains("Context window usage above 80%", tight.Warning);
+    }
+
+    [Fact]
+    public void Estimate_TightContextAndCappedOutput_KeepsBothWarnings()
+    {
+        // Regression: a model can be BOTH tight on context (>80%) and have its
+        // output capped. The two warnings are independent; the capped-output
+        // message must not silently clobber the context-tightness message.
+        // Context=10_000 with ~9_000 requested output => ~90% usage (tight, not
+        // exceeding); MaxOutputTokens=100 => output capped. Both must surface.
+        var est = new PromptCostEstimator();
+        est.AddModel(new ModelPricing("both", "Co", "Both", 1m, 2m, 10_000, 100));
+        var report = est.Estimate("Hello", 9_000);
+        var both = report.Estimates.First(e => e.Model.ModelId == "both");
+
+        Assert.False(both.ExceedsContext);
+        Assert.True(both.ContextUsagePercent > 80);
+        Assert.Equal(100, both.EstimatedOutputTokens);
+        Assert.NotNull(both.Warning);
+        Assert.Contains("Context window usage above 80%", both.Warning);
+        Assert.Contains("capped", both.Warning);
+    }
+
     // ── EstimateFromTokens ──
 
     [Fact]
