@@ -3,7 +3,6 @@ namespace Prompt
     using System;
     using System.Buffers;
     using System.Collections.Generic;
-    using System.Linq;
 
     /// <summary>
     /// Shared string utility methods used across multiple prompt classes.
@@ -145,80 +144,6 @@ namespace Prompt
             }
             int union = a.Count + b.Count - intersection;
             return union > 0 ? (double)intersection / union : 0.0;
-        }
-
-        /// <summary>
-        /// RFC 4180-compliant CSV field escape. Wraps the value in double quotes
-        /// and doubles any embedded quotes when it contains any of the special
-        /// characters: comma, double quote, line feed (\n), or carriage return
-        /// (\r). The previous implementation overlooked \r, which corrupts
-        /// records exported on Windows where user-supplied text often contains
-        /// \r\n line endings (the bare CR would terminate the record early in
-        /// strict parsers).
-        /// </summary>
-        internal static string CsvEscape(string value)
-        {
-            if (string.IsNullOrEmpty(value)) return string.Empty;
-            if (value.IndexOfAny(CsvSpecialChars) >= 0)
-                return "\"" + value.Replace("\"", "\"\"") + "\"";
-            return value;
-        }
-
-        private static readonly char[] CsvSpecialChars = { ',', '"', '\n', '\r' };
-
-        /// <summary>
-        /// Counts non-overlapping occurrences of a pattern in text.
-        /// </summary>
-        internal static int CountOccurrences(string text, string pattern)
-        {
-            if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(pattern))
-                return 0;
-            int count = 0, index = 0;
-            while ((index = text.IndexOf(pattern, index, StringComparison.Ordinal)) != -1)
-            {
-                count++;
-                index += pattern.Length;
-            }
-            return count;
-        }
-
-        /// <summary>
-        /// Basic HTML encoding for &amp;, &lt;, &gt;, and &quot;.
-        /// </summary>
-        internal static string HtmlEncode(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return string.Empty;
-            return text
-                .Replace("&", "&amp;")
-                .Replace("<", "&lt;")
-                .Replace(">", "&gt;")
-                .Replace("\"", "&quot;");
-        }
-
-        /// <summary>
-        /// Standard deviation of a list of doubles.
-        /// </summary>
-        internal static double StdDev(List<double> values)
-        {
-            if (values.Count < 2) return 0.0;
-            double avg = values.Average();
-            double sumSq = values.Sum(v => (v - avg) * (v - avg));
-            return Math.Sqrt(sumSq / (values.Count - 1));
-        }
-
-        /// <summary>
-        /// Computes a percentile value from a sorted array.
-        /// </summary>
-        internal static double Percentile(double[] values, double percentile)
-        {
-            if (values.Length == 0) return 0.0;
-            Array.Sort(values);
-            double index = (percentile / 100.0) * (values.Length - 1);
-            int lower = (int)Math.Floor(index);
-            int upper = (int)Math.Ceiling(index);
-            if (lower == upper) return values[lower];
-            double frac = index - lower;
-            return values[lower] * (1.0 - frac) + values[upper] * frac;
         }
 
         /// <summary>
