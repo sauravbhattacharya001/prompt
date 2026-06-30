@@ -214,8 +214,14 @@ namespace Prompt
             }
 
             var findings = new List<ThreatFinding>();
-            var lower = text.ToLowerInvariant();
 
+            // Match against the ORIGINAL text. Every rule is compiled with
+            // RegexOptions.IgnoreCase | CultureInvariant, so case-insensitive
+            // matching needs no manual lowercasing — and crucially, matching the
+            // original text keeps Match.Index/Length aligned to it. Lower-casing
+            // first could shift offsets (e.g. under InvariantGlobalization, 'İ'
+            // expands to two chars), corrupting Evidence/Offset and causing
+            // ScanAndSanitize to redact the wrong span.
             foreach (var rule in _rules)
             {
                 if (findings.Count >= _config.MaxFindings) break;
@@ -229,7 +235,7 @@ namespace Prompt
                 MatchCollection matches;
                 try
                 {
-                    matches = rule.Pattern.Matches(lower);
+                    matches = rule.Pattern.Matches(text);
                 }
                 catch (RegexMatchTimeoutException)
                 {
@@ -371,7 +377,11 @@ namespace Prompt
 
         private List<SentinelRule> BuildRules()
         {
-            var opts = RegexOptions.IgnoreCase | RegexOptions.Compiled;
+            // CultureInvariant ensures case folding is culture-independent so
+            // detection never depends on the host CurrentCulture (e.g. the
+            // Turkish dotted/dotless-I rules would otherwise make "IGNORE" fail
+            // to match the lowercase pattern under tr-TR).
+            var opts = RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant;
             var rules = new List<SentinelRule>
             {
                 // ── Instruction Override ──
