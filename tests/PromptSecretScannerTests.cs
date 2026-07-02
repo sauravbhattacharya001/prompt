@@ -418,4 +418,27 @@ public class PromptSecretScannerTests
         var result = scanner.Scan("ref 123 45 6789 only");
         Assert.DoesNotContain(result.Findings, f => f.Rule.Id == "credit-card");
     }
+
+    // Detection is culture-independent (Turkish dotless-I hazard).
+    [Fact]
+    public void Scan_UppercaseApiKey_DetectedUnderTurkishCulture()
+    {
+        // The api-key rule matches case-insensitively. Under tr-TR, uppercase 'I'
+        // does not fold to 'i', so "API_KEY = ..." would be missed unless the rule
+        // is compiled CultureInvariant.
+        var prior = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture =
+                new System.Globalization.CultureInfo("tr-TR");
+            var scanner = new PromptSecretScanner();
+            var result = scanner.Scan("API_KEY = 1234567890ABCDEFGH");
+            Assert.True(result.HasSecrets);
+            Assert.Contains(result.Findings, f => f.Rule.Id == "generic-api-key");
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = prior;
+        }
+    }
 }

@@ -32,7 +32,13 @@ namespace Prompt
             Name = name ?? throw new ArgumentNullException(nameof(name));
             Category = category;
             Severity = severity;
-            Pattern = new Regex(pattern, RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
+            // CultureInvariant keeps IgnoreCase folding ASCII case identically across
+            // thread cultures. Under tr-TR the culture-specific dotless-I rule means an
+            // uppercase 'I' in a payload (e.g. "AKIA..." prefixes, "BEARER") would not
+            // fold to 'i', so a case-insensitive secret rule could miss under that locale.
+            Pattern = new Regex(pattern,
+                RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                TimeSpan.FromMilliseconds(500));
             Description = description ?? "";
         }
     }

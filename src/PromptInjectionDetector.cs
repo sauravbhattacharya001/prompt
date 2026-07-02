@@ -50,7 +50,12 @@ namespace Prompt
             Name = name ?? throw new ArgumentNullException(nameof(name));
             Category = category;
             Risk = risk;
-            Pattern = new Regex(pattern, RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline,
+            // CultureInvariant so IgnoreCase folds ASCII case the same under every
+            // thread culture. Without it, under tr-TR the dotless-I rule means an
+            // uppercase 'I' in a payload (e.g. "IGNORE PREVIOUS") does not fold to
+            // 'i', letting injection phrases slip past these rules.
+            Pattern = new Regex(pattern,
+                RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Multiline,
                 TimeSpan.FromMilliseconds(500));
             Description = description ?? "";
         }

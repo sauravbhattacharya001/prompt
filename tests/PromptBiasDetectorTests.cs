@@ -275,5 +275,28 @@ namespace Prompt.Tests
             clean.Findings.Add(new BiasFinding { Category = BiasCategory.Gender });
             Assert.False(clean.IsClean);
         }
+
+        // Detection is culture-independent (Turkish dotless-I hazard).
+        [Fact]
+        public void Analyze_UppercaseGenderedTerm_DetectedUnderTurkishCulture()
+        {
+            // Bias rules match case-insensitively. Under tr-TR, uppercase 'I' does
+            // not fold to 'i', so "BUSINESSMAN" would be missed unless the rules are
+            // compiled CultureInvariant.
+            var prior = System.Globalization.CultureInfo.CurrentCulture;
+            try
+            {
+                System.Globalization.CultureInfo.CurrentCulture =
+                    new System.Globalization.CultureInfo("tr-TR");
+                var detector = new PromptBiasDetector();
+                var report = detector.Analyze("Ask the BUSINESSMAN to explain his strategy");
+                Assert.False(report.IsClean);
+                Assert.Contains(report.Findings, f => f.Category == BiasCategory.Gender);
+            }
+            finally
+            {
+                System.Globalization.CultureInfo.CurrentCulture = prior;
+            }
+        }
     }
 }

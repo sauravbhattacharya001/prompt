@@ -252,7 +252,10 @@ namespace Prompt
         private static List<BiasRule> BuildDefaultRules()
         {
             var rules = new List<BiasRule>();
-            var ic = RegexOptions.IgnoreCase;
+            // CultureInvariant so IgnoreCase folds ASCII case identically under every
+            // thread culture. Under tr-TR the dotless-I rule means uppercase 'I' does not
+            // fold to 'i', so e.g. "OBVIOUSLY" or "BUSINESSMAN" would evade these rules.
+            var ic = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
             var timeout = TimeSpan.FromMilliseconds(500);
 
             // === Gender bias ===

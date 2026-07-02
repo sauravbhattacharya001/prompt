@@ -109,21 +109,29 @@ namespace Prompt
             RegexOptions.Compiled,
             TimeSpan.FromMilliseconds(500));
 
+        // IgnoreCase alone folds case using the current thread culture. Under tr-TR
+        // the culture-specific dotless-I rule means an uppercase 'I' in a payload does
+        // not fold to 'i', so a phrase like "IGNORE PREVIOUS INSTRUCTIONS" could evade
+        // these ASCII rules. CultureInvariant pins the folding so detection is locale-
+        // independent. Shared here so every injection rule stays consistent.
+        private const RegexOptions IcOpts =
+            RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant;
+
         private static readonly (string Label, Regex Pattern)[] InjectionPatterns = new[]
         {
-            ("ignore_previous", new Regex(@"ignore\s+(?:all\s+)?previous\s+instructions", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
-            ("forget_instructions", new Regex(@"forget\s+(?:all\s+)?(?:your\s+)?instructions", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
-            ("disregard_above", new Regex(@"disregard\s+(?:the\s+)?above", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
-            ("jailbreak", new Regex(@"(?:enable\s+)?jailbreak\s+mode", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
-            ("new_instructions", new Regex(@"(?:new|my)\s+instructions\s*:", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
-            ("developer_mode", new Regex(@"developer\s+mode\s+enabled", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
-            ("you_are_now", new Regex(@"you\s+are\s+now\s+a\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
-            ("system_prompt_override", new Regex(@"system\s+prompt\s+override", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
-            ("override_instructions", new Regex(@"override\s+(?:your\s+)?instructions", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
-            ("act_as", new Regex(@"(?:act|behave)\s+as\s+(?:if\s+)?(?:you\s+(?:are|were)\s+)?(?:a\s+)?", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
-            ("pretend_you_are", new Regex(@"pretend\s+(?:that\s+)?you\s*(?:are|'re)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
-            ("do_anything_now", new Regex(@"(?:do\s+anything\s+now|D\.?A\.?N\.?\s+mode)", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
-            ("ignore_safety", new Regex(@"ignore\s+(?:all\s+)?(?:safety|ethical|content)\s+(?:guidelines|filters|rules|policies)", RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            ("ignore_previous", new Regex(@"ignore\s+(?:all\s+)?previous\s+instructions", IcOpts, TimeSpan.FromMilliseconds(500))),
+            ("forget_instructions", new Regex(@"forget\s+(?:all\s+)?(?:your\s+)?instructions", IcOpts, TimeSpan.FromMilliseconds(500))),
+            ("disregard_above", new Regex(@"disregard\s+(?:the\s+)?above", IcOpts, TimeSpan.FromMilliseconds(500))),
+            ("jailbreak", new Regex(@"(?:enable\s+)?jailbreak\s+mode", IcOpts, TimeSpan.FromMilliseconds(500))),
+            ("new_instructions", new Regex(@"(?:new|my)\s+instructions\s*:", IcOpts, TimeSpan.FromMilliseconds(500))),
+            ("developer_mode", new Regex(@"developer\s+mode\s+enabled", IcOpts, TimeSpan.FromMilliseconds(500))),
+            ("you_are_now", new Regex(@"you\s+are\s+now\s+a\b", IcOpts, TimeSpan.FromMilliseconds(500))),
+            ("system_prompt_override", new Regex(@"system\s+prompt\s+override", IcOpts, TimeSpan.FromMilliseconds(500))),
+            ("override_instructions", new Regex(@"override\s+(?:your\s+)?instructions", IcOpts, TimeSpan.FromMilliseconds(500))),
+            ("act_as", new Regex(@"(?:act|behave)\s+as\s+(?:if\s+)?(?:you\s+(?:are|were)\s+)?(?:a\s+)?", IcOpts, TimeSpan.FromMilliseconds(500))),
+            ("pretend_you_are", new Regex(@"pretend\s+(?:that\s+)?you\s*(?:are|'re)\b", IcOpts, TimeSpan.FromMilliseconds(500))),
+            ("do_anything_now", new Regex(@"(?:do\s+anything\s+now|D\.?A\.?N\.?\s+mode)", IcOpts, TimeSpan.FromMilliseconds(500))),
+            ("ignore_safety", new Regex(@"ignore\s+(?:all\s+)?(?:safety|ethical|content)\s+(?:guidelines|filters|rules|policies)", IcOpts, TimeSpan.FromMilliseconds(500))),
         };
 
         private static readonly (string Type, Regex Pattern)[] PiiPatterns = new[]
