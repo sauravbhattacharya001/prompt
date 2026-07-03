@@ -211,8 +211,12 @@ namespace Prompt
                     var successRate = circuit.HalfOpenProbes.Count(p => p) / (double)circuit.HalfOpenProbes.Count;
                     if (successRate >= _config.HalfOpenSuccessThreshold)
                     {
-                        // Recovery succeeded — close circuit
+                        // Recovery succeeded — close circuit. Reset the streak so a
+                        // recovered circuit starts clean (matches ForceReset and keeps
+                        // ComputeHealthScore from penalizing a Closed circuit for a
+                        // consecutive-failure streak that ended when recovery passed).
                         circuit.State = CBCircuitState.Closed;
+                        circuit.ConsecutiveFailures = 0;
                         circuit.HalfOpenProbes.Clear();
                         circuit.HalfOpenStartTime = null;
                     }

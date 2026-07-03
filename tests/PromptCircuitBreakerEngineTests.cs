@@ -272,6 +272,74 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void HalfOpen_RecoveryWithTrailingFailure_ResetsConsecutiveFailures()
+        {
+            // Legal non-default config where the probe that tips the circuit back to
+            // Closed is a FAILURE: 4 probes, success threshold 50%.
+            var engine = new PromptCircuitBreakerEngine(new CircuitBreakerConfig
+            {
+                ConsecutiveFailureLimit = 3,
+                CooldownSeconds = 0,
+                HalfOpenMaxProbes = 4,
+                HalfOpenSuccessThreshold = 0.5
+            });
+            engine.RecordOutcome(MakeOutcome("p1", false));
+            engine.RecordOutcome(MakeOutcome("p1", false));
+            engine.RecordOutcome(MakeOutcome("p1", false));
+            engine.CanExecute("p1"); // -> HalfOpen
+
+            // 3 successes then 1 failure: 75% success >= 50% threshold -> closes,
+            // but the closing (4th) probe leaves a non-zero streak on the old code.
+            engine.RecordOutcome(MakeOutcome("p1", true));
+            engine.RecordOutcome(MakeOutcome("p1", true));
+            engine.RecordOutcome(MakeOutcome("p1", true));
+            engine.RecordOutcome(MakeOutcome("p1", false));
+
+            var snap = engine.GetSnapshot("p1");
+            Assert.Equal(CBCircuitState.Closed, snap.State);
+            // Recovered circuit must not carry a stale consecutive-failure streak,
+            // which would otherwise corrupt its health score (streak * 4 penalty).
+            Assert.Equal(0, snap.ConsecutiveFailures);
+        }
+
+        [Fact]
+        public void HalfOpen_RecoverySucceeds_HealthScoreNotPenalizedByStaleStreak()
+        {
+            // A recovered circuit whose post-recovery window is all-success should
+            // report the same health as a circuit that never tripped. Before the fix,
+            // a stale ConsecutiveFailures streak silently subtracted from the score.
+            var config = new CircuitBreakerConfig
+            {
+                ConsecutiveFailureLimit = 3,
+                CooldownSeconds = 0,
+                HalfOpenMaxProbes = 4,
+                HalfOpenSuccessThreshold = 0.5,
+                WindowSize = 20,
+                MinCallsBeforeTrip = 100 // don't re-trip on rate while we drive traffic
+            };
+            var engine = new PromptCircuitBreakerEngine(config);
+
+            engine.RecordOutcome(MakeOutcome("p1", false));
+            engine.RecordOutcome(MakeOutcome("p1", false));
+            engine.RecordOutcome(MakeOutcome("p1", false));
+            engine.CanExecute("p1"); // -> HalfOpen
+            engine.RecordOutcome(MakeOutcome("p1", true));
+            engine.RecordOutcome(MakeOutcome("p1", true));
+            engine.RecordOutcome(MakeOutcome("p1", true));
+            engine.RecordOutcome(MakeOutcome("p1", false)); // 75% >= 50% -> Closed
+
+            // Drive enough clean successes to flush the window of any failures.
+            for (int i = 0; i < config.WindowSize; i++)
+                engine.RecordOutcome(MakeOutcome("p1", true));
+
+            var snap = engine.GetSnapshot("p1");
+            Assert.Equal(CBCircuitState.Closed, snap.State);
+            Assert.Equal(0.0, snap.FailureRate);
+            Assert.Equal(0, snap.ConsecutiveFailures);
+            Assert.Equal(100.0, snap.HealthScore);
+        }
+
+        [Fact]
         public void HalfOpen_RecoveryFails_ReopensCircuit()
         {
             var engine = new PromptCircuitBreakerEngine(new CircuitBreakerConfig
