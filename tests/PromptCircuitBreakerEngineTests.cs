@@ -649,6 +649,42 @@ namespace Prompt.Tests
             Assert.Equal(0.2, snap.FailureRate);
         }
 
+        [Fact]
+        public void GetSnapshot_UnknownPrompt_DoesNotRegisterCircuit()
+        {
+            // A pure read must not create a phantom circuit. Before the fix,
+            // GetSnapshot called GetOrCreate, so merely inspecting an unseen
+            // prompt inflated the fleet's TotalCircuits count.
+            var snap = _engine.GetSnapshot("never-recorded");
+            Assert.Equal(CBCircuitState.Closed, snap.State);
+            Assert.Equal(100.0, snap.HealthScore);
+            Assert.Equal(0, snap.TotalCalls);
+
+            Assert.Equal(0, _engine.GetFleetHealth().TotalCircuits);
+            Assert.Equal(0, _engine.GetCallCount("never-recorded"));
+        }
+
+        [Fact]
+        public void GetHealthTier_UnknownPrompt_DoesNotRegisterCircuit()
+        {
+            var tier = _engine.GetHealthTier("never-recorded");
+            Assert.Equal(CircuitHealthTier.Pristine, tier); // health 100 -> Pristine
+            Assert.Equal(0, _engine.GetFleetHealth().TotalCircuits);
+        }
+
+        [Fact]
+        public void GetSnapshot_KnownPrompt_ReflectsLiveStateAfterRead()
+        {
+            // Reads stay read-only, but must still observe the real circuit once it exists.
+            RecordFailures("p1", 5); // trips
+            var first = _engine.GetSnapshot("p1");
+            var second = _engine.GetSnapshot("p1");
+            Assert.Equal(CBCircuitState.Open, first.State);
+            Assert.Equal(CBCircuitState.Open, second.State);
+            // The recorded prompt is the only circuit; reads didn't add phantoms.
+            Assert.Equal(1, _engine.GetFleetHealth().TotalCircuits);
+        }
+
         // ─── Dashboard ───────────────────────────────
 
         [Fact]

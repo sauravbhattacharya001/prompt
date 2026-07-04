@@ -281,13 +281,17 @@ namespace Prompt
         }
 
         /// <summary>Get a snapshot of a prompt's circuit state.</summary>
+        /// <remarks>
+        /// Read-only: querying an unknown prompt returns a default (Closed, health 100)
+        /// snapshot without registering a circuit, so a snapshot read never inflates
+        /// <see cref="FleetHealthReport.TotalCircuits"/>.
+        /// </remarks>
         public CircuitSnapshot GetSnapshot(string promptId)
         {
             if (string.IsNullOrWhiteSpace(promptId))
                 throw new ArgumentException("PromptId cannot be empty.", nameof(promptId));
 
-            var circuit = GetOrCreate(promptId);
-            return BuildSnapshot(circuit);
+            return BuildSnapshot(GetForRead(promptId));
         }
 
         /// <summary>Get fleet-wide health report.</summary>
@@ -413,7 +417,7 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(promptId))
                 throw new ArgumentException("PromptId cannot be empty.", nameof(promptId));
 
-            var circuit = GetOrCreate(promptId);
+            var circuit = GetForRead(promptId);
             if (circuit.State == CBCircuitState.Open) return CircuitHealthTier.Tripped;
 
             var score = ComputeHealthScore(circuit);
@@ -530,6 +534,17 @@ namespace Prompt
             if (!_circuits.ContainsKey(promptId))
                 _circuits[promptId] = new CircuitData { PromptId = promptId };
             return _circuits[promptId];
+        }
+
+        // Read-only lookup for query paths (GetSnapshot/GetHealthTier): returns the
+        // live circuit if it exists, otherwise a transient default that is NOT stored.
+        // This keeps reads side-effect-free so merely inspecting an unknown prompt does
+        // not create a phantom circuit and skew fleet counts/health.
+        private CircuitData GetForRead(string promptId)
+        {
+            return _circuits.TryGetValue(promptId, out var circuit)
+                ? circuit
+                : new CircuitData { PromptId = promptId };
         }
 
         private void TrimWindow(CircuitData circuit)
