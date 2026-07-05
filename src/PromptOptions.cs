@@ -12,7 +12,7 @@ namespace Prompt
     /// <para>
     /// Default values match the library's existing behavior for backward
     /// compatibility. Pass an instance to <see cref="Main.GetResponseAsync"/>,
-    /// <see cref="PromptTemplate.RenderAndSendAsync"/>, or
+    /// <see cref="PromptTemplate.RenderAndSendAsync(System.Collections.Generic.Dictionary{string, string}, string, int, PromptOptions, System.Threading.CancellationToken)"/>, or
     /// <see cref="PromptChain"/> to override any parameter.
     /// </para>
     /// <para>

@@ -164,7 +164,7 @@ namespace Prompt
 
     /// <summary>
     /// Specifies an output format for prompt wrapping via
-    /// <see cref="PromptGuard.WrapWithFormat"/>.
+    /// <see cref="PromptGuard.WrapWithFormat(string, OutputFormat)"/>.
     /// </summary>
     public enum OutputFormat
     {
