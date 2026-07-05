@@ -625,6 +625,20 @@ namespace Prompt
             return Math.Round(Math.Clamp(score, 0, 100), 1);
         }
 
+        // Health score as reported to callers/snapshots. An Open circuit is, by
+        // definition, blocking all traffic to protect downstream systems, so it must
+        // report an unambiguous alarming score (0) rather than the raw window score.
+        // Without this, a circuit tripped while its window happened to look clean
+        // (e.g. ForceTrip on an all-success window, or a consecutive-failure trip whose
+        // failures then slid out of the window) would surface a non-alarming health
+        // number that contradicts GetHealthTier (which already reports Tripped for Open)
+        // and would silently inflate FleetHealthReport.OverallHealthScore and let a
+        // tripped circuit render green on the dashboard.
+        private double ReportedHealthScore(CircuitData circuit)
+        {
+            return circuit.State == CBCircuitState.Open ? 0.0 : ComputeHealthScore(circuit);
+        }
+
         private CircuitSnapshot BuildSnapshot(CircuitData circuit)
         {
             var failureRate = circuit.Window.Count > 0
@@ -638,7 +652,7 @@ namespace Prompt
             {
                 PromptId = circuit.PromptId,
                 State = circuit.State,
-                HealthScore = ComputeHealthScore(circuit),
+                HealthScore = ReportedHealthScore(circuit),
                 FailureRate = Math.Round(failureRate, 3),
                 AvgLatencyMs = Math.Round(avgLatency, 1),
                 ConsecutiveFailures = circuit.ConsecutiveFailures,

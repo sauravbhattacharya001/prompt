@@ -508,6 +508,66 @@ namespace Prompt.Tests
             Assert.Throws<ArgumentException>(() => _engine.GetHealthTier(""));
         }
 
+        // ─── Open circuit reports an alarming snapshot health score ───
+
+        [Fact]
+        public void Snapshot_OpenCircuit_ReportsZeroHealth()
+        {
+            // A consecutive-failure trip. The snapshot health must be an unambiguous
+            // alarm (0), consistent with GetHealthTier reporting Tripped for Open —
+            // not the raw window score.
+            RecordFailures("p1", 5); // trips on consecutive failures
+            var snap = _engine.GetSnapshot("p1");
+            Assert.Equal(CBCircuitState.Open, snap.State);
+            Assert.Equal(0.0, snap.HealthScore);
+            Assert.Equal(CircuitHealthTier.Tripped, _engine.GetHealthTier("p1"));
+        }
+
+        [Fact]
+        public void Snapshot_ForceTripOnCleanWindow_ReportsZeroHealth()
+        {
+            // The sharp case: force-trip a circuit whose window is all-success. The raw
+            // ComputeHealthScore would be 100, which would misleadingly paint a
+            // killed circuit as perfectly healthy. Open must floor it to 0.
+            RecordSuccesses("p1", 5); // window is 100% healthy
+            _engine.ForceTrip("p1", "Emergency shutdown");
+            var snap = _engine.GetSnapshot("p1");
+            Assert.Equal(CBCircuitState.Open, snap.State);
+            Assert.Equal(0.0, snap.HealthScore);
+        }
+
+        [Fact]
+        public void Snapshot_ForceReset_RestoresRawHealth()
+        {
+            // The Open-state floor is not sticky: once the circuit is reset to Closed
+            // the snapshot returns to the raw computed score (here a clean window -> 100).
+            RecordSuccesses("p1", 5);
+            _engine.ForceTrip("p1");
+            Assert.Equal(0.0, _engine.GetSnapshot("p1").HealthScore);
+            _engine.ForceReset("p1");
+            var snap = _engine.GetSnapshot("p1");
+            Assert.Equal(CBCircuitState.Closed, snap.State);
+            Assert.Equal(100.0, snap.HealthScore);
+        }
+
+        [Fact]
+        public void FleetHealth_OpenCircuitDragsDownOverallHealth()
+        {
+            // One healthy Closed circuit (100) plus one force-tripped circuit whose
+            // window is clean. Before the fix the tripped circuit averaged in at 100,
+            // hiding the outage; now it contributes 0, so the fleet average is 50 and
+            // the tripped circuit sorts to the front of MostFragile.
+            RecordSuccesses("healthy", 10);
+            RecordSuccesses("killed", 10);
+            _engine.ForceTrip("killed", "manual kill");
+            var report = _engine.GetFleetHealth();
+            Assert.Equal(2, report.TotalCircuits);
+            Assert.Equal(1, report.OpenCount);
+            Assert.Equal(50.0, report.OverallHealthScore);
+            Assert.Equal("killed", report.MostFragile[0].PromptId);
+            Assert.Equal(0.0, report.MostFragile[0].HealthScore);
+        }
+
         // ─── Trip History ─────────────────────────────
 
         [Fact]
