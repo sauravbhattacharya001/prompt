@@ -329,6 +329,33 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void DefaultToolCallParser_ParsesMarkdownFencedWrapperObject()
+        {
+            // Regression: a {"tool_calls": [...]} wrapper wrapped in a ```json fence
+            // was silently dropped because the fence extractor only captured arrays,
+            // leaving the fence markers on an object body so both the '{' and '['
+            // branches fell through and zero tool calls were parsed.
+            var md = "Sure, calling now.\n```json\n{\"tool_calls\": [{\"name\": \"calculate\", \"arguments\": \"{\\\"expression\\\": \\\"2+2\\\"}\"}]}\n```";
+            var calls = PromptToolAgent.DefaultToolCallParser(md);
+            Assert.Single(calls);
+            Assert.Equal("calculate", calls[0].Name);
+            Assert.Contains("2+2", calls[0].Arguments);
+        }
+
+        [Fact]
+        public void DefaultToolCallParser_ParsesMarkdownFencedOpenAIFunctionFormat()
+        {
+            // Canonical OpenAI tool-call shape (nested "function" with stringified
+            // arguments) inside a ```json fence must round-trip name + arguments.
+            var md = "```json\n[{\"id\": \"call_1\", \"type\": \"function\", \"function\": {\"name\": \"get_weather\", \"arguments\": \"{\\\"city\\\": \\\"NYC\\\"}\"}}]\n```";
+            var calls = PromptToolAgent.DefaultToolCallParser(md);
+            Assert.Single(calls);
+            Assert.Equal("get_weather", calls[0].Name);
+            Assert.Equal("call_1", calls[0].Id);
+            Assert.Contains("NYC", calls[0].Arguments);
+        }
+
+        [Fact]
         public void DefaultToolCallParser_NoToolCalls_ReturnsEmpty()
         {
             var calls = PromptToolAgent.DefaultToolCallParser("Just a regular response with no tools.");

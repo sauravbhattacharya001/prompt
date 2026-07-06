@@ -445,9 +445,14 @@ namespace Prompt
             // Try parsing as direct JSON array of tool calls
             try
             {
-                // Look for ```json blocks first
+                // Look for ```json blocks first. Capture either an object or an
+                // array inside the fence: models emit both a bare array
+                // (```json [ ... ] ```) and the {"tool_calls": [ ... ]} wrapper
+                // (```json { ... } ```). Matching arrays only silently dropped the
+                // fenced-wrapper form, because the leftover fence markers made the
+                // downstream '{'/'[' checks below both fail.
                 var jsonMatch = System.Text.RegularExpressions.Regex.Match(
-                    modelResponse, @"```(?:json)?\s*(\[[\s\S]*?\])\s*```");
+                    modelResponse, @"```(?:json)?\s*(\{[\s\S]*?\}|\[[\s\S]*?\])\s*```");
 
                 string jsonText = jsonMatch.Success ? jsonMatch.Groups[1].Value : modelResponse;
 
