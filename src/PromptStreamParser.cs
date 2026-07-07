@@ -586,8 +586,17 @@ namespace Prompt
         {
             if (pos + 1 >= text.Length) return false;
             var next = text[pos + 1];
+            // The character after '[' must be able to open a JSON value so that a real
+            // array is told apart from prose/markdown brackets. Per the JSON grammar a
+            // value can begin with a string ('"'), object ('{'), array ('['), the
+            // literals true/false/null ('t'/'f'/'n'), or a number. A number may lead
+            // with a digit OR a minus sign, so '-' must be accepted too — otherwise a
+            // valid array of negative numbers (e.g. [-1, -2, -3]) is silently treated
+            // as plain text and never extracted. Non-JSON candidates that slip through
+            // are still discarded by the JsonSerializer parse gate when ParseJson=true.
             return next == '"' || next == '{' || next == '[' || next == '\n' || next == '\r'
-                || next == ' ' || next == '\t' || char.IsDigit(next) || next == 't' || next == 'f' || next == 'n';
+                || next == ' ' || next == '\t' || char.IsDigit(next) || next == '-'
+                || next == 't' || next == 'f' || next == 'n';
         }
 
         private void FlushListIfActive(int endOffset)

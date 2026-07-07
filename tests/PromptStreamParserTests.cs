@@ -8,7 +8,7 @@ using Xunit;
 /// <summary>
 /// Tests for <see cref="PromptStreamParser"/> — real-time streaming
 /// content extraction (code blocks, JSON, lists, tables, key-value
-/// pairs, headings, plain text). 40 tests.
+/// pairs, headings, plain text). 44 tests.
 /// </summary>
 public class PromptStreamParserTests
 {
@@ -136,6 +136,58 @@ public class PromptStreamParserTests
         parser.Feed(Chunk("[\"one\", \"two\", \"three\"]"));
         var summary = parser.Complete();
         Assert.Single(summary.JsonArrays);
+    }
+
+    [Fact]
+    public void ExtractsJsonArrayOfNegativeNumbers()
+    {
+        // Regression: an array whose first element is a negative number must be
+        // recognized. Previously the leading-value heuristic accepted digits but
+        // not '-', so [-1, -2, -3] was misclassified as plain text and dropped.
+        var parser = new PromptStreamParser();
+        parser.Feed(Chunk("Values:\n[-1, -2, -3]\ndone\n"));
+        var summary = parser.Complete();
+        Assert.Single(summary.JsonArrays);
+        Assert.NotNull(summary.JsonArrays[0].Parsed);
+        Assert.Equal("[-1, -2, -3]", summary.JsonArrays[0].Content);
+    }
+
+    [Fact]
+    public void ExtractsJsonArrayOfNegativeDecimals()
+    {
+        // A leading negative decimal (e.g. temperatures/coordinates) is valid JSON
+        // and must be captured just like a positive-number array.
+        var parser = new PromptStreamParser();
+        parser.Feed(Chunk("[-40.5, 0, 12.25, -7]"));
+        var summary = parser.Complete();
+        Assert.Single(summary.JsonArrays);
+        Assert.NotNull(summary.JsonArrays[0].Parsed);
+    }
+
+    [Fact]
+    public void NegativeJsonArrayAcrossChunks()
+    {
+        // The negative-number array is split across chunk boundaries, exercising
+        // the streaming detection path rather than a single-buffer parse.
+        var parser = new PromptStreamParser();
+        parser.Feed(Chunk("[-"));
+        parser.Feed(Chunk("12, -3"));
+        parser.Feed(Chunk("4]"));
+        var summary = parser.Complete();
+        Assert.Single(summary.JsonArrays);
+        Assert.Equal("[-12, -34]", summary.JsonArrays[0].Content);
+    }
+
+    [Fact]
+    public void NonJsonNegativeBracketNotEmittedAsArray()
+    {
+        // Accepting '-' as a valid array-lead must not turn arbitrary prose that
+        // happens to start with "[-" into a JSON array: the parse gate still
+        // discards content that is not valid JSON.
+        var parser = new PromptStreamParser();
+        parser.Feed(Chunk("[-- see footnote below for details]\n"));
+        var summary = parser.Complete();
+        Assert.Empty(summary.JsonArrays);
     }
 
     [Fact]
