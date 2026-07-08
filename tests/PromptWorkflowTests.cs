@@ -441,6 +441,39 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public async Task Merge_FirstCompleted_PicksEarliestFinisher_NotFirstDeclared()
+        {
+            // Regression: FirstCompleted used to return the first *declared*
+            // parent regardless of timing, contradicting its contract ("take
+            // only the first parent that completes"). Here the first-declared
+            // parent "slow" is deliberately delayed so the second-declared
+            // parent "fast" finishes first; the merge must select "fast".
+            var wf = new PromptWorkflow();
+            wf.AddNode(new WorkflowNode("slow", "Slow", "slow_out", T("SLOW")));
+            wf.AddNode(new WorkflowNode("fast", "Fast", "fast_out", T("FAST")));
+
+            var merge = new WorkflowNode("m", "Merge", "result");
+            merge.DependsOn.Add("slow"); // declared first
+            merge.DependsOn.Add("fast"); // declared second, but completes first
+            merge.MergeStrategy = MergeStrategy.FirstCompleted;
+            wf.AddNode(merge);
+
+            // Model func delays the slow branch so completion order is well-defined.
+            var ctx = await wf.ExecuteAsync(async prompt =>
+            {
+                if (prompt.Contains("SLOW"))
+                    await Task.Delay(150);
+                return prompt;
+            });
+
+            Assert.True(ctx.IsSuccess);
+            // The earliest finisher ("fast") wins, not the first-declared ("slow").
+            Assert.Equal("FAST", ctx.Variables["result"]);
+            // Sanity: both branches actually ran and the timestamps ordered as expected.
+            Assert.True(ctx.NodeResults["fast"].CompletedAt <= ctx.NodeResults["slow"].CompletedAt);
+        }
+
+        [Fact]
         public async Task Merge_CustomTemplateThrowsWithoutTemplate()
         {
             var wf = new PromptWorkflow();

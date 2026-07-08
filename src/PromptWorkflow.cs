@@ -656,14 +656,23 @@ namespace Prompt
 
         private string MergeParentOutputs(WorkflowNode node, WorkflowContext context)
         {
+            // Preserve declaration order for the concatenating / first-declared
+            // strategies, but also capture each parent's completion time so
+            // FirstCompleted can honour its contract ("the first parent that
+            // completes") instead of silently returning the first-declared one.
             var parentOutputs = new List<KeyValuePair<string, string>>();
+            var timedOutputs = new List<TimedParentOutput>();
+            int order = 0;
             foreach (var dep in node.DependsOn)
             {
                 var depNode = _nodes[dep];
                 if (context.Variables.TryGetValue(depNode.OutputVariable, out var val))
                 {
                     parentOutputs.Add(new KeyValuePair<string, string>(depNode.OutputVariable, val));
+                    context.NodeResults.TryGetValue(dep, out var depResult);
+                    timedOutputs.Add(new TimedParentOutput(val, depResult?.CompletedAt, order));
                 }
+                order++;
             }
 
             return node.MergeStrategy switch
@@ -673,7 +682,7 @@ namespace Prompt
                 MergeStrategy.JoinWithSeparator =>
                     string.Join(node.MergeSeparator, parentOutputs.Select(p => p.Value)),
                 MergeStrategy.FirstCompleted =>
-                    parentOutputs.FirstOrDefault().Value ?? string.Empty,
+                    SelectFirstCompleted(timedOutputs),
                 MergeStrategy.LongestOutput =>
                     parentOutputs.OrderByDescending(p => p.Value.Length)
                         .FirstOrDefault().Value ?? string.Empty,
@@ -685,6 +694,64 @@ namespace Prompt
                         "CustomTemplate merge requires a Template on the node."),
                 _ => string.Join("\n\n", parentOutputs.Select(p => p.Value))
             };
+        }
+
+        /// <summary>
+        /// Picks the output of the parent that finished earliest, honouring the
+        /// <see cref="MergeStrategy.FirstCompleted"/> contract. Because a merge
+        /// node only runs once every parent has completed, selection is by the
+        /// recorded <see cref="NodeResult.CompletedAt"/> timestamp; ties (or
+        /// parents missing a timestamp) fall back to declaration order so the
+        /// result stays deterministic.
+        /// </summary>
+        private static string SelectFirstCompleted(List<TimedParentOutput> outputs)
+        {
+            string? best = null;
+            DateTimeOffset? bestTime = null;
+            int bestOrder = int.MaxValue;
+
+            foreach (var o in outputs)
+            {
+                bool isBetter;
+                if (best == null)
+                    isBetter = true;
+                else if (o.CompletedAt.HasValue && bestTime.HasValue)
+                    // Earlier completion wins; identical timestamps keep the
+                    // earlier-declared parent (lower order).
+                    isBetter = o.CompletedAt.Value < bestTime.Value ||
+                        (o.CompletedAt.Value == bestTime.Value && o.Order < bestOrder);
+                else if (o.CompletedAt.HasValue && !bestTime.HasValue)
+                    // A timed candidate is preferred over an untimed one.
+                    isBetter = true;
+                else if (!o.CompletedAt.HasValue && bestTime.HasValue)
+                    isBetter = false;
+                else
+                    // Neither has a timestamp: fall back to declaration order.
+                    isBetter = o.Order < bestOrder;
+
+                if (isBetter)
+                {
+                    best = o.Value;
+                    bestTime = o.CompletedAt;
+                    bestOrder = o.Order;
+                }
+            }
+
+            return best ?? string.Empty;
+        }
+
+        private readonly struct TimedParentOutput
+        {
+            public TimedParentOutput(string value, DateTimeOffset? completedAt, int order)
+            {
+                Value = value;
+                CompletedAt = completedAt;
+                Order = order;
+            }
+
+            public string Value { get; }
+            public DateTimeOffset? CompletedAt { get; }
+            public int Order { get; }
         }
 
         // ── Wave computation ─────────────────────────────────────────
