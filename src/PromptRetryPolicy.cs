@@ -577,8 +577,14 @@ namespace Prompt
 
             if (policy?.MaxRetries != null)
             {
-                var categoryAttempts = result.Attempts.Count(a => a.Category == category && !a.Succeeded);
-                if (categoryAttempts >= policy.MaxRetries.Value)
+                // Count *retries* for this category, not total failed attempts.
+                // Attempt 0 is the original try, not a retry (mirrors the global
+                // loop's `attempt <= MaxRetries` semantics where MaxRetries counts
+                // retries beyond the first call). Including attempt 0 here made a
+                // per-category MaxRetries of N stop after only N-1 retries.
+                var categoryRetries = result.Attempts.Count(
+                    a => a.Category == category && !a.Succeeded && a.AttemptNumber > 0);
+                if (categoryRetries >= policy.MaxRetries.Value)
                 {
                     result.FinalError = $"Max retries for {category} exceeded: {errorMessage}";
                     return true;

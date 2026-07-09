@@ -235,7 +235,9 @@ namespace Prompt.Tests
             };
             var policy = new PromptRetryPolicy(config);
             var result = policy.Execute(attempt => (false, "500 server error"));
-            Assert.True(result.Attempts.Count <= 3);
+            // Per-category MaxRetries = 2 means 2 retries beyond the original
+            // attempt: exactly 3 attempts total (attempt 0 + retries 1 and 2).
+            Assert.Equal(3, result.Attempts.Count);
             Assert.Contains("Max retries for ServerError", result.FinalError!);
         }
 
