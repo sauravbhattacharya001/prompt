@@ -183,12 +183,22 @@ namespace Prompt
         }
 
         /// <summary>
-        /// Pre-compiled regex for sentence boundary splitting.
-        /// Splits on sentence-ending punctuation (.!?) optionally followed by
-        /// whitespace, or on newlines followed by whitespace.
+        /// Pre-compiled regex for sentence boundary splitting that also treats
+        /// newlines as boundaries. Splits either after sentence-ending
+        /// punctuation (.!?) followed by whitespace, or on a run of newlines
+        /// (with any surrounding whitespace collapsed).
         /// </summary>
+        /// <remarks>
+        /// The newline alternative is <c>\s*\n\s*</c> rather than the previous
+        /// <c>(?<=[.!?\n])\s+</c>: a lookbehind on <c>\n</c> combined with a
+        /// required trailing <c>\s+</c> never matched a bare newline separator
+        /// (e.g. "line one\nline two"), because there was no *additional*
+        /// whitespace after the newline to satisfy <c>\s+</c>. Splitting
+        /// directly on the newline run fixes that while still collapsing
+        /// leading/trailing indentation around the break.
+        /// </remarks>
         private static readonly Regex SentenceBoundary =
-            new(@"(?<=[.!?\n])\s+", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+            new(@"(?<=[.!?])\s+|\s*\n\s*", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         /// <summary>
         /// Splits text into sentences on punctuation boundaries (.!?) and

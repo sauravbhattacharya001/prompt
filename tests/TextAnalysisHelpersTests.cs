@@ -4,7 +4,7 @@ namespace Prompt.Tests
     using Xunit;
 
     /// <summary>
-    /// Tests for <see cref="TextAnalysisHelpers"/> — shared tokenization and
+    /// Tests for <see cref="TextAnalysisHelpers"/> - shared tokenization and
     /// similarity utilities used across many prompt analyzers. Because the
     /// type is <c>internal</c>, these tests rely on <c>InternalsVisibleTo</c>.
     /// </summary>
@@ -327,12 +327,46 @@ namespace Prompt.Tests
         [Fact]
         public void SplitSentences_WithNewlines_SplitsOnNewlineFollowedByWhitespace()
         {
-            // The newline-aware pattern is `(?<=[.!?\n])\s+` — newline must be followed
-            // by additional whitespace to trigger a split.
+            // The newline-aware pattern splits on a run of newlines and collapses
+            // any surrounding indentation, so leading whitespace on the next line
+            // is trimmed away.
             var sentences = TextAnalysisHelpers.SplitSentences("First line\n  Second line", splitOnNewlines: true);
             Assert.Equal(2, sentences.Count);
             Assert.Equal("First line", sentences[0]);
             Assert.Equal("Second line", sentences[1]);
+        }
+
+        [Fact]
+        public void SplitSentences_WithNewlines_SplitsOnBareNewline()
+        {
+            // Regression: previously the newline branch was `(?<=[.!?\n])\s+`, which
+            // required *additional* whitespace after the newline. A bare newline
+            // separator therefore never split (returned a single sentence). It must
+            // split into two.
+            var sentences = TextAnalysisHelpers.SplitSentences("First line\nSecond line", splitOnNewlines: true);
+            Assert.Equal(2, sentences.Count);
+            Assert.Equal("First line", sentences[0]);
+            Assert.Equal("Second line", sentences[1]);
+        }
+
+        [Fact]
+        public void SplitSentences_WithNewlines_CollapsesMultipleBlankLines()
+        {
+            // A run of newlines is a single boundary, not several empty sentences.
+            var sentences = TextAnalysisHelpers.SplitSentences("alpha\n\n\nbeta", splitOnNewlines: true);
+            Assert.Equal(2, sentences.Count);
+            Assert.Equal("alpha", sentences[0]);
+            Assert.Equal("beta", sentences[1]);
+        }
+
+        [Fact]
+        public void SplitSentences_WithNewlines_DoesNotSplitOnNonNewlineWhitespace()
+        {
+            // Only newlines (and punctuation) are boundaries: an intra-line tab or
+            // space run must NOT split when there is no sentence punctuation.
+            var sentences = TextAnalysisHelpers.SplitSentences("one\ttwo three", splitOnNewlines: true);
+            Assert.Single(sentences);
+            Assert.Equal("one\ttwo three", sentences[0]);
         }
 
         [Fact]
