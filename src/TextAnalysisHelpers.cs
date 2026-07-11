@@ -4,10 +4,11 @@ namespace Prompt
 
     /// <summary>
     /// Shared text analysis utilities for tokenization, similarity computation,
-    /// and word-level operations used across multiple prompt analysis components.
-    /// Eliminates duplicated Tokenize/Jaccard methods that existed in
-    /// PromptTokenOptimizer, PromptBenchmarkSuite, PromptRegressionDetector,
-    /// PromptSimilarityAnalyzer, PromptEnsemble, PromptMemoryIndex, and others.
+    /// and word-level operations: word-set/-list tokenization, Jaccard and
+    /// character-n-gram cosine similarity, word overlap, sentence splitting, and
+    /// token-count estimation. Provides a single home for these primitives so any
+    /// prompt-analysis component can share one consistent implementation instead
+    /// of re-deriving it.
     /// </summary>
     internal static class TextAnalysisHelpers
     {
@@ -56,7 +57,7 @@ namespace Prompt
 
         /// <summary>
         /// Tokenizes text into a set including single-character words.
-        /// Some callers (e.g., benchmark overlap) need all tokens.
+        /// Used where all tokens matter (e.g. word-overlap scoring).
         /// </summary>
         /// <param name="text">The text to tokenize.</param>
         /// <returns>A set of distinct lowercase words.</returns>
@@ -222,8 +223,6 @@ namespace Prompt
         /// <summary>
         /// Estimates token count for a text string using the ~4 chars/token
         /// approximation common to GPT-family tokenizers.
-        /// Replaces duplicated EstimateTokens methods across
-        /// PromptConversationSimulator, PromptMemoryIndex, and PromptStyleTransformer.
         /// </summary>
         /// <param name="text">The text to estimate tokens for.</param>
         /// <returns>Estimated token count (0 for null/empty input).</returns>
