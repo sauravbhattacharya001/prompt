@@ -316,6 +316,18 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void DetectPii_BareCreditCard_IsNotAlsoReportedAsPhone()
+        {
+            // Regression: the phone pattern used to match the trailing 10 digits of a
+            // bare 16-digit card, so a single card was reported as BOTH credit_card and
+            // phone. Digit-boundary guards ((?<!\d)...(?!\d)) prevent matching inside a
+            // longer digit run.
+            var types = _sanitizer.DetectPii("1234567890123456");
+            Assert.Contains("credit_card", types);
+            Assert.DoesNotContain("phone", types);
+        }
+
+        [Fact]
         public void DetectPii_FindsPhone()
         {
             var types = _sanitizer.DetectPii("Call 555-123-4567");

@@ -139,7 +139,13 @@ namespace Prompt
             ("email", new Regex(@"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
             ("ssn", new Regex(@"\b\d{3}-\d{2}-\d{4}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
             ("credit_card", new Regex(@"\b(?:\d{4}[\s\-]?){3}\d{4}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
-            ("phone", new Regex(@"(?:\+?1[\s\-.]?)?\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
+            // Digit-boundary guards ((?<!\d) ... (?!\d)) stop the phone pattern from
+            // matching a substring of a longer digit run — e.g. the trailing 10 digits of a
+            // bare 16-digit credit-card number like "1234567890123456". Without them,
+            // DetectPii reported both credit_card AND phone for a single card, and the
+            // ordering-dependent redaction in Sanitize was fragile. This mirrors the
+            // already-correct guarded phone rule in PromptSecretScanner.
+            ("phone", new Regex(@"(?<!\d)(?:\+?1[\s\-.]?)?\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}(?!\d)", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
             ("ip_address", new Regex(@"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500))),
         };
 
