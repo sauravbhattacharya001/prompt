@@ -1041,4 +1041,46 @@ public class PromptRateLimiterTests
         // Adjusted: 500→400
         Assert.Equal(400, usage!.TotalTokens);
     }
+
+    [Fact]
+    public void SlidingWindow_RecordExactly60sOld_Expires()
+    {
+        // A record precisely 60_000ms old sits exactly at the sliding-window
+        // boundary. Since a record is "in the window" only while strictly
+        // younger than 60s (now - ts < 60_000), the exact-60s record must be
+        // pruned. Regression for the off-by-one that used `< cutoff` and kept
+        // the boundary record counted at the same instant the wait calc said 0.
+        var limiter = new PromptRateLimiter();
+        limiter.AddProfile(new RateLimitProfile
+        {
+            Name = "test",
+            RequestsPerMinute = 100,
+            TokensPerMinute = 100_000,
+            MaxConcurrent = 10
+        });
+
+        long now = 1_000_000_000_000;
+        var atBoundary = limiter.ProbeWindowAt("test", recordMs: now - 60_000, tokens: 500, nowMs: now);
+        Assert.Equal(0, atBoundary.WindowRequests);
+        Assert.Equal(0, atBoundary.WindowTokens);
+    }
+
+    [Fact]
+    public void SlidingWindow_RecordJustUnder60sOld_Survives()
+    {
+        // One millisecond younger than the boundary must remain in the window.
+        var limiter = new PromptRateLimiter();
+        limiter.AddProfile(new RateLimitProfile
+        {
+            Name = "test",
+            RequestsPerMinute = 100,
+            TokensPerMinute = 100_000,
+            MaxConcurrent = 10
+        });
+
+        long now = 1_000_000_000_000;
+        var justInside = limiter.ProbeWindowAt("test", recordMs: now - 59_999, tokens: 500, nowMs: now);
+        Assert.Equal(1, justInside.WindowRequests);
+        Assert.Equal(500, justInside.WindowTokens);
+    }
 }

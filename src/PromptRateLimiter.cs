@@ -727,18 +727,24 @@ namespace Prompt
 
         private static void PruneWindow(ProfileState state, long nowMs)
         {
-            var cutoff = nowMs - 60_000; // 1-minute sliding window
+            // 1-minute sliding window. A record is "in the window" only while it
+            // is strictly younger than 60s (now - ts < 60_000), i.e. ts > cutoff.
+            // A record exactly 60s old (ts == cutoff) has expired and must be
+            // pruned — otherwise it stays counted at the very instant the RPM/TPM
+            // wait calc reports WaitMs=0 ("retry now"), producing a denial with a
+            // zero wait and an inconsistent, slightly-too-wide 60.001s window.
+            var cutoff = nowMs - 60_000;
 
             // Remove expired request timestamps
             var idx = 0;
-            while (idx < state.RequestTimestamps.Count && state.RequestTimestamps[idx] < cutoff)
+            while (idx < state.RequestTimestamps.Count && state.RequestTimestamps[idx] <= cutoff)
                 idx++;
             if (idx > 0)
                 state.RequestTimestamps.RemoveRange(0, idx);
 
             // Remove expired token records
             idx = 0;
-            while (idx < state.TokenRecords.Count && state.TokenRecords[idx].Timestamp < cutoff)
+            while (idx < state.TokenRecords.Count && state.TokenRecords[idx].Timestamp <= cutoff)
                 idx++;
             if (idx > 0)
                 state.TokenRecords.RemoveRange(0, idx);
@@ -746,5 +752,26 @@ namespace Prompt
 
         private static long WindowTokens(ProfileState state) =>
             state.TokenRecords.Sum(r => (long)r.Tokens);
+
+        // --- Internal test seam ---
+        // Deterministically exercises the sliding-window boundary without a
+        // time abstraction: seeds one request+token record at absolute time
+        // <paramref name="recordMs"/>, prunes as of <paramref name="nowMs"/>,
+        // and reports whether the record survives the window. Used to pin the
+        // exact-60s expiry semantics (a record precisely 60s old must expire).
+        internal (int WindowRequests, long WindowTokens) ProbeWindowAt(
+            string profileName, long recordMs, int tokens, long nowMs)
+        {
+            lock (_lock)
+            {
+                if (!_profiles.TryGetValue(profileName, out var state))
+                    return (0, 0);
+                state.RequestTimestamps.Add(recordMs);
+                if (tokens > 0)
+                    state.TokenRecords.Add((recordMs, tokens));
+                PruneWindow(state, nowMs);
+                return (state.RequestTimestamps.Count, WindowTokens(state));
+            }
+        }
     }
 }
