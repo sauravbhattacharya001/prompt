@@ -205,13 +205,17 @@ namespace Prompt
                 }
             }
 
-            // Build debiased text
+            // Build debiased text. Escape '$' in the suggestion so it is inserted
+            // literally: Regex.Replace treats '$' in the replacement as a substitution
+            // token ($1, $&, $$, ...), so an unescaped suggestion containing '$' (e.g.
+            // "$5 budget" from a custom rule) would corrupt the output or throw.
             var debiased = prompt;
             foreach (var rule in _rules)
             {
                 if (!string.IsNullOrEmpty(rule.Suggestion))
                 {
-                    debiased = rule.Pattern.Replace(debiased, rule.Suggestion);
+                    var replacement = rule.Suggestion.Replace("$", "$$");
+                    debiased = rule.Pattern.Replace(debiased, replacement);
                 }
             }
 

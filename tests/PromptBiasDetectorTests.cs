@@ -245,6 +245,49 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void Analyze_SuggestionWithDollarSign_IsInsertedLiterally()
+        {
+            // Regression: the debias step used Regex.Replace with the raw suggestion as the
+            // replacement string, so '$' sequences in a custom suggestion were interpreted as
+            // substitution tokens ($1, $&, $$) instead of literal text. A suggestion such as
+            // "$5 spend" must appear verbatim in the debiased output.
+            var detector = new PromptBiasDetector();
+            detector.AddRule(new BiasRule
+            {
+                Category = BiasCategory.Anchoring,
+                Severity = BiasSeverity.Medium,
+                Pattern = new Regex(@"\bfive dollars\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
+                Description = "Anchoring to a specific value",
+                Suggestion = "$5"
+            });
+
+            var report = detector.Analyze("Keep it under five dollars.");
+
+            Assert.Contains("$5", report.DebiasedText);
+            Assert.DoesNotContain("five dollars", report.DebiasedText, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void Analyze_SuggestionWithSubstitutionTokens_AreNotExpanded()
+        {
+            // '$&' (whole match) and '$1' (group) must not be expanded against the matched text.
+            var detector = new PromptBiasDetector();
+            detector.AddRule(new BiasRule
+            {
+                Category = BiasCategory.Cultural,
+                Severity = BiasSeverity.Low,
+                Pattern = new Regex(@"\bfoobar\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500)),
+                Description = "Test token handling",
+                Suggestion = "$& and $1"
+            });
+
+            var report = detector.Analyze("A foobar here.");
+
+            Assert.Contains("$& and $1", report.DebiasedText);
+            Assert.DoesNotContain("foobar", report.DebiasedText, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public void Render_WithFindings_IncludesDebiasedSection()
         {
             var detector = new PromptBiasDetector();
