@@ -211,12 +211,17 @@ namespace Prompt
             if (lower.Contains("content_filter") || lower.Contains("content policy") || lower.Contains("safety")
                 || lower.Contains("flagged") || lower.Contains("moderation"))
                 return ErrorCategory.ContentFilter;
-            if (lower.Contains("400") || lower.Contains("bad request") || lower.Contains("invalid")
-                || lower.Contains("malformed"))
-                return ErrorCategory.BadRequest;
+            // Server errors (5xx) are checked BEFORE BadRequest: a 5xx status is a
+            // strong, retryable signal and its message frequently also contains the
+            // generic word "invalid" (e.g. "500 internal error: invalid state").
+            // If BadRequest's broad "invalid" match ran first it would mislabel a
+            // transient server error as non-retryable and abandon it on attempt 0.
             if (lower.Contains("500") || lower.Contains("502") || lower.Contains("503") || lower.Contains("504")
                 || lower.Contains("server error") || lower.Contains("internal error"))
                 return ErrorCategory.ServerError;
+            if (lower.Contains("400") || lower.Contains("bad request") || lower.Contains("invalid")
+                || lower.Contains("malformed"))
+                return ErrorCategory.BadRequest;
 
             return ErrorCategory.Unknown;
         }

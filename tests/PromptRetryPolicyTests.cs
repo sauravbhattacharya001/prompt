@@ -50,6 +50,12 @@ namespace Prompt.Tests
         [InlineData("Invalid API key", ErrorCategory.AuthError)]
         [InlineData("content_filter triggered", ErrorCategory.ContentFilter)]
         [InlineData("model_overloaded", ErrorCategory.Overloaded)]
+        // Regression: a 5xx server error whose message also contains the generic
+        // word "invalid" must classify as the retryable ServerError, not the
+        // non-retryable BadRequest. Before the ordering fix, BadRequest's broad
+        // "invalid" match ran first and abandoned transient server errors.
+        [InlineData("500 internal error: invalid state", ErrorCategory.ServerError)]
+        [InlineData("503 service unavailable - invalid upstream response", ErrorCategory.ServerError)]
         [InlineData("something weird", ErrorCategory.Unknown)]
         [InlineData("", ErrorCategory.Unknown)]
         public void ClassifyError_CorrectCategories(string msg, ErrorCategory expected)
