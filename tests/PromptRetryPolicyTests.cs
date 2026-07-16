@@ -56,6 +56,14 @@ namespace Prompt.Tests
         // "invalid" match ran first and abandoned transient server errors.
         [InlineData("500 internal error: invalid state", ErrorCategory.ServerError)]
         [InlineData("503 service unavailable - invalid upstream response", ErrorCategory.ServerError)]
+        // Regression: an auth failure whose message also contains a broad
+        // connectivity word ("connection"/"network") must classify as the terminal,
+        // non-retryable AuthError, not the retryable Timeout. Before the ordering
+        // fix, Timeout's broad "connection"/"network" match ran first and turned a
+        // hopeless 401/403 into a retryable Timeout, burning the retry budget.
+        [InlineData("Connection refused: 403 Forbidden", ErrorCategory.AuthError)]
+        [InlineData("network error: 401 unauthorized", ErrorCategory.AuthError)]
+        [InlineData("connection failed - invalid api key", ErrorCategory.AuthError)]
         [InlineData("something weird", ErrorCategory.Unknown)]
         [InlineData("", ErrorCategory.Unknown)]
         public void ClassifyError_CorrectCategories(string msg, ErrorCategory expected)

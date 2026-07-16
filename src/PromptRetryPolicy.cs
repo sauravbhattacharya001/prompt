@@ -202,12 +202,20 @@ namespace Prompt
                 return ErrorCategory.RateLimit;
             if (lower.Contains("overloaded") || lower.Contains("capacity") || lower.Contains("model_overloaded"))
                 return ErrorCategory.Overloaded;
-            if (lower.Contains("timeout") || lower.Contains("timed out") || lower.Contains("network")
-                || lower.Contains("connection") || lower.Contains("econnrefused") || lower.Contains("enotfound"))
-                return ErrorCategory.Timeout;
+            // AuthError is checked BEFORE Timeout: an authentication/authorization
+            // failure is terminal (non-retryable) and its message frequently also
+            // contains a broad connectivity word like "connection" or "network"
+            // (e.g. "connection refused: 403 forbidden", "network error: 401
+            // unauthorized"). If Timeout's broad match ran first it would mislabel a
+            // hopeless auth failure as a retryable Timeout and burn the retry budget
+            // hammering it. The 401/403/unauthorized/forbidden/api-key signals are
+            // far more specific than the generic connectivity words, so they win.
             if (lower.Contains("401") || lower.Contains("403") || lower.Contains("unauthorized")
                 || lower.Contains("forbidden") || lower.Contains("invalid api key") || lower.Contains("authentication"))
                 return ErrorCategory.AuthError;
+            if (lower.Contains("timeout") || lower.Contains("timed out") || lower.Contains("network")
+                || lower.Contains("connection") || lower.Contains("econnrefused") || lower.Contains("enotfound"))
+                return ErrorCategory.Timeout;
             if (lower.Contains("content_filter") || lower.Contains("content policy") || lower.Contains("safety")
                 || lower.Contains("flagged") || lower.Contains("moderation"))
                 return ErrorCategory.ContentFilter;
