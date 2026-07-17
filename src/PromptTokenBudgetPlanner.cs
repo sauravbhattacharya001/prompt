@@ -378,13 +378,37 @@ namespace Prompt
             if (!flexible.Any()) return;
 
             var currentFlexTotal = flexible.Sum(x => x.s.Tokens);
+
+            // Proportionally split `remaining` across flexible sections. Integer
+            // truncation on each share loses up to (flexible.Count - 1) tokens, so
+            // the naive loop leaves the budget under-filled and contradicts this
+            // method's contract of distributing the *whole* remaining budget. Track
+            // the shortfall and hand it to the section that received the largest
+            // share, so the flexible allocations sum to `remaining` exactly and no
+            // tokens are silently dropped.
+            var distributed = 0;
+            var largestShareIdx = -1;
+            var largestShare = -1;
             foreach (var (s, i) in flexible)
             {
                 var ratio = currentFlexTotal > 0
                     ? (double)s.Tokens / currentFlexTotal
                     : 1.0 / flexible.Count;
                 var newTokens = (int)(remaining * ratio);
+                distributed += newTokens;
+                if (newTokens > largestShare)
+                {
+                    largestShare = newTokens;
+                    largestShareIdx = i;
+                }
                 _sections[i] = (s.Name, s.Description, newTokens, s.Priority, s.Content);
+            }
+
+            var leftover = remaining - distributed;
+            if (leftover > 0 && largestShareIdx >= 0)
+            {
+                var s = _sections[largestShareIdx];
+                _sections[largestShareIdx] = (s.Name, s.Description, s.Tokens + leftover, s.Priority, s.Content);
             }
         }
     }
