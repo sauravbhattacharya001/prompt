@@ -504,10 +504,19 @@ namespace Prompt
             foreach (var (start, end) in ranges)
             {
                 var hunkLines = lines.GetRange(start, end - start + 1);
-                int oldStart = hunkLines.FirstOrDefault(l => l.OldLineNumber.HasValue)?.OldLineNumber ?? 1;
-                int newStart = hunkLines.FirstOrDefault(l => l.NewLineNumber.HasValue)?.NewLineNumber ?? 1;
                 int oldCount = hunkLines.Count(l => l.Operation != DiffOperation.Insert);
                 int newCount = hunkLines.Count(l => l.Operation != DiffOperation.Delete);
+
+                // Unified-diff convention: when a side contributes no lines to the hunk
+                // (a pure insertion has no old lines; a pure deletion has no new lines),
+                // its start is reported as 0, not 1. Emitting "-1,0"/"+1,0" produces a
+                // header that GNU patch/git can misapply; "-0,0"/"+0,0" is correct.
+                int oldStart = oldCount == 0
+                    ? 0
+                    : hunkLines.FirstOrDefault(l => l.OldLineNumber.HasValue)?.OldLineNumber ?? 1;
+                int newStart = newCount == 0
+                    ? 0
+                    : hunkLines.FirstOrDefault(l => l.NewLineNumber.HasValue)?.NewLineNumber ?? 1;
 
                 hunks.Add(new DiffHunk
                 {

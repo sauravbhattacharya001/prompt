@@ -144,6 +144,47 @@ namespace Prompt.Tests
             Assert.Contains("@@", s);
         }
 
+        // ---------- Unified-diff hunk header line counts (pure add / pure delete) ----------
+
+        [Fact]
+        public void Hunk_PureInsertion_ReportsOldSideAsZero()
+        {
+            // Appending lines to a file: the trailing hunk contributes no OLD lines.
+            // Unified-diff convention requires the old side to be reported as "-<n>,0"
+            // where the start collapses to 0 when the count is 0 ("-0,0"), not "-1,0".
+            var r = PromptDiffEngine.Diff("a", "a\nb\nc", contextLines: 0);
+            var insertHunk = r.Hunks.Single(h => h.OldCount == 0);
+            Assert.Equal(0, insertHunk.OldStart);
+            Assert.Equal(0, insertHunk.OldCount);
+            Assert.True(insertHunk.NewCount > 0);
+            Assert.Contains("@@ -0,0 +", r.ToUnifiedDiff(0));
+        }
+
+        [Fact]
+        public void Hunk_PureDeletion_ReportsNewSideAsZero()
+        {
+            // Removing lines: the hunk contributes no NEW lines, so the new side
+            // collapses to "+0,0" rather than "+1,0".
+            var r = PromptDiffEngine.Diff("a\nb\nc", "a", contextLines: 0);
+            var deleteHunk = r.Hunks.Single(h => h.NewCount == 0);
+            Assert.Equal(0, deleteHunk.NewStart);
+            Assert.Equal(0, deleteHunk.NewCount);
+            Assert.True(deleteHunk.OldCount > 0);
+            Assert.Matches(@"\+0,0 @@", r.ToUnifiedDiff(0));
+        }
+
+        [Fact]
+        public void Hunk_WithContext_KeepsRealStartLines()
+        {
+            // When context lines pull real unchanged lines into the hunk, both
+            // sides have a nonzero count and must keep their true 1-based starts.
+            var r = PromptDiffEngine.Diff("a\nb\nc", "a\nB\nc", contextLines: 3);
+            var hunk = r.Hunks.Single();
+            Assert.Equal(1, hunk.OldStart);
+            Assert.Equal(1, hunk.NewStart);
+            Assert.True(hunk.OldCount > 0 && hunk.NewCount > 0);
+        }
+
         // ---------- ToSideBySide ----------
 
         [Fact]
