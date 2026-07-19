@@ -241,19 +241,62 @@ namespace Prompt
             var result = Scan(input);
             if (result.IsClean) return input;
 
-            // Process findings from end to start to preserve positions
-            var sorted = result.Findings.OrderByDescending(f => f.Position).ToList();
+            // Multiple rules can match overlapping (or nested) spans of the same
+            // text — e.g. "reveal the system prompt:" matches both a prompt-leak
+            // rule (positions 0..24) and a system-override rule (positions 11..25).
+            // Naively replacing each finding shifts positions and, when spans
+            // overlap, corrupts the surrounding text (dropping or mangling legit
+            // characters, and even leaving injection fragments behind). Collapse
+            // the findings into a set of non-overlapping intervals first, then do
+            // one replacement per merged interval from end to start so earlier
+            // positions stay valid.
+            var intervals = MergeOverlapping(result.Findings);
             var sanitized = input;
-            foreach (var finding in sorted)
+            for (int i = intervals.Count - 1; i >= 0; i--)
             {
-                if (finding.Position >= 0 && finding.Position + finding.Length <= sanitized.Length)
+                var (start, end) = intervals[i];
+                if (start >= 0 && end <= sanitized.Length && start < end)
                 {
-                    sanitized = sanitized.Substring(0, finding.Position)
+                    sanitized = sanitized.Substring(0, start)
                         + replacement
-                        + sanitized.Substring(finding.Position + finding.Length);
+                        + sanitized.Substring(end);
                 }
             }
             return sanitized;
+        }
+
+        /// <summary>
+        /// Collapses findings into a minimal set of non-overlapping
+        /// [start, end) intervals (end-exclusive), sorted by start position.
+        /// Adjacent or overlapping spans are merged so a single replacement
+        /// covers them without shifting positions into a neighbouring match.
+        /// </summary>
+        private static List<(int Start, int End)> MergeOverlapping(IReadOnlyList<InjectionFinding> findings)
+        {
+            var spans = new List<(int Start, int End)>(findings.Count);
+            foreach (var f in findings)
+            {
+                if (f.Length <= 0) continue;
+                spans.Add((f.Position, f.Position + f.Length));
+            }
+            spans.Sort((a, b) => a.Start != b.Start ? a.Start.CompareTo(b.Start) : a.End.CompareTo(b.End));
+
+            var merged = new List<(int Start, int End)>();
+            foreach (var span in spans)
+            {
+                if (merged.Count > 0 && span.Start <= merged[^1].End)
+                {
+                    // Overlapping or adjacent — extend the current interval.
+                    var last = merged[^1];
+                    if (span.End > last.End)
+                        merged[^1] = (last.Start, span.End);
+                }
+                else
+                {
+                    merged.Add(span);
+                }
+            }
+            return merged;
         }
 
         private void RegisterDefaults()
