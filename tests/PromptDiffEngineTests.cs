@@ -196,6 +196,14 @@ namespace Prompt.Tests
             Assert.Matches(@"(?m)^beta\s*\u2502\s*BETA", sbs);
         }
 
+        [Fact]
+        public void ToSideBySide_NonPositiveWidth_Throws()
+        {
+            var r = PromptDiffEngine.Diff("alpha", "beta");
+            Assert.Throws<ArgumentOutOfRangeException>(() => r.ToSideBySide(0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => r.ToSideBySide(-5));
+        }
+
         // ---------- ToStats ----------
 
         [Fact]

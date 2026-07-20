@@ -131,10 +131,14 @@ namespace Prompt
         /// <summary>
         /// Renders the diff as a side-by-side comparison.
         /// </summary>
-        /// <param name="width">Column width for each side (default 40).</param>
+        /// <param name="width">Column width for each side (default 40). Must be at least 1.</param>
         /// <returns>Side-by-side diff string.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="width"/> is less than 1.</exception>
         public string ToSideBySide(int width = 40)
         {
+            if (width < 1)
+                throw new ArgumentOutOfRangeException(nameof(width), "width must be at least 1.");
+
             var sb = new StringBuilder();
             var sep = new string('─', width);
             sb.AppendLine($"{"OLD".PadRight(width)} │ {"NEW".PadRight(width)}");
