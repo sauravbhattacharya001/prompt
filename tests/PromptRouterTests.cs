@@ -476,6 +476,29 @@ public class PromptRouterTests : IDisposable
         Assert.Equal("high-pri", match!.RouteName);
     }
 
+    [Fact]
+    public void Route_TieBrokenDeterministicallyByRouteName()
+    {
+        // Two routes with identical keywords/priority score identically. The
+        // winner must be stable (ordinal by route name), independent of
+        // insertion order or Dictionary iteration order.
+        var r1 = new PromptRouter();
+        r1.AddRoute("zebra", MakeConfig(new[] { "hello" }, templateName: "z"));
+        r1.AddRoute("alpha", MakeConfig(new[] { "hello" }, templateName: "a"));
+
+        var r2 = new PromptRouter();
+        r2.AddRoute("alpha", MakeConfig(new[] { "hello" }, templateName: "a"));
+        r2.AddRoute("zebra", MakeConfig(new[] { "hello" }, templateName: "z"));
+
+        var m1 = r1.Route("hello");
+        var m2 = r2.Route("hello");
+
+        Assert.NotNull(m1);
+        Assert.NotNull(m2);
+        Assert.Equal("alpha", m1!.RouteName);
+        Assert.Equal(m1.RouteName, m2!.RouteName);
+    }
+
     // ═══════════════════════════════════════════════════════
     //  ScoreAll
     // ═══════════════════════════════════════════════════════

@@ -159,7 +159,16 @@ namespace Prompt
                 return _fallbackRoute != null ? _createFallbackMatch(input) : null;
 
             var scores = ScoreAll(input);
-            var best = scores.MaxBy(s => s.Score);
+            // Deterministic selection: highest score wins, ties broken by route
+            // name (ordinal). `_routes` is a Dictionary whose iteration order is
+            // not guaranteed, so plain MaxBy would resolve equal-score ties
+            // unpredictably across runs/insertion orders. Sort so the winner is
+            // reproducible. (Priority is already folded into Score, so a true
+            // tie means equal weighted score.)
+            var best = scores
+                .OrderByDescending(s => s.Score)
+                .ThenBy(s => s.RouteName, StringComparer.Ordinal)
+                .FirstOrDefault();
 
             if (best != null && best.Score >= _minScore)
                 return best;
