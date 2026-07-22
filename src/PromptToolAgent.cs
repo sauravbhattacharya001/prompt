@@ -269,6 +269,16 @@ namespace Prompt
                 throw new ArgumentException("User message cannot be empty.", nameof(userMessage));
             if (modelFunc == null)
                 throw new ArgumentNullException(nameof(modelFunc));
+            // Guard against a misconfigured turn budget. With MaxTurns <= 0 the
+            // loop body never runs, so the agent would silently return a
+            // "Completed" result with an empty FinalAnswer, zero turns, and no
+            // StopReason — reporting success while doing no work. Fail loudly
+            // instead so the caller fixes the configuration.
+            if (Options.MaxTurns < 1)
+                throw new ArgumentOutOfRangeException(
+                    nameof(Options.MaxTurns),
+                    Options.MaxTurns,
+                    "MaxTurns must be at least 1.");
 
             var parser = toolCallParser ?? DefaultToolCallParser;
             var totalSw = Stopwatch.StartNew();

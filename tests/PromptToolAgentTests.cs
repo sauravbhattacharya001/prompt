@@ -149,6 +149,22 @@ namespace Prompt.Tests
             Assert.Equal(2, result.TotalTurns);
         }
 
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-1)]
+        public async Task RunAsync_NonPositiveMaxTurns_Throws(int maxTurns)
+        {
+            // A MaxTurns <= 0 budget must fail loudly rather than silently
+            // returning a Completed result with an empty answer and no work.
+            var agent = new PromptToolAgent(new AgentOptions { MaxTurns = maxTurns });
+
+            var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+                agent.RunAsync(
+                    "Do something",
+                    modelFunc: (messages, tools, ct) => Task.FromResult("final answer")));
+            Assert.Contains("MaxTurns", ex.Message);
+        }
+
         [Fact]
         public async Task RunAsync_SystemPrompt_IsIncludedInMessages()
         {
