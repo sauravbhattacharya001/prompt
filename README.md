@@ -14,8 +14,8 @@ lives under the `Prompt` namespace.
 - `PromptTemplate` — reusable templates with `{{variable}}` placeholders,
   default values, required-variable validation, and optional sanitization.
 - `PromptComposer`, `PromptMerger` — assemble and merge prompt fragments.
-- `PromptInheritance` (`InheritablePrompt`, `PromptBlock`) — define base prompts
-  with overridable blocks.
+- `InheritablePrompt` (with `PromptBlock`) — define base prompts with
+  overridable blocks.
 
 **Chaining & pipelines**
 - `PromptChain` — run an ordered sequence of steps where each step's output
