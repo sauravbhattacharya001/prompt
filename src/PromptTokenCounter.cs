@@ -242,8 +242,11 @@ namespace Prompt
         /// <param name="estimatedOutputTokens">Expected output token count (default 0).</param>
         /// <returns>A <see cref="TokenCostResult"/> with input/output costs.</returns>
         /// <exception cref="ArgumentException">Thrown when the model is not registered.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="estimatedOutputTokens"/> is negative.</exception>
         public TokenCostResult EstimateCost(string text, string modelId, int estimatedOutputTokens = 0)
         {
+            if (estimatedOutputTokens < 0)
+                throw new ArgumentOutOfRangeException(nameof(estimatedOutputTokens), "Estimated output tokens cannot be negative.");
             if (!_models.TryGetValue(modelId, out var pricing))
                 throw new ArgumentException($"Unknown model '{modelId}'. Register it with AddModel() first.", nameof(modelId));
 
@@ -261,8 +264,11 @@ namespace Prompt
         /// <param name="text">The input prompt text.</param>
         /// <param name="estimatedOutputTokens">Expected output token count (default 0).</param>
         /// <returns>A list of <see cref="CostComparisonRow"/> sorted by total cost.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="estimatedOutputTokens"/> is negative.</exception>
         public IReadOnlyList<CostComparisonRow> CompareCosts(string text, int estimatedOutputTokens = 0)
         {
+            if (estimatedOutputTokens < 0)
+                throw new ArgumentOutOfRangeException(nameof(estimatedOutputTokens), "Estimated output tokens cannot be negative.");
             var estimate = Estimate(text);
             var rows = new List<CostComparisonRow>();
 
@@ -283,8 +289,11 @@ namespace Prompt
         /// <param name="text">The input prompt text.</param>
         /// <param name="estimatedOutputTokens">Expected output token count (default 0).</param>
         /// <returns>A formatted table string.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="estimatedOutputTokens"/> is negative.</exception>
         public string FormatCostComparison(string text, int estimatedOutputTokens = 0)
         {
+            if (estimatedOutputTokens < 0)
+                throw new ArgumentOutOfRangeException(nameof(estimatedOutputTokens), "Estimated output tokens cannot be negative.");
             var estimate = Estimate(text);
             var rows = CompareCosts(text, estimatedOutputTokens);
 
@@ -315,6 +324,8 @@ namespace Prompt
         public TokenCostResult EstimateBatchCost(IEnumerable<string> texts, string modelId, int estimatedOutputTokensEach = 0)
         {
             if (texts == null) throw new ArgumentNullException(nameof(texts));
+            if (estimatedOutputTokensEach < 0)
+                throw new ArgumentOutOfRangeException(nameof(estimatedOutputTokensEach), "Estimated output tokens cannot be negative.");
             if (!_models.TryGetValue(modelId, out var pricing))
                 throw new ArgumentException($"Unknown model '{modelId}'. Register it with AddModel() first.", nameof(modelId));
 

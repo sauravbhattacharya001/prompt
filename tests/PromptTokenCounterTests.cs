@@ -131,6 +131,43 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void EstimateCost_NegativeOutputTokens_ThrowsArgumentOutOfRange()
+        {
+            var counter = new PromptTokenCounter();
+            // Guarded before the model lookup, and independent of it: a negative
+            // output-token count previously slipped through and produced a result
+            // whose reported OutputTokens (negative) disagreed with its OutputCost
+            // (clamped to 0 by ModelPricing.OutputCost). Reject it up front, matching
+            // PromptCostEstimator's contract.
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => counter.EstimateCost("test", "gpt-4o", estimatedOutputTokens: -1));
+        }
+
+        [Fact]
+        public void CompareCosts_NegativeOutputTokens_ThrowsArgumentOutOfRange()
+        {
+            var counter = new PromptTokenCounter();
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => counter.CompareCosts("test", estimatedOutputTokens: -5));
+        }
+
+        [Fact]
+        public void FormatCostComparison_NegativeOutputTokens_ThrowsArgumentOutOfRange()
+        {
+            var counter = new PromptTokenCounter();
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => counter.FormatCostComparison("test", estimatedOutputTokens: -1));
+        }
+
+        [Fact]
+        public void EstimateBatchCost_NegativeOutputTokens_ThrowsArgumentOutOfRange()
+        {
+            var counter = new PromptTokenCounter();
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => counter.EstimateBatchCost(new[] { "a", "b" }, "gpt-4o", estimatedOutputTokensEach: -1));
+        }
+
+        [Fact]
         public void EstimateCost_ZeroOutputTokens_OutputCostIsZero()
         {
             var counter = new PromptTokenCounter();
