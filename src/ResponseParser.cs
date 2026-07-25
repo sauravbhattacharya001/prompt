@@ -513,9 +513,15 @@ namespace Prompt
             int startIndex = -1;
             int headingLevel = 0;
 
-            // Find the target heading
+            // Find the target heading. Track fenced-code-block state so that a line
+            // like "# install deps" or "## Example" *inside* a ``` / ~~~ code fence is
+            // not misread as a markdown heading.
+            bool inFence = false;
             for (int i = 0; i < lines.Length; i++)
             {
+                if (IsCodeFence(lines[i])) { inFence = !inFence; continue; }
+                if (inFence) continue;
+
                 var match = SectionHeaderPattern.Match(lines[i]);
                 if (match.Success &&
                     string.Equals(match.Groups[2].Value.Trim(), heading, StringComparison.OrdinalIgnoreCase))
@@ -529,18 +535,38 @@ namespace Prompt
             if (startIndex < 0)
                 return null;
 
-            // Collect content until next heading of equal or higher level
+            // Collect content until next heading of equal or higher level. Headings
+            // that appear inside a code fence do not terminate the section.
             var content = new List<string>();
+            inFence = false;
             for (int i = startIndex; i < lines.Length; i++)
             {
-                var match = SectionHeaderPattern.Match(lines[i]);
-                if (match.Success && match.Groups[1].Value.Length <= headingLevel)
-                    break;
+                if (IsCodeFence(lines[i]))
+                {
+                    inFence = !inFence;
+                    content.Add(lines[i]);
+                    continue;
+                }
+                if (!inFence)
+                {
+                    var match = SectionHeaderPattern.Match(lines[i]);
+                    if (match.Success && match.Groups[1].Value.Length <= headingLevel)
+                        break;
+                }
                 content.Add(lines[i]);
             }
 
             string result = string.Join("\n", content).Trim();
             return string.IsNullOrEmpty(result) ? null : result;
+        }
+
+        // Returns true when a line opens or closes a fenced code block: a run of three
+        // or more backticks or tildes after optional leading whitespace (per CommonMark).
+        private static bool IsCodeFence(string line)
+        {
+            var t = line.TrimStart();
+            return t.StartsWith("```", StringComparison.Ordinal)
+                || t.StartsWith("~~~", StringComparison.Ordinal);
         }
 
         /// <summary>

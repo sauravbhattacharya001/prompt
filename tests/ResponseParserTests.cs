@@ -545,6 +545,29 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void ExtractSection_HeadingInsideCodeFence_DoesNotTruncate()
+        {
+            // Regression: a "# ..." comment line inside a fenced code block must not be
+            // treated as a markdown heading that prematurely ends the section.
+            string response =
+                "## Setup\n" +
+                "Run the following:\n" +
+                "```bash\n" +
+                "# install dependencies\n" +
+                "npm install\n" +
+                "```\n" +
+                "All set.\n" +
+                "## Next\n" +
+                "Other content";
+            var section = ResponseParser.ExtractSection(response, "Setup");
+            Assert.NotNull(section);
+            Assert.Contains("# install dependencies", section!);
+            Assert.Contains("npm install", section!);
+            Assert.Contains("All set.", section!);
+            Assert.DoesNotContain("Other content", section!);
+        }
+
+        [Fact]
         public void ExtractHeadings_FindsAllLevels()
         {
             string response = "# Title\n## Section\n### Subsection\n#### Deep";
