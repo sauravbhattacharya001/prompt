@@ -578,9 +578,18 @@ namespace Prompt
 
             var headings = new List<(int Level, string Text)>();
 
-            foreach (Match match in SectionHeaderPattern.Matches(response))
+            // Skip lines inside fenced code blocks so a comment such as "# install"
+            // or a shell prompt "## note" is not misread as a markdown heading. This
+            // mirrors ExtractSection, which is already fence-aware.
+            bool inFence = false;
+            foreach (var line in response.Split('\n'))
             {
-                headings.Add((match.Groups[1].Value.Length, match.Groups[2].Value.Trim()));
+                if (IsCodeFence(line)) { inFence = !inFence; continue; }
+                if (inFence) continue;
+
+                var match = SectionHeaderPattern.Match(line);
+                if (match.Success)
+                    headings.Add((match.Groups[1].Value.Length, match.Groups[2].Value.Trim()));
             }
 
             return headings;

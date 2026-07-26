@@ -578,6 +578,16 @@ namespace Prompt.Tests
             Assert.Equal(4, headings[3].Level);
         }
 
+        [Fact]
+        public void ExtractHeadings_IgnoresHeadingsInsideCodeFence()
+        {
+            string response = "# Real Title\n```bash\n# not a heading\n## also code\n```\n## Real Section";
+            var headings = ResponseParser.ExtractHeadings(response);
+            Assert.Equal(2, headings.Count);
+            Assert.Equal("Real Title", headings[0].Text);
+            Assert.Equal("Real Section", headings[1].Text);
+        }
+
         // ═══════════════════════════════════════════════════════
         // Composite Parse
         // ═══════════════════════════════════════════════════════
