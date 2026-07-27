@@ -643,8 +643,8 @@ namespace Prompt
                 score -= 20;
             else if (wordCount < 8)
                 score -= 10;
-            else if (wordCount >= 10 && wordCount <= 200)
-                score += 10; // Sweet spot
+            else if (wordCount <= 200)
+                score += 10; // Sweet spot (8–200 words)
             else if (wordCount > 500)
                 score -= 5; // Excessively long
 

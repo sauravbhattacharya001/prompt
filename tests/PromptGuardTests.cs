@@ -335,6 +335,34 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void CalculateQualityScore_EightAndNineWords_ScoreSameAsSweetSpot()
+        {
+            // Regression: the length ramp jumped from the <8 band (-10) straight
+            // to a >=10 sweet-spot band (+10), leaving word counts 8 and 9 in a
+            // dead zone (no length adjustment). They must fall in the same
+            // contiguous sweet spot as a 10-word prompt.
+            // Use plain filler words so no other heuristic (question/format/
+            // structure/etc.) contributes, isolating the length band.
+            string EightWords = string.Join(' ', Enumerable.Repeat("alpha", 8));
+            string NineWords = string.Join(' ', Enumerable.Repeat("alpha", 9));
+            string TenWords = string.Join(' ', Enumerable.Repeat("alpha", 10));
+
+            int eight = PromptGuard.CalculateQualityScore(EightWords);
+            int nine = PromptGuard.CalculateQualityScore(NineWords);
+            int ten = PromptGuard.CalculateQualityScore(TenWords);
+
+            Assert.Equal(ten, eight);
+            Assert.Equal(ten, nine);
+
+            // And an 8-word prompt must out-score a 7-word one (crossing into
+            // the sweet spot should raise, never lower, the score).
+            int seven = PromptGuard.CalculateQualityScore(
+                string.Join(' ', Enumerable.Repeat("alpha", 7)));
+            Assert.True(eight > seven,
+                $"8-word prompt ({eight}) should out-score 7-word prompt ({seven})");
+        }
+
+        [Fact]
         public void CalculateQualityScore_GoodPrompt_ScoresHigher()
         {
             int badScore = PromptGuard.CalculateQualityScore("stuff things");
