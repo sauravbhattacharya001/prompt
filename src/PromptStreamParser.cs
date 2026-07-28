@@ -152,6 +152,13 @@ namespace Prompt
         private int _chunkCount;
         private int _processedUpTo;
 
+        // Set only during the final pass in Complete(): tells the line-based
+        // detectors (heading / key-value / list / table) to treat the end of the
+        // buffer as a line terminator, so a final line that arrived without a
+        // trailing newline is still classified instead of being paused forever
+        // and falling through to plain text.
+        private bool _finalizing;
+
         // State tracking
         private bool _inCodeBlock;
         private string? _codeBlockLang;
@@ -221,6 +228,12 @@ namespace Prompt
         /// </summary>
         public StreamParserSummary Complete()
         {
+            // Final pass: process any unterminated last line (no trailing '\n')
+            // through the line-based detectors before flushing pending blocks.
+            _finalizing = true;
+            ProcessBuffer();
+            _finalizing = false;
+
             FlushPending();
             ProcessRemainingText();
 
@@ -447,7 +460,11 @@ namespace Prompt
                     FlushListIfActive(i);
                     FlushTableIfActive(i);
                     var lineEnd = text.IndexOf('\n', i);
-                    if (lineEnd == -1) { _processedUpTo = i; return; }
+                    if (lineEnd == -1)
+                    {
+                        if (!_finalizing) { _processedUpTo = i; return; }
+                        lineEnd = text.Length;
+                    }
                     var line = text.Substring(i, lineEnd - i).TrimEnd();
                     var match = Regex.Match(line, @"^(#{1,6})\s+(.+)$", RegexOptions.None, TimeSpan.FromMilliseconds(500));
                     if (match.Success)
@@ -477,7 +494,14 @@ namespace Prompt
                         _tableRowCount = 0;
                     }
                     var lineEnd = text.IndexOf('\n', i);
-                    if (lineEnd == -1) { _processedUpTo = i; return; }
+                    if (lineEnd == -1)
+                    {
+                        if (!_finalizing) { _processedUpTo = i; return; }
+                        _tableContent.AppendLine(text.Substring(i));
+                        _tableRowCount++;
+                        i = text.Length;
+                        continue;
+                    }
                     _tableContent.AppendLine(text.Substring(i, lineEnd - i));
                     _tableRowCount++;
                     i = lineEnd + 1;
@@ -493,7 +517,11 @@ namespace Prompt
                 if (IsTypeEnabled(StreamContentType.List) && (i == 0 || text[i - 1] == '\n'))
                 {
                     var lineEnd = text.IndexOf('\n', i);
-                    if (lineEnd == -1) { _processedUpTo = i; return; }
+                    if (lineEnd == -1)
+                    {
+                        if (!_finalizing) { _processedUpTo = i; return; }
+                        lineEnd = text.Length;
+                    }
                     var line = text.Substring(i, lineEnd - i);
                     if (IsListItem(line))
                     {
@@ -526,7 +554,11 @@ namespace Prompt
                 if (IsTypeEnabled(StreamContentType.KeyValue) && (i == 0 || text[i - 1] == '\n'))
                 {
                     var lineEnd = text.IndexOf('\n', i);
-                    if (lineEnd == -1) { _processedUpTo = i; return; }
+                    if (lineEnd == -1)
+                    {
+                        if (!_finalizing) { _processedUpTo = i; return; }
+                        lineEnd = text.Length;
+                    }
                     var line = text.Substring(i, lineEnd - i);
                     var kvMatch = Regex.Match(line, @"^\s{0,3}\*{0,2}([A-Za-z][\w\s]{0,40}?)\*{0,2}\s*:\s+(.+)$", RegexOptions.None, TimeSpan.FromMilliseconds(500));
                     if (kvMatch.Success && !line.TrimStart().StartsWith("http", StringComparison.OrdinalIgnoreCase))

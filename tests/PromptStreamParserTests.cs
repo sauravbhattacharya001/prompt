@@ -611,4 +611,67 @@ public class PromptStreamParserTests
         var summary = parser.Complete();
         Assert.Equal("Published", summary.KeyValues["Status"]);
     }
+
+    // ── Final line without a trailing newline (regression) ──
+    // A stream frequently ends without a trailing '\n'. The line-based
+    // detectors used to pause on a missing newline and never re-run at
+    // finalize, so a last heading/key-value/list/table line was silently
+    // misclassified as plain text (or, for lists/tables, dropped).
+
+    [Fact]
+    public void HeadingOnFinalLineWithoutNewlineIsExtracted()
+    {
+        var parser = new PromptStreamParser();
+        parser.Feed(Chunk("## Conclusion"));
+        var summary = parser.Complete();
+        var heading = Assert.Single(summary.Headings);
+        Assert.Equal("Conclusion", heading.Content);
+        Assert.Equal("2", heading.Tag);
+        Assert.DoesNotContain(summary.Items, i => i.Type == StreamContentType.Text);
+    }
+
+    [Fact]
+    public void KeyValueOnFinalLineWithoutNewlineIsExtracted()
+    {
+        var parser = new PromptStreamParser();
+        parser.Feed(Chunk("Author: Ada Lovelace"));
+        var summary = parser.Complete();
+        Assert.Equal("Ada Lovelace", summary.KeyValues["Author"]);
+    }
+
+    [Fact]
+    public void LastListItemWithoutNewlineIsIncluded()
+    {
+        var parser = new PromptStreamParser();
+        parser.Feed(Chunk("- alpha\n- beta\n- gamma"));
+        var summary = parser.Complete();
+        var list = Assert.Single(summary.Lists);
+        Assert.Contains("alpha", list.Content);
+        Assert.Contains("beta", list.Content);
+        Assert.Contains("gamma", list.Content);
+    }
+
+    [Fact]
+    public void LastTableRowWithoutNewlineIsIncluded()
+    {
+        var parser = new PromptStreamParser();
+        parser.Feed(Chunk("| A | B |\n| - | - |\n| 1 | 2 |"));
+        var summary = parser.Complete();
+        var table = Assert.Single(summary.Tables);
+        Assert.Contains("1", table.Content);
+        Assert.Contains("2", table.Content);
+    }
+
+    [Fact]
+    public void FinalHeadingIsNotDuplicatedAsText()
+    {
+        // The heading emitted at finalize must cover its offsets so the
+        // plain-text pass does not also emit it as a Text paragraph.
+        var parser = new PromptStreamParser();
+        parser.Feed(Chunk("intro paragraph\n\n# Title"));
+        var summary = parser.Complete();
+        Assert.Single(summary.Headings);
+        Assert.DoesNotContain(summary.Items,
+            i => i.Type == StreamContentType.Text && i.Content.Contains("Title"));
+    }
 }
