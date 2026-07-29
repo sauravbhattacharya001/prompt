@@ -67,7 +67,15 @@ namespace Prompt
         /// <summary>Number of registered routes.</summary>
         public int RouteCount => _routes.Count;
 
-        /// <summary>Get or set the minimum score threshold for a match (0-1). Default 0.1.</summary>
+        /// <summary>
+        /// Get or set the minimum score threshold a route must reach to be
+        /// selected. The setter clamps to [0, 1]. Default 0.1.
+        /// </summary>
+        /// <remarks>
+        /// Route scores are priority-weighted (see <see cref="RouteMatch.Score"/>)
+        /// and can exceed 1.0 when a route's <see cref="RouteConfig.Priority"/> is
+        /// above 1.0, so any threshold in [0, 1] is reachable.
+        /// </remarks>
         public double MinScore
         {
             get => _minScore;
@@ -455,7 +463,11 @@ namespace Prompt
         /// <summary>Template name to route to (looked up in PromptLibrary).</summary>
         public string TemplateName { get; set; } = "";
 
-        /// <summary>Priority weight multiplier (default 1.0, higher = preferred).</summary>
+        /// <summary>
+        /// Priority weight multiplier applied to the route's base score (default
+        /// 1.0, higher = preferred). Values above 1.0 boost the route and push its
+        /// final <see cref="RouteMatch.Score"/> above the 0-1 base range.
+        /// </summary>
         public double Priority { get; set; } = 1.0;
     }
 
@@ -465,7 +477,13 @@ namespace Prompt
         /// <summary>Name of the matched route.</summary>
         public string RouteName { get; set; } = "";
 
-        /// <summary>Match score (0-1, after priority weighting).</summary>
+        /// <summary>
+        /// Match score. The base score is in [0, 1] (up to 0.6 from keyword
+        /// coverage plus up to 0.4 from pattern matches), then multiplied by the
+        /// route's <see cref="RouteConfig.Priority"/>. Because priority may be
+        /// above 1.0, the final score can exceed 1.0; a boosted route with a full
+        /// keyword match and priority 2.0 scores 1.2.
+        /// </summary>
         public double Score { get; set; }
 
         /// <summary>Template name to use.</summary>

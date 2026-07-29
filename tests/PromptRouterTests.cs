@@ -463,6 +463,21 @@ public class PromptRouterTests : IDisposable
     }
 
     [Fact]
+    public void ScoreAll_PriorityAboveOne_ProducesScoreAboveOne()
+    {
+        // A full keyword match yields a base score of 0.6; with Priority 2.0 the
+        // final Score is 1.2, i.e. deliberately outside the 0-1 base range. This
+        // pins the documented behavior so scores are never silently clamped to 1.
+        var router = new PromptRouter();
+        router.AddRoute("boosted", MakeConfig(new[] { "hello" }, priority: 2.0));
+
+        var boosted = router.ScoreAll("hello").First(s => s.RouteName == "boosted");
+
+        Assert.Equal(1.2, boosted.Score, 4);
+        Assert.True(boosted.Score > 1.0);
+    }
+
+    [Fact]
     public void Route_HigherPriorityWins()
     {
         var router = new PromptRouter();
