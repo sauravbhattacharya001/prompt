@@ -844,6 +844,41 @@ namespace Prompt.Tests
             Assert.True(result.Length < prompt.Length);
         }
 
+        [Fact]
+        public void TruncateToTokenLimit_ExceedsLimit_ResultWithinTokenBudget()
+        {
+            string prompt = string.Join(" ", Enumerable.Repeat("word", 500));
+            string result = PromptGuard.TruncateToTokenLimit(prompt, 40);
+
+            // The documented contract: "the result will be at or below this limit."
+            Assert.True(PromptGuard.EstimateTokens(result) <= 40,
+                $"result estimated {PromptGuard.EstimateTokens(result)} tokens, expected <= 40");
+        }
+
+        [Fact]
+        public void TruncateToTokenLimit_MarkerLargerThanBudget_StaysWithinLimit()
+        {
+            // The default marker alone costs several tokens. With a tiny
+            // maxTokens the marker cannot fit; the result must still honour
+            // the "at or below this limit" contract rather than emitting the
+            // full over-budget marker.
+            string prompt = string.Join(" ", Enumerable.Repeat("word", 500));
+            string result = PromptGuard.TruncateToTokenLimit(prompt, 2);
+
+            Assert.True(PromptGuard.EstimateTokens(result) <= 2,
+                $"result estimated {PromptGuard.EstimateTokens(result)} tokens, expected <= 2");
+        }
+
+        [Fact]
+        public void TruncateToTokenLimit_MaxTokensOne_StaysWithinLimit()
+        {
+            string prompt = string.Join(" ", Enumerable.Repeat("word", 500));
+            string result = PromptGuard.TruncateToTokenLimit(prompt, 1);
+
+            Assert.True(PromptGuard.EstimateTokens(result) <= 1,
+                $"result estimated {PromptGuard.EstimateTokens(result)} tokens, expected <= 1");
+        }
+
         // ═══════════════════════════════════════════════════════
         // Quality Grade Mapping
         // ═══════════════════════════════════════════════════════

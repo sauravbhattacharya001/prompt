@@ -943,21 +943,36 @@ namespace Prompt
             int markerTokens = EstimateTokens(marker);
             int targetTokens = maxTokens - markerTokens;
 
+            // Largest character prefix of `text` whose estimated tokens are
+            // <= `tokenBudget` (0 when even a single char would exceed it).
+            static int FitPrefixChars(string text, int tokenBudget)
+            {
+                int lo = 0, hi = text.Length;
+                while (lo < hi)
+                {
+                    int m = (lo + hi + 1) / 2;
+                    if (EstimateTokens(text.Substring(0, m)) <= tokenBudget)
+                        lo = m;
+                    else
+                        hi = m - 1;
+                }
+                return lo;
+            }
+
             if (targetTokens < 1)
-                return marker.Length > 0 ? marker : prompt.Substring(0, 1);
+            {
+                // The marker alone does not fit in maxTokens. Returning the
+                // whole marker here would exceed maxTokens and break the
+                // documented "at or below this limit" guarantee, so fit the
+                // marker itself into the budget (falling back to the prompt
+                // when there is no marker).
+                string fallback = marker.Length > 0 ? marker : prompt;
+                int keep = FitPrefixChars(fallback, maxTokens);
+                return fallback.Substring(0, keep);
+            }
 
             // Binary search for the right character count
-            int low = 0;
-            int high = prompt.Length;
-
-            while (low < high)
-            {
-                int mid = (low + high + 1) / 2;
-                if (EstimateTokens(prompt.Substring(0, mid)) <= targetTokens)
-                    low = mid;
-                else
-                    high = mid - 1;
-            }
+            int low = FitPrefixChars(prompt, targetTokens);
 
             if (low == 0)
                 return marker;
