@@ -205,6 +205,37 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void Format_SystemOnlyPrompt_Anthropic_DoesNotDuplicateAsUserTurn()
+        {
+            // A prompt that is ONLY a system instruction must go to the top-level
+            // system field and NOT also be injected as a user message (which would
+            // leak the system text into the conversation turns).
+            var result = _formatter.Format("You are a pirate.", ChatProvider.Anthropic);
+
+            Assert.Equal("You are a pirate.", result.SystemMessage);
+            Assert.Empty(result.Messages);
+            Assert.DoesNotContain(result.Messages, m => m.Content.Contains("pirate"));
+        }
+
+        [Fact]
+        public void Format_SystemOnlyPrompt_Gemini_DoesNotDuplicateAsUserTurn()
+        {
+            var result = _formatter.Format("You are a pirate.", ChatProvider.Gemini);
+
+            Assert.Equal("You are a pirate.", result.SystemMessage);
+            Assert.Empty(result.Messages);
+        }
+
+        [Fact]
+        public void FormatAsJson_SystemOnlyPrompt_Anthropic_HasNoUserTurn()
+        {
+            var json = _formatter.FormatAsJson("You are a pirate.", ChatProvider.Anthropic);
+            var doc = JsonDocument.Parse(json);
+            Assert.Equal("You are a pirate.", doc.RootElement.GetProperty("system").GetString());
+            Assert.Equal(0, doc.RootElement.GetProperty("messages").GetArrayLength());
+        }
+
+        [Fact]
         public void Parse_DetectsAllSystemPrefixes()
         {
             var prefixes = new[]

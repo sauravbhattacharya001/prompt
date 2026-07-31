@@ -224,8 +224,14 @@ namespace Prompt
                 ExtractSystemAndRemapRoles(messages, result, assistantAlias);
             }
 
-            // Ensure at least one user message exists
-            if (result.Messages.Count == 0 && !string.IsNullOrWhiteSpace(prompt))
+            // Ensure the result carries content: if there are no messages AND no
+            // system message was extracted, fall back to treating the whole prompt
+            // as a single user turn. When a system message WAS extracted (e.g. the
+            // prompt was only a system instruction), do NOT also inject the prompt
+            // as a user turn — that duplicated the system text into a user message.
+            if (result.Messages.Count == 0
+                && string.IsNullOrEmpty(result.SystemMessage)
+                && !string.IsNullOrWhiteSpace(prompt))
             {
                 result.Messages.Add(new ChatMessage("user", prompt.Trim()));
             }
@@ -326,8 +332,10 @@ namespace Prompt
         }
 
         /// <summary>
-        /// Estimates the token count of formatted messages using a simple
-        /// word-based heuristic (roughly 0.75 tokens per word).
+        /// Estimates the token count of formatted messages. Each message's content
+        /// is estimated with <see cref="PromptGuard.EstimateTokens"/> (a character/
+        /// word blended heuristic), plus ~4 tokens of per-message overhead for role
+        /// and formatting metadata.
         /// </summary>
         /// <param name="messages">Messages to estimate tokens for.</param>
         /// <returns>Estimated token count.</returns>
