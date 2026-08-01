@@ -258,8 +258,30 @@ namespace Prompt
                 SecretCategory.CreditCard => "****-****-****-" + value[^4..],
                 SecretCategory.SSN => "***-**-" + value[^4..],
                 SecretCategory.PhoneNumber => "***-***-" + value[^4..],
-                _ => value[..3] + new string('*', Math.Max(value.Length - 6, 3)) + value[^3..]
+                _ => RedactGeneric(value)
             };
+        }
+
+        /// <summary>
+        /// Masks the middle of a value while revealing a few leading and trailing
+        /// characters for recognizability. The number of revealed characters scales
+        /// with length so the head and tail can NEVER overlap and at least one
+        /// character is always masked.
+        /// </summary>
+        /// <remarks>
+        /// The previous implementation was <c>value[..3] + stars + value[^3..]</c>,
+        /// which for a 5- or 6-character match returned overlapping head/tail slices
+        /// that together spelled out the entire secret (e.g. <c>"abcde"</c> =&gt;
+        /// <c>"abc***cde"</c>) — a redaction that leaked 100% of the original
+        /// characters. Reveal counts are now capped so <c>2 * reveal &lt; length</c>.
+        /// Callers guarantee <c>value.Length &gt;= 5</c> here (shorter values are
+        /// fully starred by <see cref="Redact(string, SecretCategory)"/>).
+        /// </remarks>
+        private static string RedactGeneric(string value)
+        {
+            int reveal = value.Length >= 12 ? 3 : value.Length >= 8 ? 2 : 1;
+            int masked = value.Length - 2 * reveal;
+            return value[..reveal] + new string('*', masked) + value[^reveal..];
         }
 
         /// <summary>

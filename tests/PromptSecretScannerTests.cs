@@ -115,6 +115,67 @@ public class PromptSecretScannerTests
         Assert.Equal(expected, result.RedactedText);
     }
 
+    // ── Generic redaction: short matches must NOT leak the whole value ──────
+    // Regression: the generic branch was value[..3] + stars + value[^3..], whose
+    // head and tail slices OVERLAP for a 5- or 6-character match, so together they
+    // spelled out every original character (e.g. "abcde" -> "abc***cde"). A custom
+    // rule matching a short token exercises the generic (non-email/card/ssn/phone)
+    // path directly.
+    private static PromptSecretScanner ScannerWithTokenRule(int minLen, int maxLen)
+    {
+        var pat = $"tok_[A-Za-z0-9]{{{minLen},{maxLen}}}";
+        return new PromptSecretScanner().AddRule(new SecretRule(
+            "custom-tok", "Custom Token", SecretCategory.Token,
+            SecretSeverity.High, pat, "test token"));
+    }
+
+    [Theory]
+    [InlineData("tok_a")]      // length 5
+    [InlineData("tok_ab")]     // length 6
+    [InlineData("tok_abc")]    // length 7
+    public void RedactGeneric_ShortValue_DoesNotRevealEntireSecret(string secret)
+    {
+        var scanner = ScannerWithTokenRule(1, 3);
+        var result = scanner.Scan($"key {secret} end");
+
+        var finding = Assert.Single(result.Findings);
+        Assert.Equal(secret, finding.MatchedText);
+        // The redaction must not contain the raw secret anywhere, and must mask at
+        // least one character (i.e. it is genuinely shorter in revealed content).
+        Assert.DoesNotContain(secret, result.RedactedText);
+        Assert.Contains('*', finding.RedactedText);
+        // Redaction length is preserved (in-place substitution) and reconstructible.
+        Assert.Equal(secret.Length, finding.RedactedText.Length);
+    }
+
+    [Fact]
+    public void RedactGeneric_HeadAndTailNeverOverlap_LeavesMaskedMiddle()
+    {
+        var scanner = ScannerWithTokenRule(1, 40);
+        foreach (var secret in new[] { "tok_abcde", "tok_abcdefghij", "tok_abcdefghijklmnopqrst" })
+        {
+            var f = Assert.Single(scanner.Scan(secret).Findings);
+            var red = f.RedactedText;
+            // Every masked run sits between the revealed head and tail: there is at
+            // least one '*', and no run of the original characters survives whole.
+            Assert.Contains('*', red);
+            Assert.DoesNotContain(secret, red);
+            Assert.Equal(secret.Length, red.Length);
+        }
+    }
+
+    [Fact]
+    public void RedactGeneric_RedactedTextReconstructibleFromFindings()
+    {
+        var scanner = ScannerWithTokenRule(1, 40);
+        var input = "a tok_ab and tok_abcdefghij here";
+        var result = scanner.Scan(input);
+        var expected = input;
+        foreach (var f in result.Findings.OrderByDescending(f => f.Position))
+            expected = expected.Remove(f.Position, f.Length).Insert(f.Position, f.RedactedText);
+        Assert.Equal(expected, result.RedactedText);
+    }
+
     [Fact]
     public void DetectsPrivateKeyHeader()
     {
