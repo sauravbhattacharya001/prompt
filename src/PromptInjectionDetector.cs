@@ -426,7 +426,13 @@ namespace Prompt
             // Multilingual evasion
             _rules.Add(new InjectionRule("INJ021", "Leetspeak Ignore",
                 InjectionCategory.MultilingualEvasion, InjectionRisk.Medium,
-                @"1gn[o0]r[e3]\s+[a4]ll\s+pr[e3]v[i1][o0][u\xfc]s|d[i1]sr[e3]g[a4]rd",
+                // The "disregard" branch requires at least one leet digit-substitution
+                // (0/1/3/4) via the (?=...) lookahead so it only fires on genuine leetspeak
+                // (e.g. "d1sr3g4rd", "disr3gard"). Plain English "disregard" is NOT leetspeak
+                // evasion, and when it appears in an actual injection phrase it is already
+                // caught (Critical) by INJ002 — so this avoids a Medium false positive on
+                // benign text like "Please disregard my earlier typo".
+                @"1gn[o0]r[e3]\s+[a4]ll\s+pr[e3]v[i1][o0][u\xfc]s|d(?=[a-z0-9]*[0134])[i1]sr[e3]g[a4]rd",
                 "Leetspeak evasion of ignore-previous patterns."));
         }
     }
