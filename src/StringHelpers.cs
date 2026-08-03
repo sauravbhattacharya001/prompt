@@ -6,8 +6,10 @@ namespace Prompt
 
     /// <summary>
     /// Shared string utility methods used across multiple prompt classes.
-    /// Consolidates duplicated helpers (Levenshtein, Truncate, Similarity, etc.)
+    /// Consolidates duplicated helpers (Levenshtein, Truncate, ComputeSimilarity, etc.)
     /// into a single internal utility to reduce code duplication.
+    /// Set-based Jaccard similarity lives in <see cref="TextAnalysisHelpers"/>,
+    /// the single home for tokenization/similarity primitives.
     /// </summary>
     internal static class StringHelpers
     {
@@ -123,27 +125,6 @@ namespace Prompt
             int distance = LevenshteinDistance(a, b);
             int maxLen = Math.Max(a.Length, b.Length);
             return 1.0 - ((double)distance / maxLen);
-        }
-
-        /// <summary>
-        /// Jaccard similarity between two sets.
-        /// </summary>
-        internal static double JaccardSimilarity(HashSet<string> a, HashSet<string> b)
-        {
-            if (a.Count == 0 && b.Count == 0) return 1.0;
-
-            // Iterate the smaller set for O(min(|a|,|b|)) intersection
-            // without allocating intermediate LINQ enumerables.
-            var smaller = a.Count <= b.Count ? a : b;
-            var larger  = a.Count <= b.Count ? b : a;
-            int intersection = 0;
-            foreach (var item in smaller)
-            {
-                if (larger.Contains(item))
-                    intersection++;
-            }
-            int union = a.Count + b.Count - intersection;
-            return union > 0 ? (double)intersection / union : 0.0;
         }
 
         /// <summary>

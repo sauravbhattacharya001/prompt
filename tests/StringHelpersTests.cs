@@ -121,39 +121,6 @@ namespace Prompt.Tests
             Assert.Equal(1.0, StringHelpers.ComputeSimilarity(a, a));
         }
 
-        // ─── JaccardSimilarity ───
-
-        [Fact]
-        public void JaccardSimilarity_BothEmpty_ReturnsOne()
-        {
-            Assert.Equal(1.0, StringHelpers.JaccardSimilarity(
-                new HashSet<string>(), new HashSet<string>()));
-        }
-
-        [Fact]
-        public void JaccardSimilarity_Identical_ReturnsOne()
-        {
-            var set = new HashSet<string> { "a", "b", "c" };
-            Assert.Equal(1.0, StringHelpers.JaccardSimilarity(set, set));
-        }
-
-        [Fact]
-        public void JaccardSimilarity_Disjoint_ReturnsZero()
-        {
-            var a = new HashSet<string> { "a", "b" };
-            var b = new HashSet<string> { "c", "d" };
-            Assert.Equal(0.0, StringHelpers.JaccardSimilarity(a, b));
-        }
-
-        [Fact]
-        public void JaccardSimilarity_Overlap_ReturnsCorrectRatio()
-        {
-            var a = new HashSet<string> { "a", "b", "c" };
-            var b = new HashSet<string> { "b", "c", "d" };
-            // intersection=2, union=4
-            Assert.Equal(0.5, StringHelpers.JaccardSimilarity(a, b));
-        }
-
         // ─── SafeRegexMatch ───
 
         [Fact]
