@@ -49,6 +49,63 @@ namespace Prompt.Tests
             Assert.Equal(expected, StringHelpers.LevenshteinDistance(a, b));
         }
 
+        // ─── LevenshteinDistance (bounded overload) ───
+        //
+        // The bounded overload returns the *exact* distance when it is within
+        // maxDistance, and a `maxDistance + 1` sentinel (NOT the true distance)
+        // once the minimum possible distance provably exceeds the bound. These
+        // early-exit paths (the length-difference prefilter and the per-row
+        // rowMin check) were previously unpinned.
+
+        [Fact]
+        public void LevenshteinBounded_WithinBound_ReturnsExactDistance()
+        {
+            // kitten->sitting is 3; a generous bound must yield the true value.
+            Assert.Equal(3, StringHelpers.LevenshteinDistance("kitten", "sitting", 10));
+        }
+
+        [Fact]
+        public void LevenshteinBounded_DistanceEqualsBound_ReturnsExactDistance()
+        {
+            // Boundary case: true distance == maxDistance must NOT trip the
+            // early-exit; the exact distance is still returned.
+            Assert.Equal(3, StringHelpers.LevenshteinDistance("kitten", "sitting", 3));
+        }
+
+        [Fact]
+        public void LevenshteinBounded_ExceedsBound_ReturnsSentinel()
+        {
+            // true distance 3 > bound 2 => sentinel (max+1), not the real value.
+            Assert.Equal(3, StringHelpers.LevenshteinDistance("kitten", "sitting", 2));
+            Assert.Equal(1, StringHelpers.LevenshteinDistance("kitten", "sitting", 0));
+        }
+
+        [Fact]
+        public void LevenshteinBounded_LengthDifferencePrefilter_ReturnsSentinel()
+        {
+            // |len(a)-len(b)| alone exceeds the bound, so the answer is the
+            // sentinel without computing the full matrix.
+            Assert.Equal(2, StringHelpers.LevenshteinDistance("a", "abcd", 1));
+        }
+
+        [Fact]
+        public void LevenshteinBounded_ZeroDistanceWithinBound_ReturnsZero()
+        {
+            Assert.Equal(0, StringHelpers.LevenshteinDistance("same", "same", 0));
+        }
+
+        [Fact]
+        public void LevenshteinBounded_ArgumentOrderIndependent()
+        {
+            // The internal shorter/longer swap must not change the result.
+            Assert.Equal(
+                StringHelpers.LevenshteinDistance("abcd", "a", 1),
+                StringHelpers.LevenshteinDistance("a", "abcd", 1));
+            Assert.Equal(
+                StringHelpers.LevenshteinDistance("sitting", "kitten", 10),
+                StringHelpers.LevenshteinDistance("kitten", "sitting", 10));
+        }
+
         // ─── Truncate ───
 
         [Fact]
