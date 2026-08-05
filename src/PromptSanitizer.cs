@@ -310,7 +310,15 @@ namespace Prompt
             // 8. Truncate
             if (options.MaxLength > 0 && text.Length > options.MaxLength)
             {
-                text = text.Substring(0, options.MaxLength);
+                int cut = options.MaxLength;
+                // Never cut between a UTF-16 surrogate pair — doing so leaves a lone
+                // high surrogate at the end, an invalid string that mojibakes when
+                // encoded and can even split a smuggled supplementary-plane char
+                // (e.g. a Unicode Tag char) into a broken fragment. Back off by one
+                // so the truncated text stays well-formed (stays <= MaxLength).
+                if (char.IsHighSurrogate(text[cut - 1]))
+                    cut--;
+                text = text.Substring(0, cut);
                 actions.Add(new SanitizeAction
                 {
                     Type = "truncate",

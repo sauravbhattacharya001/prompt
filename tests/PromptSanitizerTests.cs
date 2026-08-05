@@ -467,6 +467,43 @@ namespace Prompt.Tests
             Assert.Contains("5", action.Description);
         }
 
+        [Fact]
+        public void Truncation_DoesNotSplitSurrogatePair()
+        {
+            // "ab" + 😀 (a surrogate pair at UTF-16 indices 2,3). With
+            // MaxLength=3 the naive cut lands between the two surrogates.
+            var input = "ab\U0001F600cd";
+            var opts3 = new SanitizeOptions
+            {
+                NormalizeWhitespace = false,
+                CollapseBlankLines = false,
+                TrimEnds = false,
+                MaxLength = 3
+            };
+            var result = _sanitizer.Sanitize(input, opts3);
+            // Backs off to "ab" (2 chars) rather than "ab\uD83D" (a lone high
+            // surrogate). Result must be well-formed and within the limit.
+            Assert.Equal("ab", result.Sanitized);
+            Assert.True(result.Sanitized.Length <= 3);
+            Assert.DoesNotContain(result.Sanitized, c => char.IsHighSurrogate(c) && result.Sanitized.IndexOf(c) == result.Sanitized.Length - 1);
+        }
+
+        [Fact]
+        public void Truncation_KeepsWholeSurrogatePairWhenItFits()
+        {
+            var opts = new SanitizeOptions
+            {
+                NormalizeWhitespace = false,
+                CollapseBlankLines = false,
+                TrimEnds = false,
+                MaxLength = 4
+            };
+            // "ab" + full emoji fits exactly in 4 UTF-16 units — keep the pair intact.
+            var result = _sanitizer.Sanitize("ab\U0001F600cd", opts);
+            Assert.Equal("ab\U0001F600", result.Sanitized);
+            Assert.Equal(4, result.Sanitized.Length);
+        }
+
         // ── Options Toggling ───────────────────────────────────────────────
 
         [Fact]
