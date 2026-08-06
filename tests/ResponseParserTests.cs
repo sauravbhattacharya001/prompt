@@ -489,6 +489,27 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void ExtractNumbers_MalformedGrouping_NotSplitIntoPhantoms()
+        {
+            // A malformed thousands grouping ("555,1234" — the second group is 4
+            // digits, not 3) must NOT be silently torn into two separate numbers
+            // (555 and 1234). Previously the grouped alternative matched "555" and
+            // then the tail "1234" was picked up as a second number, inventing a
+            // value pair that never appeared in the text.
+            var numbers = ResponseParser.ExtractNumbers("call 555,1234 now");
+            Assert.DoesNotContain(555, numbers);
+
+            // "1,23" is not valid grouping either -> no bogus 1 emitted.
+            Assert.DoesNotContain(1, ResponseParser.ExtractNumbers("item 1,23 here"));
+
+            // A genuinely grouped number is still parsed whole, and a trailing
+            // comma before a non-digit ("42,") does not block the match.
+            var mixed = ResponseParser.ExtractNumbers("12,345,678 items, and 42, done");
+            Assert.Contains(12345678, mixed);
+            Assert.Contains(42, mixed);
+        }
+
+        [Fact]
         public void ExtractNumbers_NoNumbers_ReturnsEmpty()
         {
             var numbers = ResponseParser.ExtractNumbers("No numbers here.");

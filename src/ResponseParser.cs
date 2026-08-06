@@ -61,9 +61,13 @@ namespace Prompt
             @"|\bno,?\s+(?:it|that|this)\b",
             RegexOptions.Compiled | RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(500));
 
-        // Pre-compiled regex for ExtractNumbers
+        // Pre-compiled regex for ExtractNumbers.
+        // The comma-grouped alternative requires at least one full ",ddd" group and is
+        // guarded by a trailing (?!,\d) so a *malformed* grouping (e.g. "1,23" or
+        // "555,1234") is not silently accepted as if it were a valid thousands-
+        // separated number. Bare runs of digits still match via the \d+ branch.
         private static readonly Regex NumberPattern =
-            new Regex(@"(?<!\w)-?(?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d+)?(?!\w)", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+            new Regex(@"(?<!\w)-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?!\w)(?!,\d)", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         // Pre-compiled regex for ExtractList
         private static readonly Regex ListItemPattern =
