@@ -236,28 +236,34 @@ namespace Prompt
         /// </summary>
         private static readonly (Regex Pattern, string Description)[] InjectionPatterns =
         {
+            // NOTE: patterns that span two keyword groups with `.*` set
+            // RegexOptions.Singleline so the `.` also matches newlines. Without
+            // it an attacker could split an injection phrase across a line break
+            // (e.g. "ignore\nall previous instructions") and evade detection,
+            // since `.` excludes `\n` by default. Multi-line prompts are common,
+            // so this is a real bypass, not a theoretical one.
             (new Regex(@"\bignore\b.*\b(previous|above|all|prior)\b.*\b(instructions?|prompts?|rules?|guidelines?)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
+                RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "Instruction override: attempts to ignore previous instructions"),
 
             (new Regex(@"\b(disregard|forget|override|bypass|skip)\b.*\b(instructions?|prompts?|rules?|constraints?|guidelines?|system)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
+                RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "Instruction override: attempts to disregard/bypass rules"),
 
             (new Regex(@"\byou\s+are\s+now\b.*\b(new|different|DAN|evil|unrestricted|unfiltered)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
+                RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "Role hijacking: attempts to reassign the model's identity"),
 
             (new Regex(@"\b(pretend|act\s+as\s+if|imagine|suppose)\b.*\b(no\s+(rules?|restrictions?|limits?|boundaries)|unrestricted|unfiltered|jailbr[eo]ak)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
+                RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "Jailbreak: attempts to remove model restrictions via roleplay"),
 
             (new Regex(@"\bsystem\s*prompt\b.*\b(show|reveal|display|print|tell|output|repeat|what)\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
+                RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "System prompt extraction: attempts to reveal system instructions"),
 
             (new Regex(@"\b(reveal|show|display|output|print|leak|expose)\b.*\b(system\s*(prompt|message|instructions?)|hidden\s*(prompt|instructions?)|initial\s*(prompt|instructions?))\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
+                RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "System prompt extraction: attempts to expose hidden instructions"),
 
             (new Regex(@"\b(do\s+not|don'?t|never)\s+(follow|obey|listen|adhere)\b",
@@ -269,7 +275,7 @@ namespace Prompt
                 "Known jailbreak: DAN (Do Anything Now) pattern"),
 
             (new Regex(@"\b(from\s+now\s+on|starting\s+now|henceforth)\b.*\b(you\s+(will|must|should|shall)|your\s+(role|purpose|function))\b",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
+                RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled, TimeSpan.FromMilliseconds(500)),
                 "Role hijacking: attempts to redefine model behavior"),
 
             (new Regex(@"\[\s*SYSTEM\s*\]|\[\s*INST\s*\]|<<\s*SYS\s*>>|<\|system\|>|<\|im_start\|>",
