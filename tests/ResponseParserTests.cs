@@ -727,6 +727,54 @@ The answer is 42.
             Assert.Null(ResponseParser.ExtractBareJson("no json here"));
         }
 
+        [Fact]
+        public void ExtractBareJson_ProsePlaceholderBeforeValidJson_SkipsToValid()
+        {
+            // An LLM often writes a prose placeholder like {name} before the real
+            // payload. The first brace-balanced region ({name}) is not valid JSON;
+            // extraction must skip it and return the genuine object that follows
+            // rather than giving up on the invalid first candidate.
+            string response = "Fill in {name}, then result: {\"ok\": true} done.";
+            string? json = ResponseParser.ExtractBareJson(response);
+            Assert.NotNull(json);
+            using var doc = JsonDocument.Parse(json!);
+            Assert.True(doc.RootElement.GetProperty("ok").GetBoolean());
+        }
+
+        [Fact]
+        public void ExtractJson_ProsePlaceholderBeforeValidJson_Deserializes()
+        {
+            string response = "Template {name}: {\"name\": \"Alice\", \"age\": 30}";
+            var person = ResponseParser.ExtractJson<TestPerson>(response);
+            Assert.NotNull(person);
+            Assert.Equal("Alice", person!.Name);
+            Assert.Equal(30, person.Age);
+        }
+
+        [Fact]
+        public void ExtractBareJson_UnterminatedObjectThenValidArray_ReturnsArray()
+        {
+            // The first opener is a '{' that is never closed. The scanner must not
+            // stop at it (the historical IndexOf-based code returned null here) but
+            // continue on to the valid array that follows.
+            string response = "oops {\"broken\": then [1, 2, 3]";
+            string? json = ResponseParser.ExtractBareJson(response);
+            Assert.NotNull(json);
+            using var doc = JsonDocument.Parse(json!);
+            Assert.Equal(3, doc.RootElement.GetArrayLength());
+        }
+
+        [Fact]
+        public void ExtractBareJson_OnlyMalformed_ReturnsFirstBalancedFallback()
+        {
+            // No candidate parses as JSON; the first balanced region is returned as a
+            // best-effort fallback (its validation is the caller's job), preserving
+            // the pre-existing contract for malformed-only input.
+            string response = "result: {not valid json at all}";
+            string? json = ResponseParser.ExtractBareJson(response);
+            Assert.Equal("{not valid json at all}", json);
+        }
+
         // ═══════════════════════════════════════════════════════
         // Edge Cases
         // ═══════════════════════════════════════════════════════

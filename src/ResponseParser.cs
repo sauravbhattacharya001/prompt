@@ -659,33 +659,58 @@ namespace Prompt
         /// Attempts to extract bare JSON (object or array) from text by finding
         /// matching braces/brackets. Handles nested structures.
         /// </summary>
+        /// <remarks>
+        /// Scans left-to-right and returns the first brace/bracket-balanced region
+        /// that is <em>actually parseable</em> as JSON. Earlier balanced regions that
+        /// are not valid JSON (e.g. a prose placeholder like <c>{name}</c> that appears
+        /// before the real payload) are skipped rather than returned, so a valid object
+        /// later in the text is still found. If no candidate parses, the first balanced
+        /// region is returned as a best-effort fallback (its own validation is left to
+        /// the caller), preserving the historical behaviour for malformed-only input.
+        /// </remarks>
         internal static string? ExtractBareJson(string response)
         {
-            // Find first { or [
-            int objStart = response.IndexOf('{');
-            int arrStart = response.IndexOf('[');
+            string? firstBalanced = null;
 
-            int start;
-            char open, close;
+            for (int scan = 0; scan < response.Length; scan++)
+            {
+                char c0 = response[scan];
+                char open, close;
+                if (c0 == '{') { open = '{'; close = '}'; }
+                else if (c0 == '[') { open = '['; close = ']'; }
+                else continue;
 
-            if (objStart >= 0 && (arrStart < 0 || objStart < arrStart))
-            {
-                start = objStart;
-                open = '{';
-                close = '}';
-            }
-            else if (arrStart >= 0)
-            {
-                start = arrStart;
-                open = '[';
-                close = ']';
-            }
-            else
-            {
-                return null;
+                string? candidate = MatchBalanced(response, scan, open, close);
+                if (candidate == null)
+                    continue; // unterminated from here; a later opener can't help either
+
+                firstBalanced ??= candidate;
+
+                // Prefer the first candidate that is genuinely valid JSON.
+                try
+                {
+                    using (JsonDocument.Parse(candidate)) { }
+                    return candidate;
+                }
+                catch (JsonException)
+                {
+                    // Not valid JSON at this opener; skip past it and keep scanning
+                    // for a real payload later in the text.
+                }
             }
 
-            // Match braces/brackets with nesting, tracking string literals
+            // No candidate parsed cleanly — hand back the first balanced region (if any)
+            // as a best-effort result, matching the pre-existing contract.
+            return firstBalanced;
+        }
+
+        /// <summary>
+        /// Returns the brace/bracket-balanced substring starting at <paramref name="start"/>,
+        /// or <c>null</c> if the region is never closed. Tracks JSON string literals and
+        /// escapes so braces inside strings do not affect nesting depth.
+        /// </summary>
+        private static string? MatchBalanced(string response, int start, char open, char close)
+        {
             int depth = 0;
             bool inString = false;
             bool escaped = false;
