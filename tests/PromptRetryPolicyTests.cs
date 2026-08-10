@@ -148,6 +148,33 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void Jitter_StillVariesWhenBackoffExceedsMaxDelay()
+        {
+            // Regression: jitter must be applied AROUND the capped delay, not before
+            // the cap. With a large attempt the raw exponential far exceeds MaxDelay;
+            // previously the post-jitter clamp collapsed every result onto exactly
+            // MaxDelay (no spread). Jitter should still produce varied delays that sit
+            // in a band below MaxDelay.
+            var config = new RetryPolicyConfig
+            {
+                BaseDelay = TimeSpan.FromSeconds(1),
+                MaxDelay = TimeSpan.FromSeconds(5),
+                Backoff = BackoffStrategy.Exponential,
+                EnableJitter = true,
+                JitterFactor = 0.25
+            };
+            var policy = new PromptRetryPolicy(config);
+            var delays = new HashSet<double>();
+            for (int i = 0; i < 50; i++)
+                delays.Add(policy.CalculateDelay(10, ErrorCategory.Unknown).TotalMilliseconds);
+
+            Assert.True(delays.Count > 1,
+                "Jitter should still vary delays when the raw backoff exceeds MaxDelay");
+            // Every jittered delay stays within [MaxDelay*(1-factor), MaxDelay].
+            Assert.All(delays, d => Assert.InRange(d, 5000 * 0.75, 5000));
+        }
+
+        [Fact]
         public void ZeroAttempt_ReturnsZeroDelay()
         {
             var policy = new PromptRetryPolicy();

@@ -265,15 +265,24 @@ namespace Prompt
                     break;
             }
 
+            // Cap the deterministic backoff BEFORE applying jitter. If we jittered
+            // first and clamped afterwards, then once the exponential term exceeded
+            // MaxDelay every client would collapse onto exactly MaxDelay with no
+            // spread — losing jitter's whole purpose (de-synchronizing retries)
+            // precisely under the heavy load where it matters most. Clamping first
+            // keeps a ±JitterFactor band around the capped delay at every attempt.
+            delayMs = Math.Min(delayMs, _config.MaxDelay.TotalMilliseconds);
+
             if (_config.EnableJitter && _config.JitterFactor > 0)
             {
                 double rand;
                 lock (_lock) { rand = _rng.NextDouble(); }
                 var jitter = delayMs * _config.JitterFactor * (2.0 * rand - 1.0);
                 delayMs = Math.Max(0, delayMs + jitter);
+                // Re-clamp: positive jitter must not push the delay above MaxDelay.
+                delayMs = Math.Min(delayMs, _config.MaxDelay.TotalMilliseconds);
             }
 
-            delayMs = Math.Min(delayMs, _config.MaxDelay.TotalMilliseconds);
             return TimeSpan.FromMilliseconds(delayMs);
         }
 
