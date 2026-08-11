@@ -8,8 +8,11 @@ namespace Prompt
     /// Shared string utility methods used across multiple prompt classes.
     /// Consolidates duplicated helpers (Levenshtein, Truncate, ComputeSimilarity, etc.)
     /// into a single internal utility to reduce code duplication.
-    /// Set-based Jaccard similarity lives in <see cref="TextAnalysisHelpers"/>,
-    /// the single home for tokenization/similarity primitives.
+    /// Character-level similarity (a Levenshtein-based ratio) lives here in
+    /// <see cref="ComputeSimilarity"/>. Token-count estimation lives in
+    /// <see cref="TextAnalysisHelpers"/>. Set-based Jaccard similarity is not a
+    /// shared primitive; it is computed inline over tag sets in
+    /// <c>PromptTagManager</c> where it is the only consumer.
     /// </summary>
     internal static class StringHelpers
     {
