@@ -348,20 +348,23 @@ namespace Prompt
             if (headers.Count == 0)
                 return rows;
 
-            // Skip separator line(s) (|---|---|)
-            int dataStart = 1;
-            for (int i = 1; i < lines.Count; i++)
-            {
-                if (TableSeparatorPattern.IsMatch(lines[i]))
-                {
-                    dataStart = i + 1;
-                    break;
-                }
-            }
+            // Per GFM, the separator (|---|---|) is the row immediately after the
+            // header - and only there. Skip it when present, but do NOT scan deeper
+            // for one: a dashes-only row further down is a data/visual divider, and
+            // treating it as the separator would silently drop every real data row
+            // above it. Recognizing the separator only at index 1 keeps those rows.
+            int dataStart = (lines.Count > 1 && TableSeparatorPattern.IsMatch(lines[1])) ? 2 : 1;
 
             // Parse data rows
             for (int i = dataStart; i < lines.Count; i++)
             {
+                // A separator-shaped row (|---|:--:|---|) anywhere in the body is a
+                // visual divider, not data - skip it so it is neither emitted as a
+                // junk row nor mistaken for the header separator (which would drop
+                // the real rows above it).
+                if (TableSeparatorPattern.IsMatch(lines[i]))
+                    continue;
+
                 var cells = ParseTableRow(lines[i]);
                 var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 for (int j = 0; j < Math.Min(headers.Count, cells.Count); j++)

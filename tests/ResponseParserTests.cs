@@ -384,6 +384,23 @@ namespace Prompt.Tests
             Assert.Equal("30", rows[0]["Age"]);
         }
 
+        [Fact]
+        public void ExtractTable_LateDashesRow_DoesNotSwallowRowsAbove()
+        {
+            // A dashes-only row appears AFTER real data (an LLM using it as a visual
+            // divider). It must not be mistaken for the header separator, which would
+            // drop the Alice row that precedes it. Only the row immediately after the
+            // header counts as the separator.
+            string response =
+                "| Name | Age |\n|------|-----|\n| Alice | 30 |\n|------|-----|\n| Bob | 25 |";
+            var rows = ResponseParser.ExtractTable(response);
+            Assert.Equal(2, rows.Count);
+            Assert.Equal("Alice", rows[0]["Name"]);
+            Assert.Equal("30", rows[0]["Age"]);
+            Assert.Equal("Bob", rows[1]["Name"]);
+            Assert.Equal("25", rows[1]["Age"]);
+        }
+
         // ═══════════════════════════════════════════════════════
         // Pattern Extraction
         // ═══════════════════════════════════════════════════════
