@@ -818,15 +818,25 @@ namespace Prompt
             }
         }
 
-        private static int Fib(int n)
+        // Returns the n-th Fibonacci number as a double. Computing in double
+        // (rather than int) avoids silent 32-bit overflow: Fib(47) already exceeds
+        // int.MaxValue and would wrap negative, producing a negative backoff delay
+        // that bypasses the MaxDelay clamp and throws from TimeSpan.FromMilliseconds
+        // when jitter is disabled. A large-but-finite double is instead clamped to
+        // MaxDelay by the caller, which is the intended behavior for high retry
+        // counts. Growth stops once the value dwarfs any realistic MaxDelay.
+        private static double Fib(int n)
         {
             if (n <= 1) return 1;
-            int a = 1, b = 1;
+            double a = 1, b = 1;
             for (int i = 2; i <= n; i++)
             {
                 var tmp = a + b;
                 a = b;
                 b = tmp;
+                // Once b is astronomically large it will be clamped to MaxDelay
+                // anyway; stop iterating to avoid pointless work / overflow to Inf.
+                if (b > 1e18) break;
             }
             return b;
         }

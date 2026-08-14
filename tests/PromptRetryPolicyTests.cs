@@ -117,6 +117,29 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void FibonacciBackoff_LargeAttempt_StaysCappedAndNonNegative()
+        {
+            // Regression: Fib was computed in int and overflowed to a negative
+            // value at attempt >= 47, producing a negative backoff that bypassed
+            // the MaxDelay clamp and threw from TimeSpan.FromMilliseconds when
+            // jitter was disabled. A high retry count must clamp to MaxDelay.
+            var config = new RetryPolicyConfig
+            {
+                BaseDelay = TimeSpan.FromSeconds(1),
+                MaxDelay = TimeSpan.FromSeconds(30),
+                Backoff = BackoffStrategy.Fibonacci,
+                EnableJitter = false
+            };
+            var policy = new PromptRetryPolicy(config);
+            foreach (var attempt in new[] { 46, 47, 90, 200 })
+            {
+                var delay = policy.CalculateDelay(attempt, ErrorCategory.Unknown);
+                Assert.True(delay >= TimeSpan.Zero, $"attempt {attempt} produced negative delay {delay}");
+                Assert.Equal(30000, delay.TotalMilliseconds);
+            }
+        }
+
+        [Fact]
         public void MaxDelay_CapsBackoff()
         {
             var config = new RetryPolicyConfig
