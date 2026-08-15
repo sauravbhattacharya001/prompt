@@ -405,7 +405,13 @@ namespace Prompt
 
                 new SecretRule("ssn", "Social Security Number", SecretCategory.SSN,
                     SecretSeverity.Critical,
-                    @"(?<!\d)\d{3}[\s\-]\d{2}[\s\-]\d{4}(?!\d)",
+                    // The two separators must be the SAME single character (space
+                    // or hyphen) via a backreference, and must not be arbitrary
+                    // whitespace: a bare \s matches \t/\n, so "123<newline>45<newline>6789"
+                    // (three unrelated numbers across lines/cells) was falsely
+                    // flagged, and mixed separators like "123-45 6789" are not a
+                    // real SSN shape.
+                    @"(?<!\d)\d{3}([ \-])\d{2}\1\d{4}(?!\d)",
                     "US Social Security Number"),
 
                 new SecretRule("ipv4", "IPv4 Address", SecretCategory.IPAddress,

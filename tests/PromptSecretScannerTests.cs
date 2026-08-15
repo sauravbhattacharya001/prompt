@@ -480,6 +480,28 @@ public class PromptSecretScannerTests
         Assert.DoesNotContain(result.Findings, f => f.Rule.Id == "credit-card");
     }
 
+    [Theory]
+    [InlineData("my ssn is 123-45-6789 ok")]
+    [InlineData("my ssn is 123 45 6789 ok")]
+    public void SsnRule_Matches_ConsistentSingleSeparator(string text)
+    {
+        var scanner = new PromptSecretScanner();
+        var result = scanner.Scan(text);
+        Assert.Contains(result.Findings, f => f.Rule.Id == "ssn");
+    }
+
+    [Theory]
+    [InlineData("ref 123-45 6789 mixed")]   // mixed hyphen/space is not a real SSN shape
+    [InlineData("ref 123 45-6789 mixed")]
+    [InlineData("a 123\t45\n6789 b")]        // \s must not span tabs/newlines
+    [InlineData("row 123\n45\n6789 end")]    // three unrelated numbers across lines
+    public void SsnRule_DoesNotMatch_MixedOrWhitespaceSeparators(string text)
+    {
+        var scanner = new PromptSecretScanner();
+        var result = scanner.Scan(text);
+        Assert.DoesNotContain(result.Findings, f => f.Rule.Id == "ssn");
+    }
+
     // Detection is culture-independent (Turkish dotless-I hazard).
     [Fact]
     public void Scan_UppercaseApiKey_DetectedUnderTurkishCulture()
