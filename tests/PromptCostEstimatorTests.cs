@@ -373,17 +373,54 @@ public class PromptCostEstimatorTests
     public void Estimate_SmallContextModel_MarksFitsOrExceeds()
     {
         var est = new PromptCostEstimator();
-        est.AddModel(new ModelPricing("tiny", "Co", "Tiny", 1m, 2m, 100, 50));
+        // Context so small that even the model's own (capped) output overflows it:
+        // input(~3) + capped output(50) = 53 > 20.
+        est.AddModel(new ModelPricing("tiny", "Co", "Tiny", 1m, 2m, 20, 50));
         var report = est.Estimate("Hello world", 200);
         var tiny = report.Estimates.First(e => e.Model.ModelId == "tiny");
         Assert.True(tiny.ExceedsContext);
     }
 
     [Fact]
+    public void Estimate_OutputCappedBelowContext_IsNotFalselyExceeding()
+    {
+        // Regression: context feasibility must use the output the model can
+        // actually emit (capped), not the larger requested amount. Here the
+        // uncapped request (50_000) would blow the 1_000 context window, but the
+        // model caps output to 200, so input(~11) + 200 comfortably fits. The
+        // model must NOT be flagged as exceeding context for tokens it would
+        // never generate.
+        var est = new PromptCostEstimator();
+        est.AddModel(new ModelPricing("capped-fits", "Co", "CappedFits", 1m, 2m, 1_000, 200));
+        var report = est.Estimate("Hello", 50_000);
+        var m = report.Estimates.First(e => e.Model.ModelId == "capped-fits");
+
+        Assert.False(m.ExceedsContext);
+        Assert.Equal(200, m.EstimatedOutputTokens);
+        // Context usage reflects the capped output (~21%), not the uncapped 50k.
+        Assert.True(m.ContextUsagePercent < 100);
+        Assert.NotNull(m.Warning);
+        Assert.Contains("capped", m.Warning);
+    }
+
+    [Fact]
+    public void Estimate_OutputCappedStillExceeds_WhenInputAloneTooBig()
+    {
+        // Even with output capped, a prompt whose INPUT already overflows the
+        // context window must still be flagged as exceeding.
+        var est = new PromptCostEstimator();
+        est.AddModel(new ModelPricing("tiny-ctx", "Co", "TinyCtx", 1m, 2m, 3, 200));
+        var report = est.EstimateFromTokens(100, 50_000);
+        var m = report.Estimates.First(e => e.Model.ModelId == "tiny-ctx");
+
+        Assert.True(m.ExceedsContext);
+    }
+
+    [Fact]
     public void Estimate_TightContext_ShowsWarning()
     {
         var est = new PromptCostEstimator();
-        // 10_000 context, and we'll request 8500 output — should be tight
+        // condition fires (output is not capped).
         est.AddModel(new ModelPricing("tight", "Co", "Tight", 1m, 2m, 10_000, 10_000));
         var report = est.Estimate("Hello", 8500);
         var tight = report.Estimates.First(e => e.Model.ModelId == "tight");
@@ -423,16 +460,18 @@ public class PromptCostEstimatorTests
         // Regression: a model can be BOTH tight on context (>80%) and have its
         // output capped. The two warnings are independent; the capped-output
         // message must not silently clobber the context-tightness message.
-        // Context=10_000 with ~9_000 requested output => ~90% usage (tight, not
-        // exceeding); MaxOutputTokens=100 => output capped. Both must surface.
+        // Context feasibility uses the CAPPED output, so the cap itself must be
+        // large enough to still push usage >80%: Context=10_000, MaxOutput=9_000,
+        // request 50_000 => output capped to 9_000 => ~90% usage (tight, not
+        // exceeding) AND capped. Both warnings must surface.
         var est = new PromptCostEstimator();
-        est.AddModel(new ModelPricing("both", "Co", "Both", 1m, 2m, 10_000, 100));
-        var report = est.Estimate("Hello", 9_000);
+        est.AddModel(new ModelPricing("both", "Co", "Both", 1m, 2m, 10_000, 9_000));
+        var report = est.Estimate("Hello", 50_000);
         var both = report.Estimates.First(e => e.Model.ModelId == "both");
 
         Assert.False(both.ExceedsContext);
         Assert.True(both.ContextUsagePercent > 80);
-        Assert.Equal(100, both.EstimatedOutputTokens);
+        Assert.Equal(9_000, both.EstimatedOutputTokens);
         Assert.NotNull(both.Warning);
         Assert.Contains("Context window usage above 80%", both.Warning);
         Assert.Contains("capped", both.Warning);
@@ -673,8 +712,9 @@ public class PromptCostEstimatorTests
         foreach (var m in est.GetModels().ToList())
             est.RemoveModel(m.ModelId);
 
-        // Cheap but tiny context (will exceed)
-        est.AddModel(new ModelPricing("cheap-tiny", "Co", "Cheap Tiny", 0.01m, 0.01m, 10, 5));
+        // Cheap but tiny context: input alone (~3 tokens) already overflows the
+        // 2-token window, so it exceeds regardless of output capping.
+        est.AddModel(new ModelPricing("cheap-tiny", "Co", "Cheap Tiny", 0.01m, 0.01m, 2, 5));
         // Expensive but big context (will fit)
         est.AddModel(new ModelPricing("expensive-big", "Co", "Expensive Big", 100m, 200m, 1_000_000, 100_000));
 

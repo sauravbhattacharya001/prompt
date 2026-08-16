@@ -310,13 +310,18 @@ namespace Prompt
 
             foreach (var model in _models)
             {
-                var totalInputNeeded = inputTokens + estimatedOutputTokens;
+                // Context feasibility must be judged against the output the model
+                // can actually generate, not the (possibly larger) requested
+                // amount. A model that caps output to a small value should not be
+                // flagged "exceeds context" for tokens it would never emit; that
+                // would falsely rule out an otherwise-viable, cheaper model.
+                var cappedOutput = Math.Min(estimatedOutputTokens, model.MaxOutputTokens);
+                var totalInputNeeded = inputTokens + cappedOutput;
                 var exceedsContext = totalInputNeeded > model.ContextWindow;
                 var contextUsage = model.ContextWindow > 0
                     ? (double)totalInputNeeded / model.ContextWindow * 100
                     : 100.0;
 
-                var cappedOutput = Math.Min(estimatedOutputTokens, model.MaxOutputTokens);
                 var inputCost = model.InputCost(inputTokens);
                 var outputCost = model.OutputCost(cappedOutput);
 
