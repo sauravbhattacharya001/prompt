@@ -383,7 +383,14 @@ namespace Prompt
             var model = GetModel(modelId)
                 ?? throw new ArgumentException($"Unknown model: {modelId}");
 
-            var costPerCall = model.TotalCost(avgInputTokens, avgOutputTokens);
+            // Cap average output to what the model can actually emit, matching the
+            // context/cost math in BuildCostReport. Without this, a caller passing an
+            // avgOutputTokens above the model's MaxOutputTokens is billed for tokens the
+            // model would never produce, so this path reported *fewer* affordable calls
+            // than Estimate/EstimateFromTokens for the same inputs — the two public cost
+            // paths disagreed. Cap here so both agree.
+            var cappedOutput = Math.Min(avgOutputTokens, model.MaxOutputTokens);
+            var costPerCall = model.TotalCost(avgInputTokens, cappedOutput);
             if (costPerCall <= 0) return int.MaxValue;
 
             return (int)(budgetDollars / costPerCall);

@@ -596,6 +596,41 @@ public class PromptCostEstimatorTests
         Assert.True(calls > 100_000);
     }
 
+    [Fact]
+    public void EstimateCallsInBudget_CapsOutputToModelMax()
+    {
+        // A model whose output is capped well below the requested average.
+        var est = new PromptCostEstimator();
+        est.AddModel(new ModelPricing("capped", "Co", "Capped", 1.00m, 10.00m, 200_000, 100));
+
+        // Requested avg output (100_000) is far above the model's 100-token cap.
+        // Billing must use the capped 100 tokens, so the affordable call count must
+        // match a call priced at 500 input + 100 output (not 500 + 100_000).
+        var calls = est.EstimateCallsInBudget("capped", 1.00m, 500, 100_000);
+
+        var model = est.GetModel("capped")!;
+        var expectedCostPerCall = model.TotalCost(500, 100); // output capped to 100
+        var expectedCalls = (int)(1.00m / expectedCostPerCall);
+
+        Assert.Equal(expectedCalls, calls);
+        // Sanity: capping yields many more affordable calls than the uncapped math would.
+        var uncappedCostPerCall = model.TotalCost(500, 100_000);
+        Assert.True(calls > (int)(1.00m / uncappedCostPerCall));
+    }
+
+    [Fact]
+    public void EstimateCallsInBudget_BelowCap_Unaffected()
+    {
+        // When avg output is within the model's cap, capping is a no-op.
+        var est = new PromptCostEstimator();
+        est.AddModel(new ModelPricing("roomy", "Co", "Roomy", 1.00m, 10.00m, 200_000, 100_000));
+        var model = est.GetModel("roomy")!;
+
+        var calls = est.EstimateCallsInBudget("roomy", 10.00m, 500, 1_000);
+        var expected = (int)(10.00m / model.TotalCost(500, 1_000));
+        Assert.Equal(expected, calls);
+    }
+
     // ── CostReport serialization ──
 
     [Fact]
