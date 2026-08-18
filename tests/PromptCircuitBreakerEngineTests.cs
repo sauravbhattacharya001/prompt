@@ -813,6 +813,34 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void CanExecute_OpenToHalfOpenTransition_ResetsConsecutiveFailureStreak()
+        {
+            // A circuit that trips via consecutive failures must not carry that
+            // pre-trip streak into the HalfOpen probing window: the streak belongs
+            // to the closed window and would otherwise keep penalizing the health
+            // score / snapshot for a circuit now being re-tested from scratch.
+            var engine = new PromptCircuitBreakerEngine(new CircuitBreakerConfig
+            {
+                ConsecutiveFailureLimit = 3,
+                CooldownSeconds = 0, // allow immediate Open->HalfOpen on next CanExecute
+                HalfOpenMaxProbes = 3
+            });
+
+            // Trip via consecutive failures.
+            for (int i = 0; i < 3; i++)
+                engine.RecordOutcome(MakeOutcome("p1", false, 100, "err"));
+            Assert.Equal(CBCircuitState.Open, engine.GetSnapshot("p1").State);
+            Assert.True(engine.GetSnapshot("p1").ConsecutiveFailures >= 3);
+
+            // Cooldown is 0s, so this transitions Open -> HalfOpen.
+            Assert.True(engine.CanExecute("p1"));
+
+            var snap = engine.GetSnapshot("p1");
+            Assert.Equal(CBCircuitState.HalfOpen, snap.State);
+            Assert.Equal(0, snap.ConsecutiveFailures);
+        }
+
+        [Fact]
         public void FleetHealth_TripHistory_OrderedByTime()
         {
             RecordFailures("p1", 5);

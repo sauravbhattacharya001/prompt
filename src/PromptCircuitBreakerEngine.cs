@@ -261,8 +261,15 @@ namespace Prompt
                     var elapsed = (DateTime.UtcNow - circuit.LastTripTime.Value).TotalSeconds;
                     if (elapsed >= _config.CooldownSeconds)
                     {
-                        // Transition to HalfOpen
+                        // Transition to HalfOpen. Reset the consecutive-failure
+                        // streak so the probing window starts clean: the streak that
+                        // tripped the circuit belongs to the pre-trip Closed window and
+                        // must not bleed into HalfOpen, where it would keep penalizing
+                        // ComputeHealthScore / CircuitSnapshot.ConsecutiveFailures for a
+                        // circuit that is now being re-tested from scratch. Mirrors the
+                        // recovery-success and ForceReset resets already in place.
                         circuit.State = CBCircuitState.HalfOpen;
+                        circuit.ConsecutiveFailures = 0;
                         circuit.HalfOpenProbes.Clear();
                         circuit.HalfOpenStartTime = DateTime.UtcNow;
                         return true;
