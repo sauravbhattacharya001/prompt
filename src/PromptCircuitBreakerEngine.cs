@@ -435,8 +435,17 @@ namespace Prompt
         }
 
         /// <summary>Get total recorded calls for a prompt.</summary>
+        /// <remarks>
+        /// Validates <paramref name="promptId"/> like the other query methods
+        /// (<see cref="GetSnapshot"/>, <see cref="GetTripHistory"/>, <see cref="GetHealthTier"/>):
+        /// an empty/whitespace id throws <see cref="ArgumentException"/> rather than surfacing a
+        /// raw dictionary <see cref="ArgumentNullException"/>. A valid-but-unregistered id returns 0.
+        /// </remarks>
         public int GetCallCount(string promptId)
         {
+            if (string.IsNullOrWhiteSpace(promptId))
+                throw new ArgumentException("PromptId cannot be empty.", nameof(promptId));
+
             if (!_circuits.ContainsKey(promptId)) return 0;
             return _circuits[promptId].TotalCalls;
         }

@@ -88,6 +88,24 @@ namespace Prompt.Tests
             Assert.Equal(5, _engine.GetCallCount("p1"));
         }
 
+        [Fact]
+        public void GetCallCount_EmptyPromptId_Throws()
+        {
+            // Consistent with the other query methods (GetSnapshot/GetTripHistory/
+            // GetHealthTier): an empty/whitespace id is an ArgumentException, not a
+            // raw dictionary ArgumentNullException leaking from ContainsKey(null).
+            Assert.Throws<ArgumentException>(() => _engine.GetCallCount(""));
+            Assert.Throws<ArgumentException>(() => _engine.GetCallCount("   "));
+            Assert.Throws<ArgumentException>(() => _engine.GetCallCount(null!));
+        }
+
+        [Fact]
+        public void GetCallCount_UnknownButValidPrompt_ReturnsZero()
+        {
+            Assert.Equal(0, _engine.GetCallCount("never-recorded"));
+            Assert.Equal(0, _engine.GetFleetHealth().TotalCircuits);
+        }
+
         // ─── Circuit Stays Closed ─────────────────────
 
         [Fact]
