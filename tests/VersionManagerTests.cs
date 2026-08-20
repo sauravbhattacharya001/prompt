@@ -865,5 +865,45 @@ namespace Prompt.Tests
             var summary = diff.GetSummary();
             Assert.Contains("default", summary);
         }
+
+        // FromJson hardening: enforce the same invariants the live API guarantees.
+
+        [Fact]
+        public void FromJson_EnforcesMaxVersionsPerTemplate()
+        {
+            int over = PromptVersionManager.MaxVersionsPerTemplate + 25;
+            var sb = new System.Text.StringBuilder();
+            sb.Append("{\"version\":1,\"templates\":[{\"templateName\":\"t\",\"versions\":[");
+            for (int i = 1; i <= over; i++)
+            {
+                if (i > 1) sb.Append(',');
+                sb.Append($"{{\"versionNumber\":{i},\"templateText\":\"v{i}\"}}");
+            }
+            sb.Append("]}]}");
+
+            var restored = PromptVersionManager.FromJson(sb.ToString());
+
+            // Cap enforced, newest kept (oldest pruned) — matching CreateVersion/Rollback.
+            Assert.Equal(PromptVersionManager.MaxVersionsPerTemplate, restored.GetVersionCount("t"));
+            var history = restored.GetHistory("t");
+            Assert.Equal(over, history[^1].VersionNumber);
+            Assert.Null(restored.GetVersion("t", 1));
+        }
+
+        [Fact]
+        public void FromJson_SkipsTemplatesWithInvalidNames()
+        {
+            const string json =
+                "{\"version\":1,\"templates\":[" +
+                "{\"templateName\":\"bad name!\",\"versions\":[{\"versionNumber\":1,\"templateText\":\"x\"}]}," +
+                "{\"templateName\":\"good-name\",\"versions\":[{\"versionNumber\":1,\"templateText\":\"y\"}]}" +
+                "]}";
+
+            var restored = PromptVersionManager.FromJson(json);
+
+            Assert.Equal(1, restored.TemplateCount);
+            Assert.DoesNotContain("bad name!", restored.GetTrackedTemplates());
+            Assert.Equal(1, restored.GetVersionCount("good-name"));
+        }
     }
 }

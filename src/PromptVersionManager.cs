@@ -515,6 +515,13 @@ namespace Prompt
                 if (string.IsNullOrWhiteSpace(tmpl.TemplateName))
                     continue;
 
+                // Enforce the same name invariant CreateVersion guarantees, so a
+                // hand-crafted or tampered file can't smuggle in template keys
+                // (control chars, path separators, etc.) that the live API rejects.
+                var tmplName = tmpl.TemplateName.Trim();
+                if (!PromptGuard.NameValidationPattern.IsMatch(tmplName))
+                    continue;
+
                 var versions = new List<PromptVersion>();
                 if (tmpl.Versions != null)
                 {
@@ -535,7 +542,15 @@ namespace Prompt
                     }
                 }
 
-                history[tmpl.TemplateName] = versions;
+                // Honor the per-template cap that CreateVersion/Rollback enforce via
+                // prune-oldest. Without this, a large file could load an unbounded
+                // number of versions per template, silently breaking the invariant
+                // and inflating memory. Keep the newest MaxVersionsPerTemplate,
+                // preserving stored order (oldest-first).
+                if (versions.Count > MaxVersionsPerTemplate)
+                    versions.RemoveRange(0, versions.Count - MaxVersionsPerTemplate);
+
+                history[tmplName] = versions;
             }
 
             return new PromptVersionManager(history);
