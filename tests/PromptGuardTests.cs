@@ -879,6 +879,40 @@ namespace Prompt.Tests
                 $"result estimated {PromptGuard.EstimateTokens(result)} tokens, expected <= 1");
         }
 
+        [Fact]
+        public void TruncateToTokenLimit_SentenceBoundary_IsCultureInvariant()
+        {
+            // Regression: the sentence-boundary search used the culture-sensitive
+            // string.LastIndexOf(string) overload. A linguistic collation can pick a
+            // different ". " offset (or treat a char as ignorable) depending on the
+            // current thread culture, making the truncation point non-deterministic
+            // for identical input. The ordinal search must break at the same place
+            // under every culture.
+            string prompt = string.Join(" ", Enumerable.Repeat("alpha beta. gamma delta.", 40));
+
+            string Truncate() => PromptGuard.TruncateToTokenLimit(prompt, 30);
+
+            var original = System.Threading.Thread.CurrentThread.CurrentCulture;
+            try
+            {
+                System.Threading.Thread.CurrentThread.CurrentCulture =
+                    System.Globalization.CultureInfo.InvariantCulture;
+                string invariant = Truncate();
+
+                System.Threading.Thread.CurrentThread.CurrentCulture =
+                    new System.Globalization.CultureInfo("tr-TR");
+                string turkish = Truncate();
+
+                Assert.Equal(invariant, turkish);
+                // And it actually broke on the sentence boundary (marker aside).
+                Assert.Contains(".", invariant);
+            }
+            finally
+            {
+                System.Threading.Thread.CurrentThread.CurrentCulture = original;
+            }
+        }
+
         // ═══════════════════════════════════════════════════════
         // Quality Grade Mapping
         // ═══════════════════════════════════════════════════════

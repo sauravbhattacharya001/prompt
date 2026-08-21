@@ -987,8 +987,13 @@ namespace Prompt
             string truncated = prompt.Substring(0, low);
             int lastGoodBreak = -1;
 
-            // Prefer sentence boundary
-            int lastPeriod = truncated.LastIndexOf(". ");
+            // Prefer sentence boundary. Use an ordinal search: the default
+            // string.LastIndexOf(string) overload is culture-sensitive, so under
+            // some locales a linguistic collation could match ". " at an
+            // unexpected offset (or skip an ignorable char), yielding a
+            // non-deterministic truncation point for identical input. Every other
+            // string comparison in this library is ordinal for exactly this reason.
+            int lastPeriod = truncated.LastIndexOf(". ", StringComparison.Ordinal);
             int lastNewline = truncated.LastIndexOf('\n');
             lastGoodBreak = Math.Max(lastPeriod, lastNewline);
 
