@@ -190,10 +190,9 @@ namespace Prompt
             ValidateInput(response);
 
             var items = new List<string>();
-            var lines = response.Split('\n');
 
             // Pattern: numbered (1. item, 1) item) or bulleted (- item, * item, • item)
-            foreach (var line in lines)
+            foreach (var line in EnumerateNonFencedLines(response))
             {
                 var match = ListItemPattern.Match(line);
                 if (match.Success)
@@ -217,9 +216,10 @@ namespace Prompt
 
             var items = new Dictionary<int, string>();
 
-            foreach (Match match in NumberedListPattern.Matches(response))
+            foreach (var line in EnumerateNonFencedLines(response))
             {
-                if (int.TryParse(match.Groups[1].Value, out int number))
+                var match = NumberedListPattern.Match(line);
+                if (match.Success && int.TryParse(match.Groups[1].Value, out int number))
                 {
                     string item = match.Groups[2].Value.Trim();
                     if (!string.IsNullOrEmpty(item))
@@ -246,10 +246,9 @@ namespace Prompt
             ValidateInput(response);
 
             var pairs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var lines = response.Split('\n');
 
             // Pattern: key: value, key = value, **key**: value, key - value
-            foreach (var line in lines)
+            foreach (var line in EnumerateNonFencedLines(response))
             {
                 var match = KeyValuePattern.Match(line);
                 if (match.Success)
@@ -335,7 +334,7 @@ namespace Prompt
             ValidateInput(response);
 
             var rows = new List<Dictionary<string, string>>();
-            var lines = response.Split('\n')
+            var lines = EnumerateNonFencedLines(response)
                 .Select(l => l.Trim())
                 .Where(l => l.StartsWith("|") && l.EndsWith("|"))
                 .ToList();
@@ -574,6 +573,23 @@ namespace Prompt
             var t = line.TrimStart();
             return t.StartsWith("```", StringComparison.Ordinal)
                 || t.StartsWith("~~~", StringComparison.Ordinal);
+        }
+
+        // Splits the response into lines and yields only those OUTSIDE fenced code
+        // blocks (``` / ~~~), dropping the fence markers themselves. The line-based
+        // structural extractors (list / numbered-list / key-value / table) use this
+        // so that a bullet, "Key: value" pair, or "| a | b |" row that appears inside
+        // a code sample is treated as code, not as data the model actually returned.
+        // This mirrors the fence-awareness already in ExtractSection/ExtractHeadings.
+        private static IEnumerable<string> EnumerateNonFencedLines(string response)
+        {
+            bool inFence = false;
+            foreach (var line in response.Split('\n'))
+            {
+                if (IsCodeFence(line)) { inFence = !inFence; continue; }
+                if (inFence) continue;
+                yield return line;
+            }
         }
 
         /// <summary>

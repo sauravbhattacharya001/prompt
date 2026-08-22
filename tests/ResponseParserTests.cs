@@ -865,6 +865,83 @@ The answer is 42.
             public TestAddress? Address { get; set; }
         }
 
+        // ═══════════════════════════════════════════════════════
+        // Fence-awareness of structural extractors (regression)
+        // ═══════════════════════════════════════════════════════
+
+        [Fact]
+        public void ExtractList_IgnoresBulletsInsideCodeFence()
+        {
+            string response =
+                "Real items:\n" +
+                "- alpha\n" +
+                "- beta\n" +
+                "\n" +
+                "```bash\n" +
+                "- not-a-list-item\n" +
+                "* also-code\n" +
+                "```\n";
+
+            var items = Prompt.ResponseParser.ExtractList(response);
+
+            Assert.Equal(new[] { "alpha", "beta" }, items);
+        }
+
+        [Fact]
+        public void ExtractNumberedList_IgnoresNumbersInsideCodeFence()
+        {
+            string response =
+                "1. first\n" +
+                "2. second\n" +
+                "```\n" +
+                "3. code-step\n" +
+                "```\n";
+
+            var items = Prompt.ResponseParser.ExtractNumberedList(response);
+
+            Assert.Equal(2, items.Count);
+            Assert.Equal("first", items[1]);
+            Assert.Equal("second", items[2]);
+            Assert.False(items.ContainsKey(3));
+        }
+
+        [Fact]
+        public void ExtractKeyValuePairs_IgnoresPairsInsideCodeFence()
+        {
+            string response =
+                "Status: active\n" +
+                "```yaml\n" +
+                "host: example.com\n" +
+                "port: 8080\n" +
+                "```\n";
+
+            var pairs = Prompt.ResponseParser.ExtractKeyValuePairs(response);
+
+            Assert.True(pairs.ContainsKey("Status"));
+            Assert.Equal("active", pairs["Status"]);
+            Assert.False(pairs.ContainsKey("host"));
+            Assert.False(pairs.ContainsKey("port"));
+        }
+
+        [Fact]
+        public void ExtractTable_IgnoresTableInsideCodeFence()
+        {
+            string response =
+                "| Name | Age |\n" +
+                "|------|-----|\n" +
+                "| Alice | 30 |\n" +
+                "```\n" +
+                "| Bob | 40 |\n" +
+                "| Carol | 50 |\n" +
+                "```\n";
+
+            var rows = Prompt.ResponseParser.ExtractTable(response);
+
+            Assert.Single(rows);
+            Assert.Equal("Alice", rows[0]["Name"]);
+            Assert.Equal("30", rows[0]["Age"]);
+        }
+
         private class TestAddress
         {
             public string City { get; set; } = "";
