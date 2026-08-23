@@ -467,7 +467,7 @@ namespace Prompt
                 string jsonText = jsonMatch.Success ? jsonMatch.Groups[1].Value : modelResponse;
 
                 // Try to parse as tool_calls wrapper: {"tool_calls": [...]}
-                if (jsonText.TrimStart().StartsWith("{"))
+                if (jsonText.TrimStart().StartsWith('{'))
                 {
                     using var doc = JsonDocument.Parse(jsonText);
                     if (doc.RootElement.TryGetProperty("tool_calls", out var tcArray))
@@ -477,7 +477,7 @@ namespace Prompt
                 }
 
                 // Parse as array of tool calls
-                if (jsonText.TrimStart().StartsWith("["))
+                if (jsonText.TrimStart().StartsWith('['))
                 {
                     using var doc = JsonDocument.Parse(jsonText);
                     foreach (var elem in doc.RootElement.EnumerateArray())

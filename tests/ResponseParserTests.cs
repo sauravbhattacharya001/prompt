@@ -946,5 +946,39 @@ The answer is 42.
         {
             public string City { get; set; } = "";
         }
+
+        // ═══════════════════════════════════════════════════════
+        // Culture-invariance regression
+        // ═══════════════════════════════════════════════════════
+
+        [Fact]
+        public void ExtractTable_UnderHostileCulture_StillParses()
+        {
+            // Row detection uses StartsWith('|')/EndsWith('|'). The char
+            // overloads are ordinal; the previous string-literal overloads
+            // ("|") were culture-sensitive and could, under a linguistic
+            // collation, disagree about a leading/trailing marker. Pin the
+            // behavior against a hostile culture (tr-TR) so detection stays
+            // deterministic regardless of the ambient CultureInfo.
+            var original = System.Globalization.CultureInfo.CurrentCulture;
+            try
+            {
+                System.Globalization.CultureInfo.CurrentCulture =
+                    new System.Globalization.CultureInfo("tr-TR");
+
+                string response =
+                    "| Name | Age | City |\n|------|-----|------|\n" +
+                    "| Alice | 30 | Seattle |\n| Bob | 25 | Portland |";
+                var rows = ResponseParser.ExtractTable(response);
+
+                Assert.Equal(2, rows.Count);
+                Assert.Equal("Alice", rows[0]["Name"]);
+                Assert.Equal("Portland", rows[1]["City"]);
+            }
+            finally
+            {
+                System.Globalization.CultureInfo.CurrentCulture = original;
+            }
+        }
     }
 }

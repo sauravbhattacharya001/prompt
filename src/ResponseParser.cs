@@ -336,7 +336,7 @@ namespace Prompt
             var rows = new List<Dictionary<string, string>>();
             var lines = EnumerateNonFencedLines(response)
                 .Select(l => l.Trim())
-                .Where(l => l.StartsWith("|") && l.EndsWith("|"))
+                .Where(l => l.StartsWith('|') && l.EndsWith('|'))
                 .ToList();
 
             if (lines.Count < 2)

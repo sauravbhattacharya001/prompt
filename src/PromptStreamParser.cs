@@ -609,7 +609,7 @@ namespace Prompt
         private static bool IsListItem(string line)
         {
             var trimmed = line.TrimStart();
-            if (trimmed.StartsWith("- ") || trimmed.StartsWith("* ") || trimmed.StartsWith("+ "))
+            if (trimmed.StartsWith("- ", StringComparison.Ordinal) || trimmed.StartsWith("* ", StringComparison.Ordinal) || trimmed.StartsWith("+ ", StringComparison.Ordinal))
                 return true;
             return Regex.IsMatch(trimmed, @"^\d+\.\s", RegexOptions.None, TimeSpan.FromMilliseconds(500));
         }

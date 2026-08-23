@@ -372,10 +372,10 @@ namespace Prompt
             var sb = new StringBuilder();
             sb.AppendLine($"<<<<<<< OURS — {regionCount} {headerSuffix}");
             sb.Append(oursText);
-            if (!oursText.EndsWith("\n")) sb.AppendLine();
+            if (!oursText.EndsWith('\n')) sb.AppendLine();
             sb.AppendLine("=======");
             sb.Append(theirsText);
-            if (!theirsText.EndsWith("\n")) sb.AppendLine();
+            if (!theirsText.EndsWith('\n')) sb.AppendLine();
             sb.Append(">>>>>>> THEIRS");
             return sb.ToString();
         }
