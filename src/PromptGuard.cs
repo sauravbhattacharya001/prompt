@@ -300,18 +300,21 @@ namespace Prompt
         /// ZERO WIDTH SPACE (U+200B), ZERO WIDTH NON-JOINER (U+200C),
         /// ZERO WIDTH JOINER (U+200D), LEFT-TO-RIGHT MARK (U+200E),
         /// RIGHT-TO-LEFT MARK (U+200F), WORD JOINER (U+2060), the invisible
-        /// math operators (U+2061–U+2064), and BOM/ZWNBSP (U+FEFF).
+        /// math operators (U+2061–U+2064), BOM/ZWNBSP (U+FEFF), and
+        /// SOFT HYPHEN (U+00AD).
         /// </summary>
         /// <remarks>
         /// U+2060–U+2064 were previously missing from this range, which let an
         /// attacker split an injection keyword with a WORD JOINER
         /// (e.g. "ig\u2060nore all previous instructions") and slip past both
-        /// <see cref="DetectInjection"/> and <see cref="Sanitize"/>. They are
-        /// kept in sync with <see cref="PromptSanitizer"/>, which already
-        /// stripped them.
+        /// <see cref="DetectInjection"/> and <see cref="Sanitize"/>. U+00AD
+        /// (SOFT HYPHEN) was likewise missing here — it renders invisibly, so
+        /// "ig\u00ADnore all previous instructions" bypassed detection the same
+        /// way — even though <see cref="PromptSanitizer"/> already stripped it.
+        /// This range is kept in sync with <see cref="PromptSanitizer"/>.
         /// </remarks>
         private static readonly Regex ZeroWidthPattern = new(
-            "[\u200B-\u200F\u2060-\u2064\uFEFF]",
+            "[\u00AD\u200B-\u200F\u2060-\u2064\uFEFF]",
             RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         /// <summary>
