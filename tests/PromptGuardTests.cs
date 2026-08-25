@@ -20,6 +20,20 @@ namespace Prompt.Tests
             Assert.Equal(0, PromptGuard.EstimateTokens(null!));
         }
 
+        [Theory]
+        [InlineData(" ")]
+        [InlineData("\t")]
+        [InlineData("\n")]
+        [InlineData("   ")]
+        public void EstimateTokens_WhitespaceOnly_ReturnsAtLeastOne(string text)
+        {
+            // Whitespace-only text is non-empty, so it is NOT special-cased to 0
+            // like null/empty: the documented contract guarantees a minimum of 1
+            // for any non-empty input. Pins the empty(0) vs non-empty(>=1) boundary.
+            Assert.True(PromptGuard.EstimateTokens(text) >= 1,
+                $"whitespace input {System.Text.Json.JsonSerializer.Serialize(text)} should estimate >= 1 token");
+        }
+
         [Fact]
         public void EstimateTokens_SingleWord_ReturnsAtLeastOne()
         {

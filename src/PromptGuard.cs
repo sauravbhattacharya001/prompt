@@ -449,7 +449,11 @@ namespace Prompt
         /// is within ±15% for typical English text and ±25% for code.
         /// </remarks>
         /// <param name="text">The text to estimate tokens for.</param>
-        /// <returns>Estimated token count (minimum 0).</returns>
+        /// <returns>
+        /// Estimated token count: <c>0</c> for <c>null</c> or empty input, and
+        /// at least <c>1</c> for any non-empty input (including whitespace-only
+        /// text, which is never free of tokens).
+        /// </returns>
         public static int EstimateTokens(string text)
         {
             if (string.IsNullOrEmpty(text))
