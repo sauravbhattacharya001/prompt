@@ -470,6 +470,27 @@ public class PromptSecretScannerTests
         Assert.Contains("0005", scanner.Scan("amex 378282246310005 ok").RedactedText);
     }
 
+    [Theory]
+    // 16-digit brands: mask all but last 4, preserve length + separators.
+    [InlineData("4111111111111111", "************1111")]
+    [InlineData("4111 1111 1111 1111", "**** **** **** 1111")]
+    [InlineData("5500-0055-5555-5559", "****-****-****-5559")]
+    // 15-digit Amex: the old fixed "****-****-****-" prefix fabricated a
+    // 16-digit 4-4-4-4 shape and inflated the length; the mask must instead
+    // preserve the real 15-char length and Amex grouping.
+    [InlineData("378282246310005", "***********0005")]
+    [InlineData("3714 496353 98431", "**** ****** *8431")]
+    public void RedactCard_MasksAllButLast4_PreservingLengthAndSeparators(
+        string card, string expectedMask)
+    {
+        var scanner = new PromptSecretScanner();
+        var f = Assert.Single(scanner.Scan(card).Findings, x => x.Rule.Id == "credit-card");
+        Assert.Equal(expectedMask, f.RedactedText);
+        // Length-preserving substitution invariant (matches generic/email masks).
+        Assert.Equal(card.Length, f.RedactedText.Length);
+        Assert.DoesNotContain(card, scanner.Scan(card).RedactedText);
+    }
+
     [Fact]
     public void CreditCardRule_DoesNotMatch_SsnShapedDigits()
     {

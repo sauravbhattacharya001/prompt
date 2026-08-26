@@ -255,7 +255,7 @@ namespace Prompt
             return cat switch
             {
                 SecretCategory.Email => RedactEmail(value),
-                SecretCategory.CreditCard => "****-****-****-" + value[^4..],
+                SecretCategory.CreditCard => RedactCard(value),
                 SecretCategory.SSN => "***-**-" + value[^4..],
                 SecretCategory.PhoneNumber => "***-***-" + value[^4..],
                 _ => RedactGeneric(value)
@@ -277,6 +277,26 @@ namespace Prompt
         /// Callers guarantee <c>value.Length &gt;= 5</c> here (shorter values are
         /// fully starred by <see cref="Redact(string, SecretCategory)"/>).
         /// </remarks>
+        /// <summary>
+        /// Redacts a payment-card number by masking every character except the
+        /// last four, preserving the original length and any grouping separators
+        /// (spaces/hyphens). Unlike a fixed <c>"****-****-****-"</c> prefix, this
+        /// is correct for BOTH 16-digit brands and 15-digit Amex (grouped 4-6-5):
+        /// the old fixed prefix fabricated a 16-digit 4-4-4-4 shape for every
+        /// card, misrepresenting a 15-digit Amex and inflating the redaction
+        /// length past the original (breaking length-preserving substitution).
+        /// </summary>
+        private static string RedactCard(string value)
+        {
+            var chars = value.ToCharArray();
+            // Reveal the trailing four DIGITS; mask everything before the last
+            // four characters (the card rule guarantees the value ends in \d{4}).
+            int keepFrom = chars.Length - 4;
+            for (int i = 0; i < keepFrom; i++)
+                if (char.IsLetterOrDigit(chars[i])) chars[i] = '*';
+            return new string(chars);
+        }
+
         private static string RedactGeneric(string value)
         {
             int reveal = value.Length >= 12 ? 3 : value.Length >= 8 ? 2 : 1;
