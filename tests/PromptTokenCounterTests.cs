@@ -168,6 +168,20 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void EstimateBatchCost_OutputTokenTotalOverflows_ThrowsOverflow()
+        {
+            // Regression: totalOutputTokens = estimatedOutputTokensEach * count was an
+            // UNCHECKED int multiply, so a large per-prompt budget across a few prompts
+            // silently wrapped to a negative total and produced a bogus negative cost
+            // instead of an error. It must now fail loudly.
+            var counter = new PromptTokenCounter();
+            Assert.Throws<OverflowException>(
+                () => counter.EstimateBatchCost(
+                    new[] { "a", "b", "c" }, "gpt-4o",
+                    estimatedOutputTokensEach: int.MaxValue / 2));
+        }
+
+        [Fact]
         public void EstimateCost_ZeroOutputTokens_OutputCostIsZero()
         {
             var counter = new PromptTokenCounter();

@@ -331,7 +331,11 @@ namespace Prompt
 
             var textList = texts.ToList();
             int totalInputTokens = textList.Sum(t => Estimate(t).TokenCount);
-            int totalOutputTokens = estimatedOutputTokensEach * textList.Count;
+            // Multiply in a checked context: an unchecked int multiply silently wraps
+            // to a NEGATIVE total for large batches (e.g. many prompts * a big
+            // per-prompt output budget), which would then flow into OutputCost(int)
+            // and produce a bogus negative cost instead of an error. Fail loudly.
+            int totalOutputTokens = checked(estimatedOutputTokensEach * textList.Count);
 
             decimal inputCost = pricing.InputCost(totalInputTokens);
             decimal outputCost = pricing.OutputCost(totalOutputTokens);
