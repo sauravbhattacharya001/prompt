@@ -313,10 +313,16 @@ namespace Prompt
             if (string.IsNullOrEmpty(value) || !value.Contains("{{"))
                 return value;
 
-            // Replace {{ with { { to break the template placeholder pattern.
-            // We only need to break the opening delimiter — the regex
-            // requires both {{ and }} to match, so breaking either suffices.
-            return value.Replace("{{", "{ {");
+            // Break every "{{" so no template placeholder can survive re-rendering.
+            // A single left-to-right Replace("{{", "{ {") is NOT sufficient: on an
+            // overlapping-brace run it can leave a live "{{" behind. e.g. "{{{secret}}}"
+            // -> "{ {{secret}}}", which still contains "{{secret}}" and re-expands. Loop
+            // until no "{{" remains — each pass inserts a separator that strictly lowers
+            // the "{{" count, so this terminates.
+            var result = value;
+            while (result.Contains("{{"))
+                result = result.Replace("{{", "{ {");
+            return result;
         }
 
         /// <summary>

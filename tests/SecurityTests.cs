@@ -384,6 +384,57 @@ public class TemplateInjectionTests
         Assert.DoesNotContain("TOP_SECRET", safe); // safe!
     }
 
+    [Theory]
+    // Overlapping opening braces: a naive left-to-right "{{"->"{ {" replace on
+    // "{{{{secret}}}}" leaves a literal "{{" behind in the result, so the guarantee
+    // that matters is behavioral: the sanitized text must not re-expand as a template
+    // variable, not merely that the substring "{{" is absent.
+    [InlineData("{{{{secret}}}}")]
+    // Nested placeholder: the inner {{name}} must not survive as a live placeholder.
+    [InlineData("{{a{{name}}b}}")]
+    // Triple-open run.
+    [InlineData("{{{secret}}}")]
+    public void SanitizeVariableValue_AdversarialBraces_DoNotReExpand(string evil)
+    {
+        var sanitized = PromptTemplate.SanitizeVariableValue(evil);
+
+        // Behavioral contract: feeding the sanitized value back in as a template body
+        // and rendering with the injected names bound must NOT expand them. This is the
+        // real re-injection defense (stronger than an "is '{{' absent" substring check,
+        // which does not hold for overlapping-brace inputs).
+        var reused = new PromptTemplate(sanitized);
+        var rendered = reused.Render(
+            new Dictionary<string, string>
+            {
+                ["secret"] = "LEAKED",
+                ["name"] = "LEAKED",
+            },
+            strict: false);
+
+        Assert.DoesNotContain("LEAKED", rendered);
+    }
+
+    [Fact]
+    public void Render_WithSanitize_BlocksOverlappingBraceReInjection()
+    {
+        // End-to-end: an attacker supplies overlapping braces around a secret name.
+        // With sanitize on, the single-pass render output must be inert as a template.
+        var template = new PromptTemplate("Input: {{user_input}}.");
+        var variables = new Dictionary<string, string>
+        {
+            ["user_input"] = "{{{{secret}}}}",
+        };
+
+        var sanitized = template.Render(variables, strict: false, sanitize: true);
+
+        var secondPass = new PromptTemplate(sanitized);
+        var result = secondPass.Render(
+            new Dictionary<string, string> { ["secret"] = "TOP_SECRET" },
+            strict: false);
+
+        Assert.DoesNotContain("TOP_SECRET", result);
+    }
+
     [Fact]
     public void Render_WithSanitize_PreservesNormalVariables()
     {
