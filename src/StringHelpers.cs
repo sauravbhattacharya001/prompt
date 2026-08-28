@@ -101,6 +101,11 @@ namespace Prompt
         {
             if (string.IsNullOrEmpty(text) || text.Length <= maxLen)
                 return text ?? string.Empty;
+            // A non-positive budget can't fit any characters. Guard here so a
+            // negative maxLen doesn't throw ArgumentOutOfRangeException on the
+            // range slice below (text[..maxLen]) — callers pass arbitrary limits.
+            if (maxLen <= 0)
+                return string.Empty;
             return maxLen > 3 ? text[..(maxLen - 3)] + "..." : text[..maxLen];
         }
 

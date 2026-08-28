@@ -144,6 +144,21 @@ namespace Prompt.Tests
             Assert.Equal(string.Empty, StringHelpers.Truncate("", 10));
         }
 
+        [Fact]
+        public void Truncate_ZeroMaxLen_ReturnsEmpty()
+        {
+            Assert.Equal(string.Empty, StringHelpers.Truncate("hello", 0));
+        }
+
+        [Fact]
+        public void Truncate_NegativeMaxLen_ReturnsEmptyWithoutThrowing()
+        {
+            // Regression: a negative budget used to hit the range slice
+            // (text[..maxLen]) and throw ArgumentOutOfRangeException.
+            Assert.Equal(string.Empty, StringHelpers.Truncate("hello", -1));
+            Assert.Equal(string.Empty, StringHelpers.Truncate("hello world", -100));
+        }
+
         // ─── ComputeSimilarity ───
 
         [Fact]
