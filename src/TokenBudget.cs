@@ -574,8 +574,15 @@ namespace Prompt
                     return i;
             }
 
-            // All non-system messages are protected — fall back to oldest
-            return FindOldestCandidate();
+            // Every non-system message falls inside the protected window. The
+            // whole point of SlidingWindow + KeepFirstTurns is that those first
+            // N turns survive, so we must NOT trim one here. Returning -1 stops
+            // trimming and keeps the conversation over budget rather than
+            // silently evicting a message the caller asked us to protect.
+            // (Falling back to FindOldestCandidate() — as this used to — trimmed
+            // the oldest protected message, breaking the KeepFirstTurns
+            // contract.)
+            return -1;
         }
 
         /// <summary>

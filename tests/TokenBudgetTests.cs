@@ -233,6 +233,37 @@ public class TokenBudgetTests
         Assert.True(nonSystem.Count >= 2); // At least the protected turn
     }
 
+    [Fact]
+    public void Trim_SlidingWindow_DoesNotEvictProtectedTurnsEvenWhenOverBudget()
+    {
+        // KeepFirstTurns protects the first 2 turns (4 messages). A single
+        // message that on its own blows the budget must NOT cause SlidingWindow
+        // to trim one of those protected messages; the budget stays over rather
+        // than breaking the KeepFirstTurns contract.
+        var budget = new TokenBudget(maxTokens: 120, reserveForResponse: 20)
+        {
+            ReserveTokens = 0,
+            Strategy = TrimStrategy.SlidingWindow,
+            KeepFirstTurns = 2
+        };
+
+        budget.AddMessage("user", "first question");
+        budget.AddMessage("assistant", "first answer");
+        budget.AddMessage("user", "second question");
+        // A huge message that alone exceeds AvailableTokens, added while the
+        // window is still entirely protected (this is the 4th and last message
+        // of the 2 protected turns). There are no non-protected messages to
+        // evict, so trimming must stop and every protected message must survive.
+        budget.AddMessage("assistant", new string('x', 4000));
+
+        var nonSystem = budget.GetMessages().Where(m => m.Role != "system").ToList();
+        Assert.Equal(4, nonSystem.Count);
+        Assert.Equal("first question", nonSystem[0].Content);
+        Assert.Equal("first answer", nonSystem[1].Content);
+        Assert.Equal("second question", nonSystem[2].Content);
+        Assert.True(budget.IsOverBudget); // stayed over rather than evicting a protected turn
+    }
+
     // ──────────────── Auto-Trimming (RemoveLongest) ────────────────
 
     [Fact]
