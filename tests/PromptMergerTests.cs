@@ -227,4 +227,56 @@ public class PromptMergerTests
         // Global provides y
         Assert.Equal("global_y", merged.Defaults["y"]);
     }
+
+    [Fact]
+    public void Merge_CaseDifferingDefaults_TreatedAsOneVariable()
+    {
+        // PromptTemplate.Defaults is case-insensitive, so "role" and "Role"
+        // are the SAME variable. The merge must resolve them by conflict mode,
+        // not keep both keys (which the resulting template would silently
+        // collapse). LastWins keeps the later entry's value.
+        var t1 = new PromptTemplate("{{role}}", new Dictionary<string, string> { ["role"] = "a" });
+        var t2 = new PromptTemplate("{{Role}}", new Dictionary<string, string> { ["Role"] = "b" });
+
+        var merged = PromptMerger.Create().Add(t1).Add(t2).Merge();
+
+        Assert.Single(merged.Defaults);
+        Assert.Equal("b", merged.Defaults["role"]);
+        Assert.Equal("b", merged.Defaults["Role"]);
+    }
+
+    [Fact]
+    public void Summarize_And_Merge_Agree_OnCaseDifferingDefaults()
+    {
+        // Regression: Summarize() detects a case-insensitive clash between
+        // "role" and "Role"; Merge(ThrowOnConflict) must ACTUALLY throw on it.
+        // Previously BuildDefaults compared keys case-sensitively, so it kept
+        // both and never threw - Summarize reported a conflict that Merge
+        // silently ignored, violating the "they agree" invariant.
+        var t1 = new PromptTemplate("{{role}}", new Dictionary<string, string> { ["role"] = "a" });
+        var t2 = new PromptTemplate("{{Role}}", new Dictionary<string, string> { ["Role"] = "b" });
+
+        var merger = PromptMerger.Create().Add(t1).Add(t2);
+
+        Assert.True(merger.Summarize().HasConflicts);
+        Assert.Throws<InvalidOperationException>(() =>
+            merger.WithConflictResolution(ConflictResolution.ThrowOnConflict).Merge());
+    }
+
+    [Fact]
+    public void Merge_GlobalDefault_CaseDiffersFromTemplate_TemplateWins()
+    {
+        // A global default "X" and a template default "x" are the same variable;
+        // the template default must still override the global (lowest priority),
+        // and only one key survives.
+        var t1 = new PromptTemplate("{{x}}", new Dictionary<string, string> { ["x"] = "from_template" });
+
+        var merged = PromptMerger.Create()
+            .WithDefaults(new Dictionary<string, string> { ["X"] = "from_global" })
+            .Add(t1)
+            .Merge();
+
+        Assert.Single(merged.Defaults);
+        Assert.Equal("from_template", merged.Defaults["x"]);
+    }
 }

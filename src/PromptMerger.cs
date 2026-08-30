@@ -51,7 +51,14 @@ namespace Prompt
 
         private readonly List<MergeEntry> _entries = new();
         private string _separator = "\n\n";
-        private readonly Dictionary<string, string> _globalDefaults = new();
+        // Case-insensitive to match PromptTemplate.Defaults (OrdinalIgnoreCase)
+        // and Summarize()'s conflict detection. If this were case-sensitive,
+        // "role" and "Role" would be kept as two distinct keys here, then
+        // silently collapsed into one by the case-insensitive PromptTemplate
+        // built in Merge() - so ThrowOnConflict would fail to throw on a
+        // case-differing clash that Summarize() (correctly) reports, breaking
+        // the documented "Summarize and Merge agree" invariant.
+        private readonly Dictionary<string, string> _globalDefaults = new(StringComparer.OrdinalIgnoreCase);
         private ConflictResolution _conflictMode = ConflictResolution.LastWins;
         private string? _prefix;
         private string? _suffix;
@@ -283,7 +290,11 @@ namespace Prompt
 
         private Dictionary<string, string> BuildDefaults()
         {
-            var merged = new Dictionary<string, string>(_globalDefaults);
+            // OrdinalIgnoreCase so key matching here agrees with both
+            // PromptTemplate.Defaults and Summarize(): a "role"/"Role" clash is
+            // one variable, resolved by _conflictMode (and thrown on under
+            // ThrowOnConflict), not two keys silently merged downstream.
+            var merged = new Dictionary<string, string>(_globalDefaults, StringComparer.OrdinalIgnoreCase);
 
             foreach (var entry in _entries)
             {
