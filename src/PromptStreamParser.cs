@@ -343,7 +343,7 @@ namespace Prompt
                         var content = _codeBlockContent.ToString();
                         if (_options.TrimContent) content = content.Trim();
                         if (_options.MaxContentLength > 0 && content.Length > _options.MaxContentLength)
-                            content = content.Substring(0, _options.MaxContentLength);
+                            content = TruncatePreservingSurrogates(content, _options.MaxContentLength);
 
                         EmitContent(new StreamContent
                         {
@@ -744,10 +744,25 @@ namespace Prompt
             }
         }
 
+        /// <summary>
+        /// Truncates <paramref name="text"/> to at most <paramref name="max"/> UTF-16
+        /// code units without splitting a surrogate pair. If the character at the cut
+        /// boundary is a high surrogate (the lead of a supplementary-plane character
+        /// such as an emoji or a smuggled Unicode Tag char), back off by one so the
+        /// emitted content stays well-formed instead of ending in a lone surrogate
+        /// that mojibakes when encoded. The result is always &lt;= <paramref name="max"/>.
+        /// </summary>
+        private static string TruncatePreservingSurrogates(string text, int max)
+        {
+            int cut = max;
+            if (char.IsHighSurrogate(text[cut - 1]))
+                cut--;
+            return text.Substring(0, cut);
+        }
+
         private void EmitContent(StreamContent content)
         {
-            _extracted.Add(content);
-            var args = new StreamContentEventArgs { Content = content, Index = _extracted.Count - 1 };
+            _extracted.Add(content);            var args = new StreamContentEventArgs { Content = content, Index = _extracted.Count - 1 };
 
             if (content.IsPartial)
                 OnPartialContent?.Invoke(this, args);

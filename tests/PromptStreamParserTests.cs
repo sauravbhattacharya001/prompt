@@ -98,6 +98,34 @@ public class PromptStreamParserTests
     }
 
     [Fact]
+    public void MaxContentLengthTruncatesCodeBlock()
+    {
+        var parser = new PromptStreamParser(new StreamParserOptions { MaxContentLength = 5 });
+        parser.Feed(Chunk("```\nabcdefghij\n```\n"));
+        var summary = parser.Complete();
+        Assert.Single(summary.CodeBlocks);
+        Assert.Equal("abcde", summary.CodeBlocks[0].Content);
+    }
+
+    [Fact]
+    public void MaxContentLengthDoesNotSplitSurrogatePair()
+    {
+        // "ab" + "😀" (U+1F600, a surrogate pair) + "cd". Cutting at 3 UTF-16
+        // code units would land between the emoji's high and low surrogate,
+        // leaving a lone high surrogate. The parser must back off to keep the
+        // content well-formed ("ab", length 2) rather than emit "ab\uD83D".
+        var parser = new PromptStreamParser(new StreamParserOptions { MaxContentLength = 3 });
+        parser.Feed(Chunk("```\nab\U0001F600cd\n```\n"));
+        var summary = parser.Complete();
+        Assert.Single(summary.CodeBlocks);
+        var content = summary.CodeBlocks[0].Content;
+        Assert.True(content.Length <= 3);
+        // Well-formed: no unpaired high surrogate at the end.
+        Assert.False(content.Length > 0 && char.IsHighSurrogate(content[^1]));
+        Assert.Equal("ab", content);
+    }
+
+    [Fact]
     public void MultipleCodeBlocks()
     {
         var parser = new PromptStreamParser();
