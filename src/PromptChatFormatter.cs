@@ -402,9 +402,21 @@ namespace Prompt
             }
         }
 
-        private static string NormalizeRole(string role)
+        private string NormalizeRole(string role)
         {
-            return role.ToLowerInvariant() switch
+            var lowered = role.ToLowerInvariant();
+
+            // A caller-configured custom system role (e.g. "developer") must survive
+            // normalization. DetectRole returns _defaultSystemRole to mark system-like
+            // text; if that custom value isn't recognized here it falls through to the
+            // "user" default, silently misclassifying the system instruction as a user
+            // turn. Map it back to the canonical "system" role so extraction/remapping
+            // (Anthropic/Gemini system field) still works.
+            if (!string.IsNullOrEmpty(_defaultSystemRole)
+                && string.Equals(lowered, _defaultSystemRole, StringComparison.OrdinalIgnoreCase))
+                return "system";
+
+            return lowered switch
             {
                 "human" => "user",
                 "ai" => "assistant",

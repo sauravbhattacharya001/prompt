@@ -305,5 +305,30 @@ namespace Prompt.Tests
             Assert.Contains("You are helpful.", text);
             Assert.Contains("Always answer in French.", text);
         }
+
+        [Fact]
+        public void Parse_CustomDefaultSystemRole_ClassifiesInstructionAsSystem()
+        {
+            // A caller-configured custom system role must still be recognized as a
+            // system turn. Previously DetectRole returned the custom value and the
+            // static NormalizeRole mapped any non-canonical string to "user",
+            // silently misclassifying the system instruction.
+            var formatter = new PromptChatFormatter(defaultSystemRole: "developer");
+            var messages = formatter.Parse("You are a helpful assistant.");
+
+            Assert.Single(messages);
+            Assert.Equal("system", messages[0].Role);
+        }
+
+        [Fact]
+        public void Format_CustomDefaultSystemRole_ExtractsSystemForAnthropic()
+        {
+            var formatter = new PromptChatFormatter(defaultSystemRole: "developer");
+            var result = formatter.Format("You are a helpful assistant.", ChatProvider.Anthropic);
+
+            Assert.Equal("You are a helpful assistant.", result.SystemMessage);
+            Assert.DoesNotContain(result.Messages, m => m.Role == "system");
+            Assert.DoesNotContain(result.Messages, m => m.Content.Contains("helpful assistant"));
+        }
     }
 }
