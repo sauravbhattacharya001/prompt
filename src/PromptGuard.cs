@@ -351,9 +351,18 @@ namespace Prompt
 
         /// <summary>
         /// Removes non-printable control characters from text, preserving
-        /// only tab (\t), newline (\n), carriage return (\r), and characters
-        /// at or above the space codepoint (U+0020).
+        /// only tab (\t), newline (\n), and carriage return (\r). This strips
+        /// the entire C0 control block (U+0000–U+001F except the three kept
+        /// whitespace controls), DELETE (U+007F), and the C1 control block
+        /// (U+0080–U+009F).
         /// </summary>
+        /// <remarks>
+        /// A prior implementation kept every character at or above U+0020,
+        /// which silently let DELETE (U+007F) and the C1 controls survive —
+        /// contradicting <see cref="Sanitize"/>'s documented promise to remove
+        /// control characters. Those codepoints are non-printable and are a
+        /// documented terminal/log-injection vector, so they must be dropped too.
+        /// </remarks>
         /// <param name="text">The text to filter.</param>
         /// <returns>Text with control characters removed.</returns>
         internal static string StripControlChars(string text)
@@ -364,8 +373,16 @@ namespace Prompt
             var sb = new System.Text.StringBuilder(text.Length);
             foreach (char c in text)
             {
-                if (c >= ' ' || c == '\t' || c == '\n' || c == '\r')
+                if (c == '\t' || c == '\n' || c == '\r')
+                {
                     sb.Append(c);
+                    continue;
+                }
+                // Drop C0 controls (< U+0020), DELETE (U+007F), and
+                // C1 controls (U+0080–U+009F); keep everything else.
+                if (c < ' ' || (c >= '\u007F' && c <= '\u009F'))
+                    continue;
+                sb.Append(c);
             }
             return sb.ToString();
         }
@@ -409,8 +426,6 @@ namespace Prompt
 
         // ──────────────── Sanitize Patterns ────────────────
 
-        private static readonly Regex ControlCharsPattern =
-            new(@"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
         /// <summary>
         /// Delimiter injection patterns and their sanitised replacements.
         /// New delimiters can be blocked by adding a single entry here.

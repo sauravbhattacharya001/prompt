@@ -494,6 +494,23 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void Sanitize_DeleteAndC1Controls_Removes()
+        {
+            // DELETE (U+007F) and the C1 control block (U+0080–U+009F) are
+            // non-printable controls. A prior StripControlChars kept every char
+            // >= U+0020, so these survived Sanitize despite its documented
+            // promise to remove control characters. Regression guard.
+            string input = "Hello\u007FWorld\u0080\u009FTest";
+            string result = PromptGuard.Sanitize(input);
+            Assert.False(result.Contains('\u007F'), "Result should not contain DELETE");
+            Assert.False(result.Contains('\u0080'), "Result should not contain C1 PAD");
+            Assert.False(result.Contains('\u009F'), "Result should not contain C1 APC");
+            Assert.Contains("Hello", result);
+            Assert.Contains("World", result);
+            Assert.Contains("Test", result);
+        }
+
+        [Fact]
         public void Sanitize_PreservesLegitimateWhitespace()
         {
             string input = "Hello\tWorld\nNew Line";
