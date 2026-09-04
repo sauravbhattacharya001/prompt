@@ -159,6 +159,45 @@ namespace Prompt.Tests
             Assert.Equal(string.Empty, StringHelpers.Truncate("hello world", -100));
         }
 
+        [Fact]
+        public void Truncate_DoesNotSplitSurrogatePair_WithEllipsis()
+        {
+            // Regression: the ellipsis branch sliced at (maxLen - 3) without
+            // checking for a surrogate boundary. Each emoji here is a supplementary-
+            // plane char = 2 UTF-16 code units. With maxLen = 6 the naive cut lands
+            // at index 3, mid-pair, leaving a lone high surrogate before "...".
+            string s = "😀😀😀😀"; // 4 emoji = 8 UTF-16 code units
+            string result = StringHelpers.Truncate(s, 6);
+            Assert.True(result.Length <= 6);
+            Assert.EndsWith("...", result);
+            // No lone/unpaired surrogate survives round-tripping through UTF-8.
+            Assert.DoesNotContain('\uFFFD',
+                System.Text.Encoding.UTF8.GetString(System.Text.Encoding.UTF8.GetBytes(result)));
+            // The kept prefix before "..." must contain only whole emoji
+            // (each 2 code units), so its length is even and it is well-formed.
+            string prefix = result[..^3];
+            Assert.Equal(0, prefix.Length % 2);
+            for (int i = 0; i < prefix.Length; i += 2)
+            {
+                Assert.True(char.IsHighSurrogate(prefix[i]));
+                Assert.True(char.IsLowSurrogate(prefix[i + 1]));
+            }
+        }
+
+        [Fact]
+        public void Truncate_DoesNotSplitSurrogatePair_NoEllipsisBranch()
+        {
+            // maxLen <= 3 takes the text[..maxLen] branch. maxLen = 3 across a
+            // run of emoji lands at index 3, mid-pair. Result must stay well-formed.
+            string s = "😀😀"; // 4 UTF-16 code units
+            string result = StringHelpers.Truncate(s, 3);
+            Assert.True(result.Length <= 3);
+            Assert.DoesNotContain('\uFFFD',
+                System.Text.Encoding.UTF8.GetString(System.Text.Encoding.UTF8.GetBytes(result)));
+            // Only complete emoji kept: one 2-unit emoji fits within the budget of 3.
+            Assert.Equal("😀", result);
+        }
+
         // ─── ComputeSimilarity ───
 
         [Fact]

@@ -106,7 +106,17 @@ namespace Prompt
             // range slice below (text[..maxLen]) — callers pass arbitrary limits.
             if (maxLen <= 0)
                 return string.Empty;
-            return maxLen > 3 ? text[..(maxLen - 3)] + "..." : text[..maxLen];
+            // Cut point for the kept prefix: leave room for the ellipsis when the
+            // budget allows it, otherwise fill the whole budget with characters.
+            int cut = maxLen > 3 ? maxLen - 3 : maxLen;
+            // Never cut between a UTF-16 surrogate pair. Slicing at an index whose
+            // preceding char is a high surrogate leaves a lone high surrogate — an
+            // ill-formed string that mojibakes when encoded and can split a
+            // supplementary-plane char (emoji, CJK extension) in a preview. Back off
+            // by one so the result stays well-formed (and still <= maxLen).
+            if (cut > 0 && cut < text.Length && char.IsHighSurrogate(text[cut - 1]))
+                cut--;
+            return maxLen > 3 ? text[..cut] + "..." : text[..cut];
         }
 
         /// <summary>
