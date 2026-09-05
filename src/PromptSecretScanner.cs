@@ -263,21 +263,6 @@ namespace Prompt
         }
 
         /// <summary>
-        /// Masks the middle of a value while revealing a few leading and trailing
-        /// characters for recognizability. The number of revealed characters scales
-        /// with length so the head and tail can NEVER overlap and at least one
-        /// character is always masked.
-        /// </summary>
-        /// <remarks>
-        /// The previous implementation was <c>value[..3] + stars + value[^3..]</c>,
-        /// which for a 5- or 6-character match returned overlapping head/tail slices
-        /// that together spelled out the entire secret (e.g. <c>"abcde"</c> =&gt;
-        /// <c>"abc***cde"</c>) — a redaction that leaked 100% of the original
-        /// characters. Reveal counts are now capped so <c>2 * reveal &lt; length</c>.
-        /// Callers guarantee <c>value.Length &gt;= 5</c> here (shorter values are
-        /// fully starred by <see cref="Redact(string, SecretCategory)"/>).
-        /// </remarks>
-        /// <summary>
         /// Redacts a payment-card number by masking every character except the
         /// last four, preserving the original length and any grouping separators
         /// (spaces/hyphens). Unlike a fixed <c>"****-****-****-"</c> prefix, this
@@ -297,6 +282,21 @@ namespace Prompt
             return new string(chars);
         }
 
+        /// <summary>
+        /// Masks the middle of a value while revealing a few leading and trailing
+        /// characters for recognizability. The number of revealed characters scales
+        /// with length so the head and tail can NEVER overlap and at least one
+        /// character is always masked.
+        /// </summary>
+        /// <remarks>
+        /// The previous implementation was <c>value[..3] + stars + value[^3..]</c>,
+        /// which for a 5- or 6-character match returned overlapping head/tail slices
+        /// that together spelled out the entire secret (e.g. <c>"abcde"</c> =&gt;
+        /// <c>"abc***cde"</c>) — a redaction that leaked 100% of the original
+        /// characters. Reveal counts are now capped so <c>2 * reveal &lt; length</c>.
+        /// Callers guarantee <c>value.Length &gt;= 5</c> here (shorter values are
+        /// fully starred by <see cref="Redact(string, SecretCategory)"/>).
+        /// </remarks>
         private static string RedactGeneric(string value)
         {
             int reveal = value.Length >= 12 ? 3 : value.Length >= 8 ? 2 : 1;
