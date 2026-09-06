@@ -482,10 +482,22 @@ namespace Prompt
                   "Be cautious of visual separator + instruction combos."),
             };
 
-            // Add custom rules from config
+            // Add custom rules from config. Compile each behind a clear error:
+            // a single malformed user-supplied pattern would otherwise surface as a
+            // bare Regex ArgumentException with no hint which rule is at fault,
+            // making a bad config painful to diagnose.
             foreach (var cr in _config.CustomRules)
             {
-                rules.Add(R(cr.id, cr.name, cr.cat, cr.sev, cr.pattern, opts, cr.rec));
+                try
+                {
+                    rules.Add(R(cr.id, cr.name, cr.cat, cr.sev, cr.pattern, opts, cr.rec));
+                }
+                catch (ArgumentException ex)
+                {
+                    throw new ArgumentException(
+                        $"Custom sentinel rule '{cr.id}' has an invalid regex pattern: {ex.Message}",
+                        nameof(SentinelConfig.CustomRules), ex);
+                }
             }
 
             return rules;

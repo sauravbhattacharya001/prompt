@@ -172,5 +172,26 @@ namespace Prompt.Tests
             Assert.StartsWith("data ", sanitized);
             Assert.EndsWith(" tail", sanitized);
         }
+
+        // ── A malformed custom rule fails construction with a clear, id-tagged error ──
+
+        [Fact]
+        public void Ctor_InvalidCustomRulePattern_ThrowsWithRuleId()
+        {
+            var config = new SentinelConfig();
+            config.CustomRules.Add((
+                id: "BAD-1",
+                name: "Broken Pattern",
+                cat: ThreatCategory.IndirectInjection,
+                sev: ThreatSeverity.High,
+                pattern: @"(unclosed",   // invalid regex: unbalanced parenthesis
+                rec: "n/a"));
+
+            var ex = Assert.Throws<ArgumentException>(() => new PromptSentinel(config));
+            // The message must name the offending rule so a bad config is diagnosable,
+            // and the original Regex exception is preserved as the inner cause.
+            Assert.Contains("BAD-1", ex.Message);
+            Assert.IsAssignableFrom<ArgumentException>(ex.InnerException);
+        }
     }
 }
