@@ -133,12 +133,11 @@ namespace Prompt
         /// <returns>The step's response, or <c>null</c> if not found.</returns>
         public string? GetOutput(string variableName)
         {
-            if (Variables is Dictionary<string, string> dict)
-            {
-                dict.TryGetValue(variableName, out var value);
-                return value;
-            }
-            return Variables.ContainsKey(variableName) ? Variables[variableName] : null;
+            // IReadOnlyDictionary exposes TryGetValue, so a single lookup suffices
+            // for any backing implementation. (The concrete Variables instance is a
+            // case-insensitive Dictionary, so this stays case-insensitive.)
+            Variables.TryGetValue(variableName, out var value);
+            return value;
         }
 
         /// <summary>
