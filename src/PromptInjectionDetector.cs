@@ -208,17 +208,31 @@ namespace Prompt
         }
 
         /// <summary>Scan multiple inputs and return combined findings.</summary>
+        /// <remarks>
+        /// The inputs are conceptually concatenated with a <c>" | "</c> separator and
+        /// each finding's <see cref="InjectionFinding.Position"/> is offset to that
+        /// combined text, so positions stay globally consistent across inputs. Without
+        /// this offset every input's findings started from its own position 0, so two
+        /// matches in different inputs reported the same <c>Position</c> — meaningless
+        /// in the aggregate result. The result preview is built from the same combined
+        /// text (not a per-input truncation) so preview and positions describe one string.
+        /// </remarks>
         public InjectionScanResult ScanAll(IEnumerable<string> inputs)
         {
+            const string sep = " | ";
             var allFindings = new List<InjectionFinding>();
             var combined = new System.Text.StringBuilder();
             foreach (var input in inputs ?? Enumerable.Empty<string>())
             {
                 if (string.IsNullOrEmpty(input)) continue;
-                var result = Scan(input);
-                allFindings.AddRange(result.Findings);
-                if (combined.Length > 0) combined.Append(" | ");
-                combined.Append(input.Length > 50 ? input.Substring(0, 47) + "..." : input);
+                if (combined.Length > 0) combined.Append(sep);
+                int offset = combined.Length;
+                foreach (var f in Scan(input).Findings)
+                {
+                    allFindings.Add(new InjectionFinding(
+                        f.Rule, f.MatchedText, f.Position + offset, f.Length));
+                }
+                combined.Append(input);
             }
             allFindings.Sort((a, b) => b.Rule.Risk.CompareTo(a.Rule.Risk));
             return new InjectionScanResult(combined.ToString(), allFindings);
