@@ -967,4 +967,63 @@ public class PromptRouterTests : IDisposable
         Assert.Equal(0, match.KeywordHits);
         Assert.Equal(0, match.PatternHits);
     }
+
+    // ═══════════════════════════════════════════════════════
+    //  Keyword tokenization (hyphenated / multi-word keywords)
+    // ═══════════════════════════════════════════════════════
+
+    [Fact]
+    public void ScoreAll_HyphenatedKeyword_MatchesWhenBothTokensPresent()
+    {
+        // Regression: a keyword containing a non-word char (hyphen) was split
+        // out of the input token set but compared literally, so it could never
+        // register as a hit. It should match when all its word tokens appear.
+        var router = new PromptRouter();
+        router.AddRoute("r", MakeConfig(new[] { "code-review" }));
+
+        var scores = router.ScoreAll("please code review this");
+        var r = scores.Single(s => s.RouteName == "r");
+
+        Assert.Equal(1, r.KeywordHits);
+        Assert.True(r.Score > 0);
+    }
+
+    [Fact]
+    public void ScoreAll_MultiWordKeyword_RequiresAllTokens()
+    {
+        var router = new PromptRouter();
+        router.AddRoute("r", MakeConfig(new[] { "stack trace" }));
+
+        var bothPresent = router.ScoreAll("read the stack trace carefully")
+            .Single(s => s.RouteName == "r");
+        Assert.Equal(1, bothPresent.KeywordHits);
+
+        // Only one of the two tokens present → not a hit.
+        var onePresent = router.ScoreAll("read the stack carefully")
+            .Single(s => s.RouteName == "r");
+        Assert.Equal(0, onePresent.KeywordHits);
+    }
+
+    [Fact]
+    public void ScoreAll_SingleWordKeyword_BehaviorUnchanged()
+    {
+        var router = new PromptRouter();
+        router.AddRoute("r", MakeConfig(new[] { "summarize" }));
+
+        var hit = router.ScoreAll("please summarize this").Single(s => s.RouteName == "r");
+        Assert.Equal(1, hit.KeywordHits);
+
+        var miss = router.ScoreAll("translate this").Single(s => s.RouteName == "r");
+        Assert.Equal(0, miss.KeywordHits);
+    }
+
+    [Fact]
+    public void ScoreAll_PunctuationOnlyKeyword_NeverMatches()
+    {
+        var router = new PromptRouter();
+        router.AddRoute("r", MakeConfig(new[] { "---" }));
+
+        var r = router.ScoreAll("some --- text").Single(s => s.RouteName == "r");
+        Assert.Equal(0, r.KeywordHits);
+    }
 }

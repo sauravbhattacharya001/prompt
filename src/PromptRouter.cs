@@ -198,12 +198,18 @@ namespace Prompt
             {
                 double score = 0;
 
-                // Keyword matching: proportion of keywords found
+                // Keyword matching: proportion of keywords found.
+                // A keyword is tokenized with the SAME \W+ split used for the
+                // input and counts as a hit when every one of its word tokens is
+                // present. Without this, any keyword containing a non-word char
+                // (a hyphen like "code-review", a phrase like "stack trace", or
+                // "tl;dr") could NEVER match: the input token set only holds
+                // \W-free tokens, so a literal `words.Contains("code-review")`
+                // was always false and that keyword was silently dead weight.
                 int keywordHits = 0;
                 if (config.Keywords is { Length: > 0 })
                 {
-                    keywordHits = config.Keywords.Count(kw =>
-                        words.Contains(kw.ToLowerInvariant()));
+                    keywordHits = config.Keywords.Count(kw => KeywordMatches(kw, words));
                     score += (double)keywordHits / config.Keywords.Length * 0.6;
                 }
 
@@ -413,6 +419,33 @@ namespace Prompt
                 KeywordHits = 0,
                 PatternHits = 0,
             };
+        }
+
+        /// <summary>
+        /// Determines whether a configured keyword is present in the tokenized
+        /// input. The keyword is split on the same <c>\W+</c> boundary as the
+        /// input, so a single-word keyword matches iff that token is present, and
+        /// a hyphenated / multi-word keyword (e.g. <c>"code-review"</c>,
+        /// <c>"stack trace"</c>) matches iff <em>all</em> of its word tokens are
+        /// present. A keyword that has no word tokens (pure punctuation) never
+        /// matches.
+        /// </summary>
+        private static bool KeywordMatches(string keyword, HashSet<string> inputWords)
+        {
+            if (string.IsNullOrWhiteSpace(keyword)) return false;
+
+            var tokens = Regex.Split(
+                keyword.ToLowerInvariant(), @"\W+",
+                RegexOptions.None, TimeSpan.FromMilliseconds(500));
+
+            bool sawToken = false;
+            foreach (var t in tokens)
+            {
+                if (t.Length == 0) continue;
+                sawToken = true;
+                if (!inputWords.Contains(t)) return false;
+            }
+            return sawToken;
         }
 
         /// <summary>
