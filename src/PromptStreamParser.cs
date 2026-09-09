@@ -380,8 +380,24 @@ namespace Prompt
                         i++;
                         continue;
                     }
-                    if (IsTypeEnabled(StreamContentType.JsonArray) && text[i] == '[' && IsLikelyJsonArray(text, i))
+                    if (IsTypeEnabled(StreamContentType.JsonArray) && text[i] == '[')
                     {
+                        // The character after '[' decides whether this opens a JSON
+                        // array (see IsLikelyJsonArray). If '[' is the last char in the
+                        // buffer that lookahead char has not arrived yet — pause and wait
+                        // for the next chunk WITHOUT consuming the '[' as text, otherwise
+                        // an array whose opening bracket lands on a chunk boundary
+                        // (Feed("[") then Feed("-1, -2]")) is silently dropped.
+                        if (i + 1 >= text.Length)
+                        {
+                            _processedUpTo = i;
+                            return;
+                        }
+                        if (!IsLikelyJsonArray(text, i))
+                        {
+                            i++;
+                            continue;
+                        }
                         FlushListIfActive(i);
                         FlushTableIfActive(i);
                         _jsonStart = i;

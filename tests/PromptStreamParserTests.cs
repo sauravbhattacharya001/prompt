@@ -207,6 +207,35 @@ public class PromptStreamParserTests
     }
 
     [Fact]
+    public void JsonArrayOpenBracketAloneAtChunkBoundary()
+    {
+        // Regression: when the opening '[' is the LAST character in the buffer, the
+        // lookahead char that IsLikelyJsonArray needs has not arrived yet. The parser
+        // must PAUSE and wait for the next chunk rather than consume the lone '[' as
+        // text — otherwise an array whose bracket lands exactly on a chunk boundary
+        // (Feed("[") then the rest) was silently dropped and never extracted.
+        var parser = new PromptStreamParser();
+        parser.Feed(Chunk("["));
+        parser.Feed(Chunk("-1, -2]"));
+        var summary = parser.Complete();
+        Assert.Single(summary.JsonArrays);
+        Assert.Equal("[-1, -2]", summary.JsonArrays[0].Content);
+        Assert.NotNull(summary.JsonArrays[0].Parsed);
+    }
+
+    [Fact]
+    public void JsonStringArrayOpenBracketAloneAtChunkBoundary()
+    {
+        // Same boundary case for a string array: '[' arrives alone, then '"a", "b"]'.
+        var parser = new PromptStreamParser();
+        parser.Feed(Chunk("["));
+        parser.Feed(Chunk("\"a\", \"b\"]"));
+        var summary = parser.Complete();
+        Assert.Single(summary.JsonArrays);
+        Assert.Equal("[\"a\", \"b\"]", summary.JsonArrays[0].Content);
+    }
+
+    [Fact]
     public void NonJsonNegativeBracketNotEmittedAsArray()
     {
         // Accepting '-' as a valid array-lead must not turn arbitrary prose that
