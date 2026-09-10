@@ -778,11 +778,42 @@ namespace Prompt
             // are preserved (not filtered out) so that each value stays aligned to
             // its column header — dropping a blank cell would slide every later
             // value one column to the left, silently corrupting the parsed row.
-            return line
-                .Trim('|')
-                .Split('|')
-                .Select(cell => cell.Trim())
-                .ToList();
+            //
+            // Per GFM, a backslash-escaped pipe (\|) is a LITERAL pipe inside a
+            // cell and does NOT delimit columns. Splitting on every '|' would turn
+            // a cell like "a \| b" into two columns, corrupting alignment for the
+            // whole row. Walk the characters so only UNescaped pipes split, and
+            // unescape \| -> | in the emitted cell text.
+            var cells = new List<string>();
+            var cell = new System.Text.StringBuilder();
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+                if (c == '\\' && i + 1 < line.Length && line[i + 1] == '|')
+                {
+                    cell.Append('|');
+                    i++; // consume the escaped pipe
+                }
+                else if (c == '|')
+                {
+                    cells.Add(cell.ToString());
+                    cell.Clear();
+                }
+                else
+                {
+                    cell.Append(c);
+                }
+            }
+            cells.Add(cell.ToString());
+
+            // Emulate the previous Trim('|') behavior: drop the empty cells created
+            // by the leading and trailing row delimiters, then trim each value.
+            if (cells.Count > 0 && cells[0].Length == 0) cells.RemoveAt(0);
+            if (cells.Count > 0 && cells[^1].Length == 0) cells.RemoveAt(cells.Count - 1);
+
+            for (int i = 0; i < cells.Count; i++)
+                cells[i] = cells[i].Trim();
+            return cells;
         }
     }
 

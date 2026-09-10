@@ -374,6 +374,29 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void ExtractTable_EscapedPipeInCell_IsLiteralNotDelimiter()
+        {
+            // A backslash-escaped pipe inside a cell is a LITERAL '|' per GFM and
+            // must NOT split the column. Splitting on it would push City left into
+            // the Age column and corrupt every value after it.
+            string response = "| Name | Note | City |\n|------|------|------|\n| Alice | a \\| b | Seattle |";
+            var rows = ResponseParser.ExtractTable(response);
+            Assert.Single(rows);
+            Assert.Equal("Alice", rows[0]["Name"]);
+            Assert.Equal("a | b", rows[0]["Note"]);
+            Assert.Equal("Seattle", rows[0]["City"]);
+        }
+
+        [Fact]
+        public void ExtractTable_MultipleEscapedPipes_AllLiteral()
+        {
+            string response = "| Key | Expr |\n|-----|------|\n| or | a \\| b \\| c |";
+            var rows = ResponseParser.ExtractTable(response);
+            Assert.Single(rows);
+            Assert.Equal("a | b | c", rows[0]["Expr"]);
+        }
+
+        [Fact]
         public void ExtractTable_AllEmptyDataRow_IsSkipped()
         {
             // A row that is entirely blank carries no data and must not be emitted.
