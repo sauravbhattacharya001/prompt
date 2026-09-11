@@ -56,6 +56,20 @@ namespace Prompt.Tests
             Assert.DoesNotContain("businessman", report.DebiasedText, StringComparison.OrdinalIgnoreCase);
         }
 
+        [Fact]
+        public void Analyze_SentenceInitialGenderedTerm_PreservesCapitalization()
+        {
+            var detector = new PromptBiasDetector();
+            // The matched term starts the sentence, so the case-insensitive rule
+            // must not lowercase the replacement: "Businessman ..." -> the debiased
+            // text should begin with a capital "Business professional", not a
+            // grammatically wrong lowercase "business professional".
+            var report = detector.Analyze("Businessman explained the strategy.");
+
+            Assert.StartsWith("Business professional", report.DebiasedText);
+            Assert.DoesNotContain("business professional", report.DebiasedText); // no lowercased leak
+        }
+
         [Theory]
         [InlineData("chairman", "chairperson")]
         [InlineData("fireman", "firefighter")]

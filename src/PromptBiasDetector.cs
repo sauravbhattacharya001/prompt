@@ -205,17 +205,23 @@ namespace Prompt
                 }
             }
 
-            // Build debiased text. Escape '$' in the suggestion so it is inserted
-            // literally: Regex.Replace treats '$' in the replacement as a substitution
-            // token ($1, $&, $$, ...), so an unescaped suggestion containing '$' (e.g.
-            // "$5 budget" from a custom rule) would corrupt the output or throw.
+            // Build debiased text. A MatchEvaluator is used (rather than a static
+            // replacement string) so we can (a) insert the suggestion LITERALLY —
+            // avoiding Regex substitution tokens ($1, $&, $$, ...) that an unescaped
+            // suggestion containing '$' (e.g. "$5 budget") would otherwise trigger —
+            // and (b) preserve the matched term's leading capitalization. Rules match
+            // case-insensitively, so a sentence-initial "Businessman" would otherwise
+            // be rewritten to a lowercase "business professional", corrupting the
+            // debiased sentence's casing. When the matched text starts with an
+            // uppercase letter and the suggestion starts with a lowercase letter, the
+            // suggestion's first letter is capitalized to match.
             var debiased = prompt;
             foreach (var rule in _rules)
             {
                 if (!string.IsNullOrEmpty(rule.Suggestion))
                 {
-                    var replacement = rule.Suggestion.Replace("$", "$$");
-                    debiased = rule.Pattern.Replace(debiased, replacement);
+                    var suggestion = rule.Suggestion;
+                    debiased = rule.Pattern.Replace(debiased, m => MatchCase(m.Value, suggestion));
                 }
             }
 
@@ -235,6 +241,23 @@ namespace Prompt
                 BiasScore = Math.Round(score, 4),
                 DebiasedText = debiased
             };
+        }
+
+        /// <summary>
+        /// Returns <paramref name="suggestion"/> with its first letter capitalized to
+        /// match <paramref name="matched"/> when the matched text begins with an
+        /// uppercase letter and the suggestion begins with a lowercase letter.
+        /// Otherwise the suggestion is returned unchanged. The result is inserted
+        /// literally by the debias MatchEvaluator, so no Regex-substitution escaping
+        /// is required.
+        /// </summary>
+        private static string MatchCase(string matched, string suggestion)
+        {
+            if (string.IsNullOrEmpty(matched) || string.IsNullOrEmpty(suggestion))
+                return suggestion;
+            if (char.IsUpper(matched[0]) && char.IsLower(suggestion[0]))
+                return char.ToUpperInvariant(suggestion[0]) + suggestion.Substring(1);
+            return suggestion;
         }
 
         /// <summary>
