@@ -304,6 +304,28 @@ public class PromptSecretScannerTests
     }
 
     [Fact]
+    public void DetectsGitHubClassicToken()
+    {
+        var scanner = new PromptSecretScanner();
+        // Split prefix to avoid GitHub push protection; classic body is 36 Base62 chars.
+        var token = "gh" + "p_" + "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789";
+        var result = scanner.Scan($"token = {token}");
+        Assert.Contains(result.Findings, f => f.Rule.Id == "github-token");
+    }
+
+    [Fact]
+    public void DetectsGitHubFineGrainedToken()
+    {
+        var scanner = new PromptSecretScanner();
+        // Fine-grained PATs use the github_pat_ prefix, which the old
+        // gh[pousr]_ pattern never matched (regression guard).
+        var token = "github" + "_pat_" + "11ABCDEFG0aBcDeFgHiJkL_" +
+                    "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJ";
+        var result = scanner.Scan($"token = {token}");
+        Assert.Contains(result.Findings, f => f.Rule.Id == "github-token");
+    }
+
+    [Fact]
     public void DetectsSlackWebhook()
     {
         var scanner = new PromptSecretScanner();

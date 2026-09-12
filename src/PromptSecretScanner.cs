@@ -361,8 +361,13 @@ namespace Prompt
 
                 new SecretRule("github-token", "GitHub Token", SecretCategory.Token,
                     SecretSeverity.Critical,
-                    @"gh[pousr]_[A-Za-z0-9_]{36,}",
-                    "GitHub personal access token or fine-grained token"),
+                    // Two shapes: classic/OAuth tokens (ghp_/gho_/ghu_/ghs_/ghr_
+                    // followed by a Base62 body) AND fine-grained PATs, which use
+                    // the distinct `github_pat_` prefix — the old `gh[pousr]_`
+                    // class never matched those, so the description's
+                    // "fine-grained token" claim was a silent detection gap.
+                    @"gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}",
+                    "GitHub personal access token (classic) or fine-grained token"),
 
                 new SecretRule("generic-api-key", "Generic API Key", SecretCategory.ApiKey,
                     SecretSeverity.High,
