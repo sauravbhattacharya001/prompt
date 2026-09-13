@@ -138,7 +138,25 @@ namespace Prompt.Tests
             var report = detector.Analyze("Normal people prefer dark mode.");
 
             Assert.Contains(report.Findings, f => f.Category == BiasCategory.Exclusion);
-            Assert.Contains("most people", report.DebiasedText, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("people", report.DebiasedText, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("normal people", report.DebiasedText, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void Analyze_ExclusionDebias_DoesNotReintroduceAnchoringBias()
+        {
+            // Regression: the exclusion suggestion used to be "most people", which is
+            // itself matched by the Anchoring rule ("most (?:people|experts|studies)").
+            // Debiasing "normal people" therefore produced text that a second pass would
+            // flag as anchoring bias — the "debiased" output was not actually clean.
+            var detector = new PromptBiasDetector();
+            var report = detector.Analyze("Normal people prefer dark mode.");
+
+            // Feeding the debiased text back through the detector must yield no findings.
+            var reanalyzed = detector.Analyze(report.DebiasedText);
+            Assert.True(reanalyzed.IsClean,
+                $"Debiased text is still biased: '{report.DebiasedText}' -> " +
+                string.Join(", ", reanalyzed.Findings.Select(f => f.Category)));
         }
 
         [Fact]

@@ -399,7 +399,13 @@ namespace Prompt
                 Category = BiasCategory.Exclusion, Severity = BiasSeverity.Medium,
                 Pattern = new Regex(@"\b(normal people|regular people|ordinary people)\b", ic, timeout),
                 Description = "Implies some groups are abnormal or irregular",
-                Suggestion = "most people"
+                // Suggest a plain, unloaded term. "most people" was a poor debiasing
+                // target: it is itself matched by the Anchoring rule
+                // ("most (?:people|experts|studies)"), so debiasing "normal people"
+                // to "most people" merely swapped an exclusion bias for an anchoring
+                // bias — the "debiased" text was still flaggable. Plain "people"
+                // carries neither implication.
+                Suggestion = "people"
             });
 
             // === Age bias ===
