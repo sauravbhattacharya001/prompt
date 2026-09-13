@@ -330,7 +330,12 @@ namespace Prompt
                 throw new ArgumentException($"Unknown model '{modelId}'. Register it with AddModel() first.", nameof(modelId));
 
             var textList = texts.ToList();
-            int totalInputTokens = textList.Sum(t => Estimate(t).TokenCount);
+            // Sum in a checked context for the same reason the output multiply below is
+            // checked: Enumerable.Sum(int) accumulates in an unchecked int, so a large
+            // batch of big prompts silently wraps to a NEGATIVE total, which then flows
+            // into InputCost(int) and yields a bogus negative cost instead of an error.
+            // Fail loudly and consistently with the output path.
+            int totalInputTokens = checked(textList.Aggregate(0, (sum, t) => sum + Estimate(t).TokenCount));
             // Multiply in a checked context: an unchecked int multiply silently wraps
             // to a NEGATIVE total for large batches (e.g. many prompts * a big
             // per-prompt output budget), which would then flow into OutputCost(int)

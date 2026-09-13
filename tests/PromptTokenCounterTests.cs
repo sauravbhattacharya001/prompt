@@ -182,6 +182,33 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void EstimateBatchCost_InputTokenSum_EqualsSumOfPerPromptEstimates()
+        {
+            // Regression: totalInputTokens summed the per-prompt token counts with an
+            // UNCHECKED accumulator (Enumerable.Sum), the input-side twin of the output
+            // multiply guarded above. For any realistic batch the checked sum must equal
+            // the plain sum of the individual Estimate() token counts (no silent wrap and
+            // no double counting); the checked context only changes behavior at int
+            // overflow, which a benign batch never reaches. This pins the summation
+            // semantics so the guard can't regress into an off-by-count or wrong total.
+            var counter = new PromptTokenCounter();
+            var texts = new[]
+            {
+                new string('a', 400) + " " + new string('b', 400),
+                "short one",
+                new string('c', 1000),
+            };
+
+            var expected = texts.Sum(t => counter.Estimate(t).TokenCount);
+            var batch = counter.EstimateBatchCost(texts, "gpt-4o", estimatedOutputTokensEach: 5);
+
+            Assert.Equal(expected, batch.InputTokens);
+            Assert.True(batch.InputTokens > 0);
+            // Cost derives from the (correct, non-wrapped) token total, so it stays positive.
+            Assert.True(batch.InputCost > 0m);
+        }
+
+        [Fact]
         public void EstimateCost_ZeroOutputTokens_OutputCostIsZero()
         {
             var counter = new PromptTokenCounter();
