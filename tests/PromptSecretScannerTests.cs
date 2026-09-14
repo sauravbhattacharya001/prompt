@@ -176,6 +176,44 @@ public class PromptSecretScannerTests
         Assert.Equal(expected, result.RedactedText);
     }
 
+    // Regression / contract: the generic redactor reveals a length-scaled number of
+    // head+tail characters (1 for len<8, 2 for 8<=len<12, 3 for len>=12) and masks the
+    // rest. How MUCH of a secret is revealed is a security property, so pin the exact
+    // reveal count at every tier boundary — a future refactor of those thresholds that
+    // widened the revealed window (leaking more of the secret) would otherwise pass the
+    // looser "no whole secret survives" tests silently.
+    [Theory]
+    [InlineData(7, 1)]    // just below the first bump: reveal 1 each end
+    [InlineData(8, 2)]    // exactly at the 8-char bump: reveal 2
+    [InlineData(11, 2)]   // just below the 12-char bump: still 2
+    [InlineData(12, 3)]   // exactly at the 12-char bump: reveal 3
+    [InlineData(20, 3)]   // well past: capped at 3
+    public void RedactGeneric_RevealsExactlyTierMany_HeadAndTailChars(int bodyLen, int expectedReveal)
+    {
+        // Build a token whose matched value is exactly `bodyLen` chars of distinct-ish
+        // content so head/tail slices are unambiguous. "tok_" (4) + filler.
+        var body = new string(Enumerable.Range(0, bodyLen).Select(i => (char)('a' + (i % 26))).ToArray());
+        var scanner = ScannerWithTokenRule(bodyLen, bodyLen);
+        // Override with a rule that matches exactly `body` so MatchedText.Length == bodyLen.
+        scanner = new PromptSecretScanner().AddRule(new SecretRule(
+            "exact-tok", "Exact Token", SecretCategory.Token,
+            SecretSeverity.High, System.Text.RegularExpressions.Regex.Escape(body), "exact token"));
+
+        var f = Assert.Single(scanner.Scan($"x {body} y").Findings);
+        var red = f.RedactedText;
+
+        Assert.Equal(bodyLen, red.Length);
+        // Exactly `expectedReveal` leading and trailing chars are the originals…
+        Assert.Equal(body[..expectedReveal], red[..expectedReveal]);
+        Assert.Equal(body[^expectedReveal..], red[^expectedReveal..]);
+        // …and everything in between is masked (count of '*' == bodyLen - 2*reveal).
+        Assert.Equal(bodyLen - 2 * expectedReveal, red.Count(c => c == '*'));
+        // The masked run is contiguous in the middle: no revealed original char leaks
+        // into the masked window.
+        Assert.Equal(new string('*', bodyLen - 2 * expectedReveal),
+            red.Substring(expectedReveal, bodyLen - 2 * expectedReveal));
+    }
+
     [Fact]
     public void DetectsPrivateKeyHeader()
     {
