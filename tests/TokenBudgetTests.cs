@@ -541,6 +541,28 @@ public class TokenBudgetTests
         Assert.ThrowsAny<Exception>(() => TokenBudget.FromJson("not json at all"));
     }
 
+    [Theory]
+    // maxTokens below the constructor floor of 100
+    [InlineData("{\"maxTokens\":50,\"reserveForResponse\":10,\"reserveTokens\":0,\"strategy\":\"RemoveOldest\",\"keepFirstTurns\":1,\"messages\":[]}")]
+    // reserveForResponse >= maxTokens
+    [InlineData("{\"maxTokens\":1000,\"reserveForResponse\":1000,\"reserveTokens\":0,\"strategy\":\"RemoveOldest\",\"keepFirstTurns\":1,\"messages\":[]}")]
+    // negative reserveForResponse
+    [InlineData("{\"maxTokens\":1000,\"reserveForResponse\":-5,\"reserveTokens\":0,\"strategy\":\"RemoveOldest\",\"keepFirstTurns\":1,\"messages\":[]}")]
+    // negative reserveTokens (rejected by the property setter)
+    [InlineData("{\"maxTokens\":1000,\"reserveForResponse\":100,\"reserveTokens\":-1,\"strategy\":\"RemoveOldest\",\"keepFirstTurns\":1,\"messages\":[]}")]
+    // negative keepFirstTurns (rejected by the property setter)
+    [InlineData("{\"maxTokens\":1000,\"reserveForResponse\":100,\"reserveTokens\":0,\"strategy\":\"RemoveOldest\",\"keepFirstTurns\":-2,\"messages\":[]}")]
+    public void FromJson_WrapsSemanticallyInvalidValuesAsInvalidOperationException(string json)
+    {
+        // Structurally valid JSON whose values violate the constructor/setter
+        // invariants must surface as InvalidOperationException (the FromJson
+        // "bad JSON" contract), not a raw ArgumentOutOfRangeException leaked
+        // from the constructor or a property setter.
+        var ex = Assert.Throws<InvalidOperationException>(() => TokenBudget.FromJson(json));
+        Assert.Contains("Invalid token budget JSON", ex.Message);
+        Assert.IsType<ArgumentOutOfRangeException>(ex.InnerException);
+    }
+
     [Fact]
     public void ToJson_ContainsExpectedFields()
     {

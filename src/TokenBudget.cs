@@ -429,13 +429,29 @@ namespace Prompt
                 throw new InvalidOperationException(
                     "Invalid token budget JSON: missing messages array.");
 
-            var budget = new TokenBudget(data.MaxTokens, data.ReserveForResponse)
+            // Structurally-valid JSON can still carry semantically-invalid
+            // values (e.g. a negative reserve, or reserveForResponse >=
+            // maxTokens). The constructor and property setters guard these by
+            // throwing ArgumentOutOfRangeException, but that leaks a different
+            // exception type than the rest of FromJson, which reports malformed
+            // input as InvalidOperationException. Wrap those so callers have a
+            // single "bad JSON" contract to catch.
+            TokenBudget budget;
+            try
             {
-                ReserveTokens = data.ReserveTokens,
-                KeepFirstTurns = data.KeepFirstTurns,
-                TrimmedCount = data.TrimmedCount,
-                TrimmedTokens = data.TrimmedTokens
-            };
+                budget = new TokenBudget(data.MaxTokens, data.ReserveForResponse)
+                {
+                    ReserveTokens = data.ReserveTokens,
+                    KeepFirstTurns = data.KeepFirstTurns,
+                    TrimmedCount = data.TrimmedCount,
+                    TrimmedTokens = data.TrimmedTokens
+                };
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid token budget JSON: {ex.Message}", ex);
+            }
 
             if (Enum.TryParse<TrimStrategy>(data.Strategy, true, out var strategy))
                 budget.Strategy = strategy;
