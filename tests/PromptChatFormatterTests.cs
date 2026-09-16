@@ -330,5 +330,31 @@ namespace Prompt.Tests
             Assert.DoesNotContain(result.Messages, m => m.Role == "system");
             Assert.DoesNotContain(result.Messages, m => m.Content.Contains("helpful assistant"));
         }
+
+        [Theory]
+        // "as a"/"as an"/"you are" end in a letter, so they must land on a word
+        // boundary. These leading substrings sit inside a longer word and must NOT
+        // be treated as a system instruction — they are ordinary user turns.
+        [InlineData("As always, please help me with this.")]
+        [InlineData("As apple pie is my favorite, describe it.")]
+        [InlineData("You aren't going to believe this bug.")]
+        [InlineData("Ascertain the meaning of this text.")]
+        public void Parse_SystemPrefixSubstring_NotMisclassifiedAsSystem(string prompt)
+        {
+            var messages = _formatter.Parse(prompt);
+            Assert.Single(messages);
+            Assert.Equal("user", messages[0].Role);
+        }
+
+        [Theory]
+        // Genuine system prefixes at a real word boundary still classify as system.
+        [InlineData("As a developer, help me refactor this.")]
+        [InlineData("As an editor, review my draft.")]
+        [InlineData("You are a helpful assistant.")]
+        public void Parse_GenuineSystemPrefix_StillClassifiedAsSystem(string prompt)
+        {
+            var messages = _formatter.Parse(prompt);
+            Assert.Equal("system", messages[0].Role);
+        }
     }
 }

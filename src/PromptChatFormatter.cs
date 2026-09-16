@@ -434,10 +434,43 @@ namespace Prompt
             var trimmed = text.TrimStart().ToLowerInvariant();
             foreach (var prefix in SystemPrefixes)
             {
-                if (trimmed.StartsWith(prefix))
+                if (StartsWithPrefixAtWordBoundary(trimmed, prefix))
                     return _defaultSystemRole;
             }
             return "user";
+        }
+
+        /// <summary>
+        /// Returns true when <paramref name="text"/> begins with <paramref name="prefix"/>
+        /// AND the prefix ends on a word boundary — i.e. the prefix is not merely the
+        /// leading substring of a longer word.
+        /// </summary>
+        /// <remarks>
+        /// A bare <c>StartsWith</c> over-matched: a prefix that ends in a letter (e.g.
+        /// <c>"as a"</c>, <c>"as an"</c>, <c>"you are"</c>) would fire on unrelated text
+        /// like <c>"as always ..."</c>, <c>"as apple pie ..."</c>, or <c>"you aren't ..."</c>,
+        /// silently misclassifying an ordinary user turn as a system instruction. When the
+        /// prefix ends in a letter/digit, require the following character (if any) to be a
+        /// non-word char so the prefix lands on a real word boundary. Prefixes that already
+        /// end in punctuation (e.g. <c>"instructions:"</c>) are matched as-is.
+        /// </remarks>
+        private static bool StartsWithPrefixAtWordBoundary(string text, string prefix)
+        {
+            if (!text.StartsWith(prefix, StringComparison.Ordinal))
+                return false;
+            if (prefix.Length == 0)
+                return true;
+            char lastPrefixChar = prefix[prefix.Length - 1];
+            // If the prefix ends in a non-word char (e.g. ':'), the boundary is
+            // already unambiguous — accept.
+            if (!(char.IsLetterOrDigit(lastPrefixChar)))
+                return true;
+            // Otherwise the char immediately after the prefix must be a word boundary
+            // (end of string or a non-word char), else we matched inside a longer word.
+            if (text.Length == prefix.Length)
+                return true;
+            char next = text[prefix.Length];
+            return !(char.IsLetterOrDigit(next));
         }
 
         private List<ChatMessage> SplitByParagraphs(string prompt)
