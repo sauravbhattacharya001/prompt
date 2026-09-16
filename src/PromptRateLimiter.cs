@@ -50,9 +50,10 @@ namespace Prompt
         /// <summary>Gets the profile name this result applies to.</summary>
         public string ProfileName { get; internal set; } = "";
 
-        /// <summary>Gets the acquisition timestamp (milliseconds since epoch).
-        /// Pass this to <see cref="PromptRateLimiter.RecordCompletion"/> to
-        /// correctly identify which token record to update under concurrency.</summary>
+        /// <summary>Gets an opaque handle identifying this acquisition, unique per
+        /// acquire even under same-millisecond concurrency. Pass this to
+        /// <see cref="PromptRateLimiter.RecordCompletion"/> to correctly identify which
+        /// token record to update and which concurrency slot to release.</summary>
         public long AcquireTimestamp { get; internal set; }
     }
 
@@ -176,14 +177,27 @@ namespace Prompt
         {
             public RateLimitProfile Profile { get; set; } = new();
             public List<long> RequestTimestamps { get; set; } = new();
-            public List<(long Timestamp, int Tokens)> TokenRecords { get; set; } = new();
+            // Each token record carries a unique acquire Id alongside its wall-clock
+            // Timestamp. The Timestamp drives sliding-window pruning; the Id is the
+            // stable handle used to pair a RecordCompletion with the exact acquire
+            // that created the record. Timestamps are NOT unique under load (two
+            // acquires can share a millisecond), so matching by Timestamp alone would
+            // update the wrong request's record — the Id disambiguates.
+            public List<(long Id, long Timestamp, int Tokens)> TokenRecords { get; set; } = new();
             public int ConcurrentCount { get; set; }
             public long TotalRequests { get; set; }
             public long TotalTokens { get; set; }
             public long DeniedRequests { get; set; }
             public long CompletedRequests { get; set; }
-            public HashSet<long> ActiveAcquireTimestamps { get; set; } = new();
+            // Unique acquire ids still in flight (not yet completed). Uses a unique,
+            // monotonic id rather than the clock so same-millisecond acquires each get
+            // their own entry — a HashSet keyed on the raw timestamp silently collapsed
+            // concurrent same-ms acquires into one, leaking a concurrency slot on every
+            // completion after the first.
+            public HashSet<long> ActiveAcquireIds { get; set; } = new();
             public long OrphanedCompletions { get; set; }
+            // Monotonically increasing source of unique acquire handles for this profile.
+            public long NextAcquireId { get; set; } = 1;
         }
 
         /// <summary>
@@ -382,12 +396,14 @@ namespace Prompt
                     };
                 }
 
-                // Acquire
+                // Acquire. Mint a unique handle for this acquire so completions can be
+                // paired exactly even when several acquires share a millisecond.
+                var acquireId = state.NextAcquireId++;
                 state.RequestTimestamps.Add(now);
                 if (estimatedTokens > 0)
-                    state.TokenRecords.Add((now, estimatedTokens));
+                    state.TokenRecords.Add((acquireId, now, estimatedTokens));
                 state.ConcurrentCount++;
-                state.ActiveAcquireTimestamps.Add(now);
+                state.ActiveAcquireIds.Add(acquireId);
                 state.TotalRequests++;
                 state.TotalTokens += estimatedTokens;
 
@@ -399,7 +415,7 @@ namespace Prompt
                     CurrentTokens = WindowTokens(state),
                     ConcurrentRequests = state.ConcurrentCount,
                     ProfileName = profileName,
-                    AcquireTimestamp = now
+                    AcquireTimestamp = acquireId
                 };
             }
         }
@@ -470,9 +486,10 @@ namespace Prompt
         /// <param name="actualTokens">Actual tokens used. When provided, replaces
         /// the original estimate so the sliding window and lifetime totals stay
         /// accurate.  Pass 0 (default) to keep the original estimate.</param>
-        /// <param name="acquireTimestamp">Timestamp from the acquire call to
-        /// identify which token record to update. When 0 (default), falls back
-        /// to replacing the most recent record (legacy behaviour).</param>
+        /// <param name="acquireTimestamp">Opaque acquire handle (from
+        /// <see cref="RateLimitResult.AcquireTimestamp"/>) identifying which record to
+        /// update. When 0 (default), falls back to replacing the most recent record
+        /// (legacy behaviour, only safe without concurrency).</param>
         public void RecordCompletion(string profileName, int actualTokens = 0, long acquireTimestamp = 0)
         {
             if (string.IsNullOrWhiteSpace(profileName)) return;
@@ -484,18 +501,18 @@ namespace Prompt
                 bool isOrphaned;
                 if (acquireTimestamp > 0)
                 {
-                    isOrphaned = !state.ActiveAcquireTimestamps.Remove(acquireTimestamp);
+                    isOrphaned = !state.ActiveAcquireIds.Remove(acquireTimestamp);
                 }
                 else
                 {
-                    // Legacy callers without timestamp: accept if any active acquires exist
+                    // Legacy callers without a handle: accept if any active acquires exist
                     isOrphaned = state.ConcurrentCount <= 0;
-                    if (!isOrphaned && state.ActiveAcquireTimestamps.Count > 0)
+                    if (!isOrphaned && state.ActiveAcquireIds.Count > 0)
                     {
                         // Remove an arbitrary entry for legacy callers
-                        var enumerator = state.ActiveAcquireTimestamps.GetEnumerator();
+                        var enumerator = state.ActiveAcquireIds.GetEnumerator();
                         if (enumerator.MoveNext())
-                            state.ActiveAcquireTimestamps.Remove(enumerator.Current);
+                            state.ActiveAcquireIds.Remove(enumerator.Current);
                     }
                 }
 
@@ -516,13 +533,13 @@ namespace Prompt
                 // reflects reality rather than doubling up.
                 if (actualTokens > 0 && state.TokenRecords.Count > 0)
                 {
-                    // Find the matching entry by timestamp when available.
+                    // Find the matching entry by acquire id when available.
                     var targetIdx = -1;
                     if (acquireTimestamp > 0)
                     {
                         for (int i = state.TokenRecords.Count - 1; i >= 0; i--)
                         {
-                            if (state.TokenRecords[i].Timestamp == acquireTimestamp)
+                            if (state.TokenRecords[i].Id == acquireTimestamp)
                             {
                                 targetIdx = i;
                                 break;
@@ -531,15 +548,15 @@ namespace Prompt
                     }
                     else
                     {
-                        // Legacy callers without acquireTimestamp: fall back
+                        // Legacy callers without a handle: fall back
                         // to the last entry (only safe without concurrency).
                         targetIdx = state.TokenRecords.Count - 1;
                     }
 
                     if (targetIdx >= 0)
                     {
-                        var (ts, estimated) = state.TokenRecords[targetIdx];
-                        state.TokenRecords[targetIdx] = (ts, actualTokens);
+                        var (id, ts, estimated) = state.TokenRecords[targetIdx];
+                        state.TokenRecords[targetIdx] = (id, ts, actualTokens);
                         // Adjust lifetime total: remove estimate, add actual
                         state.TotalTokens = state.TotalTokens - estimated + actualTokens;
                     }
@@ -553,7 +570,8 @@ namespace Prompt
                 {
                     // No prior estimate (TryAcquire was called with 0 tokens)
                     var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    state.TokenRecords.Add((now, actualTokens));
+                    var lateId = acquireTimestamp > 0 ? acquireTimestamp : state.NextAcquireId++;
+                    state.TokenRecords.Add((lateId, now, actualTokens));
                     state.TotalTokens += actualTokens;
                 }
             }
@@ -657,7 +675,7 @@ namespace Prompt
                 state.RequestTimestamps.Clear();
                 state.TokenRecords.Clear();
                 state.ConcurrentCount = 0;
-                state.ActiveAcquireTimestamps.Clear();
+                state.ActiveAcquireIds.Clear();
                 state.OrphanedCompletions = 0;
                 state.TotalRequests = 0;
                 state.TotalTokens = 0;
@@ -768,7 +786,7 @@ namespace Prompt
                     return (0, 0);
                 state.RequestTimestamps.Add(recordMs);
                 if (tokens > 0)
-                    state.TokenRecords.Add((recordMs, tokens));
+                    state.TokenRecords.Add((state.NextAcquireId++, recordMs, tokens));
                 PruneWindow(state, nowMs);
                 return (state.RequestTimestamps.Count, WindowTokens(state));
             }

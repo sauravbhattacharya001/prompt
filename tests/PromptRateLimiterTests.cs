@@ -1083,4 +1083,67 @@ public class PromptRateLimiterTests
         Assert.Equal(1, justInside.WindowRequests);
         Assert.Equal(500, justInside.WindowTokens);
     }
+
+    // ── Same-millisecond concurrency (unique acquire handles) ──
+
+    [Fact]
+    public void ConcurrentAcquires_SameMillisecond_EachReleasesItsOwnSlot()
+    {
+        // Two acquires that land in the same millisecond used to collapse into a
+        // single HashSet entry keyed on the raw timestamp, so the SECOND completion
+        // was misflagged as orphaned and never released its concurrency slot. Each
+        // acquire now gets a unique handle, so both slots free correctly.
+        var limiter = new PromptRateLimiter();
+        limiter.AddProfile(new RateLimitProfile
+        {
+            Name = "m",
+            RequestsPerMinute = 1000,
+            TokensPerMinute = 1_000_000,
+            MaxConcurrent = 5
+        });
+
+        var a = limiter.TryAcquire("m", estimatedTokens: 100);
+        var b = limiter.TryAcquire("m", estimatedTokens: 100);
+        Assert.True(a.Permitted);
+        Assert.True(b.Permitted);
+        // Handles must be distinct even if the wall clock did not advance.
+        Assert.NotEqual(a.AcquireTimestamp, b.AcquireTimestamp);
+        Assert.Equal(2, limiter.GetUsage("m")!.ConcurrentRequests);
+
+        limiter.RecordCompletion("m", actualTokens: 100, acquireTimestamp: a.AcquireTimestamp);
+        limiter.RecordCompletion("m", actualTokens: 100, acquireTimestamp: b.AcquireTimestamp);
+
+        var usage = limiter.GetUsage("m")!;
+        Assert.Equal(0, usage.ConcurrentRequests);      // both slots released
+        Assert.Equal(0, usage.OrphanedCompletions);     // neither misflagged
+        Assert.Equal(2, usage.CompletedRequests);
+    }
+
+    [Fact]
+    public void RecordCompletion_UpdatesTheMatchingRecord_NotAnArbitrarySameMsOne()
+    {
+        // Both records share a millisecond; completing acquire A with its actual
+        // token count must update A's record only, not B's. Matching by timestamp
+        // (non-unique) could update the wrong request; matching by unique handle
+        // keeps the window total exact.
+        var limiter = new PromptRateLimiter();
+        limiter.AddProfile(new RateLimitProfile
+        {
+            Name = "m",
+            RequestsPerMinute = 1000,
+            TokensPerMinute = 1_000_000,
+            MaxConcurrent = 5
+        });
+
+        var a = limiter.TryAcquire("m", estimatedTokens: 100); // estimate 100
+        var b = limiter.TryAcquire("m", estimatedTokens: 100); // estimate 100
+        Assert.Equal(200, limiter.GetUsage("m")!.WindowTokens);
+
+        // A actually used 10; window should drop to 100 (B's) + 10 (A's) = 110.
+        limiter.RecordCompletion("m", actualTokens: 10, acquireTimestamp: a.AcquireTimestamp);
+        Assert.Equal(110, limiter.GetUsage("m")!.WindowTokens);
+
+        limiter.RecordCompletion("m", actualTokens: 100, acquireTimestamp: b.AcquireTimestamp);
+        Assert.Equal(110, limiter.GetUsage("m")!.WindowTokens);
+    }
 }
