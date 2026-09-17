@@ -583,6 +583,41 @@ public class PromptSecretScannerTests
         Assert.DoesNotContain(result.Findings, f => f.Rule.Id == "ssn");
     }
 
+    // -- SSN / phone redaction output (reveal only the last 4; never leak more) --
+    // Detection of these two PII shapes is pinned above, but the redacted OUTPUT
+    // (the security-sensitive part) had no direct coverage. SSN and phone both take
+    // dedicated branches in Redact(...) that keep value[^4..] behind a fixed mask;
+    // a refactor that widened value[^4..] or dropped the fixed prefix would leak
+    // more of the number yet still pass every detection test. Pin the exact masks.
+    [Theory]
+    [InlineData("123-45-6789")]   // canonical hyphenated SSN
+    [InlineData("123 45 6789")]   // space-separated SSN (same masked shape)
+    public void RedactSsn_RevealsOnlyLastFour_AndMasksTheRest(string ssn)
+    {
+        var scanner = new PromptSecretScanner();
+        var f = Assert.Single(scanner.Scan($"ssn {ssn} ok").Findings, x => x.Rule.Id == "ssn");
+        Assert.Equal("***-**-6789", f.RedactedText);
+        // Only the trailing 4 digits survive; none of the first five leak through.
+        Assert.DoesNotContain("123", f.RedactedText);
+        Assert.DoesNotContain("45", f.RedactedText);
+        Assert.DoesNotContain(ssn, scanner.Scan($"ssn {ssn} ok").RedactedText);
+    }
+
+    [Theory]
+    [InlineData("555-123-4567")]      // dashed
+    [InlineData("(555) 123-4567")]    // parenthesized area code
+    [InlineData("+1 555-123-4567")]   // with country code
+    public void RedactPhone_RevealsOnlyLastFour_AndMasksTheRest(string phone)
+    {
+        var scanner = new PromptSecretScanner();
+        var f = Assert.Single(scanner.Scan($"call {phone} now").Findings, x => x.Rule.Id == "phone-us");
+        Assert.Equal("***-***-4567", f.RedactedText);
+        // The area code and exchange must be fully masked — only the last 4 remain.
+        Assert.DoesNotContain("555", f.RedactedText);
+        Assert.DoesNotContain("123", f.RedactedText);
+        Assert.DoesNotContain(phone, scanner.Scan($"call {phone} now").RedactedText);
+    }
+
     // Detection is culture-independent (Turkish dotless-I hazard).
     [Fact]
     public void Scan_UppercaseApiKey_DetectedUnderTurkishCulture()
