@@ -125,6 +125,51 @@ public class SerializationGuardsTests : IDisposable
         SerializationGuards.ThrowIfFileTooLarge(path);
     }
 
+    // ── FormatMegabytes / truthful diagnostics ──────────────────────
+
+    [Fact]
+    public void FormatMegabytes_WholeMegabyte_NoDecimal()
+    {
+        Assert.Equal("10 MB", SerializationGuards.FormatMegabytes(10 * 1024 * 1024));
+    }
+
+    [Fact]
+    public void FormatMegabytes_FractionalMegabyte_KeepsOneDecimal()
+    {
+        // 10.5 MB — the old integer-division formatter truncated this to "10",
+        // producing the self-contradictory "10 MB exceeds 10 MB" message.
+        long bytes = (long)(10.5 * 1024 * 1024);
+        Assert.Equal("10.5 MB", SerializationGuards.FormatMegabytes(bytes));
+    }
+
+    [Fact]
+    public void ThrowIfFileTooLarge_JustOverLimit_MessageIsNotSelfContradictory()
+    {
+        // A file just over the 10 MB limit must NOT report "10 MB exceeds 10 MB":
+        // the actual size and the limit have to be distinguishable in the message.
+        var path = Path.Combine(_tempDir, "just-over.json");
+        long overBytes = (long)(10.5 * 1024 * 1024);
+        using (var fs = new FileStream(path, FileMode.Create))
+        {
+            fs.SetLength(overBytes);
+        }
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => SerializationGuards.ThrowIfFileTooLarge(path));
+        Assert.Contains("10.5 MB", ex.Message);
+        Assert.Contains("10 MB", ex.Message);
+        Assert.DoesNotContain("10 MB, exceeding the maximum allowed size of 10 MB", ex.Message);
+    }
+
+    [Fact]
+    public void ThrowIfPayloadTooLarge_ReportsActualFractionalSize()
+    {
+        long overBytes = (long)(10.5 * 1024 * 1024);
+        var json = new string('a', (int)overBytes);
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => SerializationGuards.ThrowIfPayloadTooLarge(json));
+        Assert.Contains("10.5 MB", ex.Message);
+    }
+
     // ── ReadCamelCase ───────────────────────────────────────────────
 
     [Fact]

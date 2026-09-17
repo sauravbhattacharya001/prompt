@@ -140,10 +140,11 @@ namespace Prompt
         /// </exception>
         internal static void ThrowIfPayloadTooLarge(string json)
         {
-            if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxJsonPayloadBytes)
+            var actualBytes = System.Text.Encoding.UTF8.GetByteCount(json);
+            if (actualBytes > MaxJsonPayloadBytes)
                 throw new InvalidOperationException(
-                    $"JSON payload exceeds the maximum allowed size of " +
-                    $"{MaxJsonPayloadBytes / (1024 * 1024)} MB. " +
+                    $"JSON payload is {FormatMegabytes(actualBytes)}, exceeding the " +
+                    $"maximum allowed size of {FormatMegabytes(MaxJsonPayloadBytes)}. " +
                     "This limit prevents denial-of-service from crafted large payloads.");
         }
 
@@ -160,9 +161,22 @@ namespace Prompt
             var fileInfo = new FileInfo(filePath);
             if (fileInfo.Length > MaxJsonPayloadBytes)
                 throw new InvalidOperationException(
-                    $"File '{filePath}' is {fileInfo.Length / (1024 * 1024)} MB, " +
+                    $"File '{filePath}' is {FormatMegabytes(fileInfo.Length)}, " +
                     $"exceeding the maximum allowed size of " +
-                    $"{MaxJsonPayloadBytes / (1024 * 1024)} MB.");
+                    $"{FormatMegabytes(MaxJsonPayloadBytes)}.");
+        }
+
+        /// <summary>
+        /// Formats a byte count as megabytes with one decimal place using the
+        /// invariant culture. Integer division (e.g. <c>bytes / (1024 * 1024)</c>)
+        /// truncates toward zero, so a 10.5 MB payload against a 10 MB limit would
+        /// render the self-contradictory "10 MB exceeds 10 MB". Reporting a
+        /// fractional value keeps the diagnostic truthful.
+        /// </summary>
+        internal static string FormatMegabytes(long bytes)
+        {
+            double mb = bytes / (1024.0 * 1024.0);
+            return mb.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + " MB";
         }
     }
 }
