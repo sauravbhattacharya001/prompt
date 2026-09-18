@@ -505,6 +505,23 @@ namespace Prompt.Tests
             Assert.Null(ResponseParser.ExtractBoolean(response));
         }
 
+        // The Yes/No patterns anchor their keywords with \b so a word that merely
+        // STARTS with an affirmative/negative token is not misread as a decision.
+        // Dropping those boundaries (a tempting "simplification") would make
+        // "Yesterday..." report true and "Nobody..." report false - a silent,
+        // high-impact regression for a boolean-decision primitive. Pin it.
+        [Theory]
+        [InlineData("Yesterday we finished the migration.")]   // starts with "yes"
+        [InlineData("Nobody reviewed the change yet.")]          // starts with "no"
+        [InlineData("Nope-adjacent text: notebook backups.")]   // "no..." prefixes
+        [InlineData("Correctness aside, it may vary.")]          // starts with "correct"
+        [InlineData("Falsehoods aside, the data is mixed.")]     // starts with "false"
+        [InlineData("Negativity was not the intent.")]           // starts with "negative"
+        public void ExtractBoolean_KeywordPrefixWord_IsNotMatched(string response)
+        {
+            Assert.Null(ResponseParser.ExtractBoolean(response));
+        }
+
         // ═══════════════════════════════════════════════════════
         // Number Extraction
         // ═══════════════════════════════════════════════════════
