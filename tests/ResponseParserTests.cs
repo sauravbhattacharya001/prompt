@@ -424,6 +424,27 @@ namespace Prompt.Tests
             Assert.Equal("25", rows[1]["Age"]);
         }
 
+        [Fact]
+        public void ExtractTable_RaggedRow_ExtraCellsDropped_ColumnsStayAligned()
+        {
+            // A data row carries MORE cells than there are headers (an LLM emitting
+            // a stray trailing column). The extra cell(s) must be dropped, and the
+            // cells that DO line up with a header must stay aligned to that header
+            // — the surplus column must never shift Name/Age or leak in under a
+            // phantom key. This pins the Math.Min(headers, cells) contract so a
+            // future "simplification" can't silently mis-map columns.
+            string response =
+                "| Name | Age |\n|------|-----|\n| Alice | 30 | extra |";
+            var rows = ResponseParser.ExtractTable(response);
+
+            Assert.Single(rows);
+            Assert.Equal("Alice", rows[0]["Name"]);
+            Assert.Equal("30", rows[0]["Age"]);
+            // No phantom column materialized from the surplus cell.
+            Assert.Equal(2, rows[0].Count);
+            Assert.DoesNotContain("extra", rows[0].Values);
+        }
+
         // ═══════════════════════════════════════════════════════
         // Pattern Extraction
         // ═══════════════════════════════════════════════════════
