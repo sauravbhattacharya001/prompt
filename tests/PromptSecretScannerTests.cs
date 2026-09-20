@@ -640,4 +640,33 @@ public class PromptSecretScannerTests
             System.Globalization.CultureInfo.CurrentCulture = prior;
         }
     }
+
+    [Theory]
+    [InlineData("(555) 123-4567")]
+    [InlineData("555-123-4567")]
+    [InlineData("555 123 4567")]
+    [InlineData("+1 555 123 4567")]
+    [InlineData("5551234567")]
+    public void DetectsBalancedPhoneNumbers(string text)
+    {
+        var scanner = new PromptSecretScanner();
+        var result = scanner.Scan(text);
+        Assert.Contains(result.Findings, f => f.Rule.Id == "phone-us");
+    }
+
+    [Theory]
+    // A stray paren from surrounding prose butting against a 3-3-4 digit run must
+    // NOT be flagged: the area code is either a balanced "(NNN)" or a bare "NNN",
+    // never a lone "(NNN" or "NNN)".
+    [InlineData("(555 123-4567")]
+    [InlineData("555) 123-4567")]
+    public void UnbalancedParen_IsNotFlaggedAsPhoneNumber(string text)
+    {
+        var scanner = new PromptSecretScanner();
+        var findings = scanner.Scan(text).Findings
+            .Where(f => f.Rule.Id == "phone-us").ToList();
+        // The bare 10-digit core may still match as a phone number, but the
+        // matched span must never include an unbalanced parenthesis.
+        Assert.DoesNotContain(findings, f => f.MatchedText.Contains('(') || f.MatchedText.Contains(')'));
+    }
 }

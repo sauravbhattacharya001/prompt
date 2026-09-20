@@ -416,7 +416,14 @@ namespace Prompt
 
                 new SecretRule("phone-us", "US Phone Number", SecretCategory.PhoneNumber,
                     SecretSeverity.Medium,
-                    @"(?<!\d)(?:\+?1[\s\-]?)?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{4}(?!\d)",
+                    // The area code is EITHER wrapped in a balanced "(NNN)" pair OR
+                    // bare "NNN" — never a lone "(NNN" or "NNN)". The old
+                    // \(?\d{3}\)? made both parens independently optional, so
+                    // unbalanced fragments like "(555 123-4567" or "555) 123-4567"
+                    // (a stray paren from surrounding prose butting up against a
+                    // 3-3-4 digit run) were flagged as phone numbers. Splitting the
+                    // two shapes into an alternation requires the parens to match.
+                    @"(?<!\d)(?:\+?1[\s\-]?)?(?:\(\d{3}\)|\d{3})[\s\-]?\d{3}[\s\-]?\d{4}(?!\d)",
                     "US phone number (PII)"),
 
                 new SecretRule("credit-card", "Credit Card Number", SecretCategory.CreditCard,
