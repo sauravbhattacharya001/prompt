@@ -19,6 +19,25 @@ namespace Prompt.Tests
             Assert.Equal(30, result.Age);
         }
 
+        [Theory]
+        [InlineData("JSON")]
+        [InlineData("Json")]
+        [InlineData("jSoN")]
+        public void ExtractJson_FencedBlock_LanguageTagIsCaseInsensitive(string tag)
+        {
+            // Models routinely emit the fence info string in any case. The fenced-JSON
+            // path must match ```JSON / ```Json the same as ```json; otherwise it falls
+            // through to the bare-JSON scan, which can pick up a different object. Here a
+            // decoy object precedes the fenced payload to prove the fence wins.
+            string response =
+                "Consider {\"name\": \"Decoy\", \"age\": 1} then:\n" +
+                "```" + tag + "\n{\"name\": \"Alice\", \"age\": 30}\n```";
+            var result = ResponseParser.ExtractJson<TestPerson>(response);
+            Assert.NotNull(result);
+            Assert.Equal("Alice", result!.Name);
+            Assert.Equal(30, result.Age);
+        }
+
         [Fact]
         public void ExtractJson_BareJsonObject_Deserializes()
         {

@@ -666,10 +666,20 @@ namespace Prompt
         /// If <paramref name="language"/> is specified, only matches blocks
         /// with that language tag. Otherwise matches any fenced block.
         /// </summary>
+        /// <remarks>
+        /// The language tag is matched case-insensitively: models routinely emit
+        /// the info string in any case (```JSON, ```Json, ```json), and a markdown
+        /// fence's language identifier is not case-sensitive. Matching only the exact
+        /// case silently skipped those fenced blocks and fell through to the bare-JSON
+        /// scan, which could return a different object elsewhere in the text.
+        /// </remarks>
         internal static string? ExtractFencedBlock(string response, string? language)
         {
             string langPattern = string.IsNullOrEmpty(language) ? @"\w*" : Regex.Escape(language);
-            var pattern = new Regex($@"```{langPattern}\s*\n([\s\S]*?)```", RegexOptions.Multiline, TimeSpan.FromMilliseconds(500));
+            var pattern = new Regex(
+                $@"```{langPattern}\s*\n([\s\S]*?)```",
+                RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                TimeSpan.FromMilliseconds(500));
             var match = pattern.Match(response);
             return match.Success ? match.Groups[1].Value.Trim() : null;
         }
