@@ -90,6 +90,23 @@ namespace Prompt
                 throw new ArgumentException("Route name cannot be null or empty.", nameof(name));
             ArgumentNullException.ThrowIfNull(config);
 
+            // Validate priority eagerly — fail-fast on non-finite or negative
+            // weights. A NaN priority yields a NaN Score, which makes the
+            // deterministic OrderByDescending/tie-break selection in Route()
+            // non-deterministic (all NaN comparisons are false) and makes the
+            // `Score >= MinScore` gate always false, silently dropping the route.
+            // A negative priority likewise produces a negative score that can
+            // never reach MinScore (clamped to [0,1]), silently disabling the
+            // route with no error. Reject both here rather than mis-scoring later.
+            if (double.IsNaN(config.Priority) || double.IsInfinity(config.Priority))
+                throw new ArgumentException(
+                    $"Route '{name}' has a non-finite Priority ({config.Priority}); it must be a finite, non-negative number.",
+                    nameof(config));
+            if (config.Priority < 0)
+                throw new ArgumentException(
+                    $"Route '{name}' has a negative Priority ({config.Priority}); it must be non-negative.",
+                    nameof(config));
+
             // Validate regex patterns eagerly — fail-fast on bad patterns
             // rather than silently failing at route-time.
             if (config.Patterns is { Length: > 0 })
@@ -499,7 +516,9 @@ namespace Prompt
         /// <summary>
         /// Priority weight multiplier applied to the route's base score (default
         /// 1.0, higher = preferred). Values above 1.0 boost the route and push its
-        /// final <see cref="RouteMatch.Score"/> above the 0-1 base range.
+        /// final <see cref="RouteMatch.Score"/> above the 0-1 base range. Must be a
+        /// finite, non-negative number; <see cref="PromptRouter.AddRoute"/> rejects
+        /// NaN, infinity, and negative values (they would corrupt scoring/selection).
         /// </summary>
         public double Priority { get; set; } = 1.0;
     }

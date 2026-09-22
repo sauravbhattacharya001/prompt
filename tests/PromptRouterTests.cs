@@ -148,6 +148,60 @@ public class PromptRouterTests : IDisposable
         Assert.Same(router, result);
     }
 
+    [Fact]
+    public void AddRoute_NaNPriority_Throws()
+    {
+        var router = new PromptRouter();
+        Assert.Throws<ArgumentException>(() =>
+            router.AddRoute("nan", MakeConfig(new[] { "hello" }, priority: double.NaN)));
+        Assert.Equal(0, router.RouteCount);
+    }
+
+    [Fact]
+    public void AddRoute_InfinitePriority_Throws()
+    {
+        var router = new PromptRouter();
+        Assert.Throws<ArgumentException>(() =>
+            router.AddRoute("posinf", MakeConfig(new[] { "hello" }, priority: double.PositiveInfinity)));
+        Assert.Throws<ArgumentException>(() =>
+            router.AddRoute("neginf", MakeConfig(new[] { "hello" }, priority: double.NegativeInfinity)));
+        Assert.Equal(0, router.RouteCount);
+    }
+
+    [Fact]
+    public void AddRoute_NegativePriority_Throws()
+    {
+        var router = new PromptRouter();
+        Assert.Throws<ArgumentException>(() =>
+            router.AddRoute("neg", MakeConfig(new[] { "hello" }, priority: -0.5)));
+        Assert.Equal(0, router.RouteCount);
+    }
+
+    [Fact]
+    public void AddRoute_ZeroPriority_IsAllowed()
+    {
+        // Zero is a legitimate weight (fully de-prioritizes the route to a
+        // zero score) and must not throw — only NaN/Infinity/negative do.
+        var router = new PromptRouter();
+        router.AddRoute("zero", MakeConfig(new[] { "hello" }, priority: 0.0));
+        Assert.Equal(1, router.RouteCount);
+    }
+
+    [Fact]
+    public void AddRoute_NaNPriorityRejected_KeepsRouteSelectionDeterministic()
+    {
+        // Regression: a NaN priority would yield a NaN Score, corrupting the
+        // deterministic OrderByDescending/tie-break selection and the
+        // Score >= MinScore gate. Rejecting it at AddRoute keeps routing sane.
+        var router = new PromptRouter();
+        Assert.Throws<ArgumentException>(() =>
+            router.AddRoute("bad", MakeConfig(new[] { "hello" }, priority: double.NaN)));
+        router.AddRoute("good", MakeConfig(new[] { "hello" }, priority: 1.0));
+        var match = router.Route("hello there");
+        Assert.NotNull(match);
+        Assert.Equal("good", match!.RouteName);
+    }
+
     // ═══════════════════════════════════════════════════════
     //  RemoveRoute
     // ═══════════════════════════════════════════════════════
