@@ -412,7 +412,16 @@ namespace Prompt
 
             _rules.Add(new InjectionRule("INJ016", "Suspicious Base64 Block",
                 InjectionCategory.EncodedPayload, InjectionRisk.Low,
-                @"[A-Za-z0-9+/]{40,}={0,2}",
+                // Anchor the start of the run with a negative lookbehind so the
+                // reported [Position, Length) span covers the WHOLE base64-like
+                // token and never begins one character late. The engine is
+                // leftmost-first, so for a maximal run the match already starts at
+                // its first char — but a run whose leading char happens to be a
+                // padding '=' (e.g. "=AAAA...") would otherwise let a later start
+                // position win and mis-report both Position and MatchedText. The
+                // lookbehind pins the match to a real token boundary, matching the
+                // boundary-guard discipline used by every other rule here.
+                @"(?<![A-Za-z0-9+/=])[A-Za-z0-9+/]{40,}={0,2}",
                 "Long base64-like string that may contain encoded instructions."));
 
             // Exfiltration

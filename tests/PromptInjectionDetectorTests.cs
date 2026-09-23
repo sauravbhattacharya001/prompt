@@ -288,6 +288,23 @@ namespace Prompt.Tests
             Assert.False(_detector.IsUnsafe(b64, InjectionRisk.Critical));
         }
 
+        [Fact]
+        public void Base64Block_MatchSpanCoversWholeToken_NotOffByOne()
+        {
+            // Regression: the INJ016 base64 rule must report a [Position, Length)
+            // span that covers the ENTIRE base64-like token, starting at its first
+            // character. A leading '=' (a padding char that cannot open a base64
+            // body) must not cause the match to begin one char late and re-report a
+            // truncated token. The negative lookbehind pins the match to a real
+            // token boundary.
+            var token = new string('A', 44) + "==";
+            var input = "prefix " + token + " suffix";
+            var finding = Assert.Single(
+                _detector.Scan(input).Findings.Where(f => f.Rule.Id == "INJ016"));
+            Assert.Equal(input.IndexOf(token, StringComparison.Ordinal), finding.Position);
+            Assert.Equal(token, finding.MatchedText);
+        }
+
         // ── Sanitize ────────────────────────────────────────────────
 
         [Fact]
