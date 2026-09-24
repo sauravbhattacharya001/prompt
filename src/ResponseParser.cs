@@ -347,6 +347,10 @@ namespace Prompt
             if (headers.Count == 0)
                 return rows;
 
+            // Disambiguate duplicate header names so no column is silently dropped
+            // by dictionary-key collision (see DisambiguateHeaders).
+            headers = DisambiguateHeaders(headers);
+
             // Per GFM, the separator (|---|---|) is the row immediately after the
             // header - and only there. Skip it when present, but do NOT scan deeper
             // for one: a dashes-only row further down is a data/visual divider, and
@@ -394,6 +398,44 @@ namespace Prompt
         /// <returns>List of matched strings.</returns>
         /// <exception cref="ArgumentException">If the pattern is invalid.</exception>
         public static List<string> ExtractPattern(string response, string pattern)
+        {
+            return ExtractPatternCore(response, pattern);
+        }
+
+        // Ensures header names are unique by suffixing later duplicates with
+        // ".1", ".2", ... (case-insensitive, matching the OrdinalIgnoreCase row
+        // dictionaries). Column values in ExtractTable are keyed by header text, so
+        // two columns sharing a name would collide and the later one would silently
+        // overwrite the earlier - dropping a whole column. Disambiguating keeps every
+        // column addressable. Preserves order and the first occurrence's text.
+        private static List<string> DisambiguateHeaders(List<string> headers)
+        {
+            var seen = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var result = new List<string>(headers.Count);
+            foreach (var h in headers)
+            {
+                if (seen.TryGetValue(h, out int count))
+                {
+                    string candidate;
+                    do
+                    {
+                        count++;
+                        candidate = $"{h}.{count}";
+                    } while (seen.ContainsKey(candidate));
+                    seen[h] = count;
+                    seen[candidate] = 0;
+                    result.Add(candidate);
+                }
+                else
+                {
+                    seen[h] = 0;
+                    result.Add(h);
+                }
+            }
+            return result;
+        }
+
+        private static List<string> ExtractPatternCore(string response, string pattern)
         {
             ValidateInput(response);
             if (string.IsNullOrWhiteSpace(pattern))

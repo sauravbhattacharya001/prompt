@@ -350,6 +350,23 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void ExtractTable_DuplicateHeaders_KeepsEveryColumn()
+        {
+            // Two columns share the header "Value". Before disambiguation the second
+            // "Value" overwrote the first in the row dictionary, silently losing a
+            // whole column of data. Repeats are now suffixed ".1", ".2", ...
+            string response =
+                "| Name | Value | Value |\n" +
+                "|------|-------|-------|\n" +
+                "| Alice | 10 | 20 |";
+            var rows = ResponseParser.ExtractTable(response);
+            Assert.Single(rows);
+            Assert.Equal("Alice", rows[0]["Name"]);
+            Assert.Equal("10", rows[0]["Value"]);
+            Assert.Equal("20", rows[0]["Value.1"]);
+        }
+
+        [Fact]
         public void ExtractTable_NoTable_ReturnsEmpty()
         {
             var rows = ResponseParser.ExtractTable("Just text.");
