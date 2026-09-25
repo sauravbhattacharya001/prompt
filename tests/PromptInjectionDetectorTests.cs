@@ -226,6 +226,12 @@ namespace Prompt.Tests
         [Theory]
         [InlineData("Please disregard my earlier typo, the invoice is correct.")]
         [InlineData("The committee will disregard procedural objections.")]
+        // Regression: a plain-English "disregard" immediately followed by digits in
+        // the SAME alphanumeric run (e.g. "disregard123") must not be misread as
+        // leetspeak. The old loose lookahead let the required leet digit be found
+        // arbitrarily far ahead in the run, falsely flagging these as INJ021.
+        [InlineData("Please disregard123 the draft label above.")]
+        [InlineData("See disregard0134 in the migration notes.")]
         public void Scan_PlainEnglishDisregard_NotFlaggedAsLeetspeak(string input)
         {
             // Plain English "disregard" (no leet digit substitutions) is not

@@ -455,7 +455,15 @@ namespace Prompt
                 // evasion, and when it appears in an actual injection phrase it is already
                 // caught (Critical) by INJ002 — so this avoids a Medium false positive on
                 // benign text like "Please disregard my earlier typo".
-                @"1gn[o0]r[e3]\s+[a4]ll\s+pr[e3]v[i1][o0][u\xfc]s|d(?=[a-z0-9]*[0134])[i1]sr[e3]g[a4]rd",
+                //
+                // The digit-presence lookahead is bounded to the token's OWN characters
+                // ([i1sreg3a4d]) instead of a greedy [a-z0-9]*: the old class let the
+                // required leet digit be found ARBITRARILY far ahead in the same
+                // alphanumeric run, so a plain-English "disregard" immediately followed by
+                // digits (e.g. "disregard123") was falsely flagged. Restricting the
+                // lookahead to the token's letters/digit-substitutions keeps the digit
+                // requirement inside the word itself.
+                @"1gn[o0]r[e3]\s+[a4]ll\s+pr[e3]v[i1][o0][u\xfc]s|d(?=[i1sreg3a4d]{0,7}[0134])[i1]sr[e3]g[a4]rd",
                 "Leetspeak evasion of ignore-previous patterns."));
         }
     }
