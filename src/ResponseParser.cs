@@ -77,9 +77,17 @@ namespace Prompt
         private static readonly Regex NumberedListPattern =
             new Regex(@"^\s*(\d+)[\.\)]\s+(.+)$", RegexOptions.Compiled | RegexOptions.Multiline, TimeSpan.FromMilliseconds(500));
 
-        // Pre-compiled regex for ExtractKeyValuePairs
+        // Pre-compiled regex for ExtractKeyValuePairs.
+        // The key may contain hyphens ("well-known: value", "co-founder: Jane"):
+        // the old key class [^:=\-\n] excluded '-', and because '-' was also a
+        // separator, a hyphenated key was silently split at its first hyphen
+        // ("well-known: value" => key "well", value "known: value"). Now '-' is
+        // allowed inside the key, and the dash *separator* branch requires
+        // surrounding whitespace ("key - value"), so an in-word hyphen
+        // ("name-John") and leading list-item dashes ("- item") are not mistaken
+        // for a separator. The ':'/'=' branches still bind with or without spaces.
         private static readonly Regex KeyValuePattern =
-            new Regex(@"^\s*\*{0,2}([^:=\-\n]+?)\*{0,2}\s*(?::|=|-)\s*(.+)$", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
+            new Regex(@"^\s*\*{0,2}([^:=\n]+?)\*{0,2}\s*(?:[:=]\s*|\s-\s+)(.+)$", RegexOptions.Compiled, TimeSpan.FromMilliseconds(500));
 
         // Pre-compiled regex for ExtractCodeBlocks
         private static readonly Regex CodeBlockPattern =

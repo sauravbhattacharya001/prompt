@@ -255,6 +255,37 @@ namespace Prompt.Tests
         }
 
         [Fact]
+        public void ExtractKeyValuePairs_HyphenatedKey_KeptWhole()
+        {
+            // A hyphen inside the key must not be treated as the separator.
+            string response = "well-known: value\nco-founder: Jane";
+            var pairs = ResponseParser.ExtractKeyValuePairs(response);
+            Assert.Equal("value", pairs["well-known"]);
+            Assert.Equal("Jane", pairs["co-founder"]);
+            Assert.False(pairs.ContainsKey("well"));
+            Assert.False(pairs.ContainsKey("co"));
+        }
+
+        [Fact]
+        public void ExtractKeyValuePairs_DashSeparator_RequiresSurroundingSpace()
+        {
+            // "key - value" is a dash-separated pair; "name-John" is a single
+            // hyphenated token with no value and must not be split.
+            var pairs = ResponseParser.ExtractKeyValuePairs("Name - John\nname-John");
+            Assert.Equal("John", pairs["Name"]);
+            Assert.False(pairs.ContainsKey("name-John"));
+            Assert.Single(pairs);
+        }
+
+        [Fact]
+        public void ExtractKeyValuePairs_ColonAndEquals_WorkWithoutSpaces()
+        {
+            var pairs = ResponseParser.ExtractKeyValuePairs("key:value\nx=5");
+            Assert.Equal("value", pairs["key"]);
+            Assert.Equal("5", pairs["x"]);
+        }
+
+        [Fact]
         public void ExtractValue_SpecificKey_ReturnsValue()
         {
             string response = "Name: Alice\nAge: 30\nCity: Seattle";
