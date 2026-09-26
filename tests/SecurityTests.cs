@@ -2,6 +2,7 @@ namespace Prompt.Tests;
 
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using System.Text;
 using System.Text.Json;
 using Xunit;
@@ -222,7 +223,7 @@ public class SecurityTests : IDisposable
     // ─────────── File loading: path resolution ───────────
 
     [Fact]
-    public async void ConversationLoadFromFile_ResolvesPath()
+    public async Task ConversationLoadFromFile_ResolvesPath()
     {
         // Save a valid conversation file
         var conv = new Conversation("Test");
@@ -236,7 +237,7 @@ public class SecurityTests : IDisposable
     }
 
     [Fact]
-    public async void TemplateLoadFromFile_ResolvesPath()
+    public async Task TemplateLoadFromFile_ResolvesPath()
     {
         var template = new PromptTemplate("Hello {{name}}");
         string filePath = Path.Combine(_tempDir, "test-template.json");
@@ -247,7 +248,7 @@ public class SecurityTests : IDisposable
     }
 
     [Fact]
-    public async void ChainSaveAndLoad_ResolvesPath()
+    public async Task ChainSaveAndLoad_ResolvesPath()
     {
         var chain = new PromptChain()
             .AddStep("s1", new PromptTemplate("Do: {{input}}"), "output");
