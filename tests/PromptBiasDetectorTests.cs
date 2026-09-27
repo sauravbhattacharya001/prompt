@@ -218,7 +218,7 @@ namespace Prompt.Tests
             const string text = "The businessman is here.";
             var report = detector.Analyze(text);
 
-            var finding = Assert.Single(report.Findings.Where(f => f.MatchedText.Equals("businessman", StringComparison.OrdinalIgnoreCase)));
+            var finding = Assert.Single(report.Findings, f => f.MatchedText.Equals("businessman", StringComparison.OrdinalIgnoreCase));
             Assert.Equal(text.IndexOf("businessman", StringComparison.OrdinalIgnoreCase), finding.Position);
         }
 

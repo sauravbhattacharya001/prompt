@@ -306,7 +306,7 @@ namespace Prompt.Tests
             var token = new string('A', 44) + "==";
             var input = "prefix " + token + " suffix";
             var finding = Assert.Single(
-                _detector.Scan(input).Findings.Where(f => f.Rule.Id == "INJ016"));
+                _detector.Scan(input).Findings, f => f.Rule.Id == "INJ016");
             Assert.Equal(input.IndexOf(token, StringComparison.Ordinal), finding.Position);
             Assert.Equal(token, finding.MatchedText);
         }
