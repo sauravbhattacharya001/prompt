@@ -14,7 +14,7 @@ namespace Prompt.Tests
 
             Assert.True(result.AreEqual);
             Assert.Equal(1.0, result.Similarity);
-            Assert.Equal(0, result.Changes.Count);
+            Assert.Empty(result.Changes);
         }
 
         [Fact]

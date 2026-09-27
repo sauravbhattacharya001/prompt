@@ -580,7 +580,7 @@ namespace Prompt.Tests
             Assert.Equal(1, caching.HitCount);
             // Metrics order 100 runs after caching order 10; cached call short-circuits
             // so metrics only records the first (non-cached) call
-            Assert.Equal(1, metrics.GetMetrics().Count);
+            Assert.Single(metrics.GetMetrics());
         }
 
         [Fact]

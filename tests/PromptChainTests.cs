@@ -133,7 +133,7 @@ namespace Prompt.Tests
                 .AddStep("s1", new PromptTemplate("t1"), "out1");
 
             var steps = chain.Steps;
-            Assert.Equal(1, steps.Count);
+            Assert.Single(steps);
             Assert.Equal("s1", steps[0].Name);
         }
 
