@@ -641,8 +641,10 @@ public class PromptCostEstimatorTests
         Assert.NotEmpty(json);
         // Should parse without error
         var doc = System.Text.Json.JsonDocument.Parse(json);
-        Assert.NotNull(doc.RootElement.GetProperty("inputTokens"));
-        Assert.NotNull(doc.RootElement.GetProperty("estimates"));
+        // GetProperty throws if absent, so a NotNull on its value-type JsonElement result
+        // asserts nothing (xUnit2002). Assert the properties actually EXIST instead.
+        Assert.True(doc.RootElement.TryGetProperty("inputTokens", out _));
+        Assert.True(doc.RootElement.TryGetProperty("estimates", out _));
     }
 
     [Fact]
