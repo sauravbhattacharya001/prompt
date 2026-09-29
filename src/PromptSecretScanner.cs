@@ -8,23 +8,62 @@ namespace Prompt
     /// <summary>Category of detected secret.</summary>
     public enum SecretCategory
     {
-        ApiKey, Password, Token, PrivateKey, ConnectionString,
-        Email, PhoneNumber, CreditCard, SSN, IPAddress, JWT, Webhook
+        /// <summary>An API key or access key credential.</summary>
+        ApiKey,
+        /// <summary>A password or passphrase.</summary>
+        Password,
+        /// <summary>An authentication or access token.</summary>
+        Token,
+        /// <summary>A cryptographic private key block.</summary>
+        PrivateKey,
+        /// <summary>A database connection string containing credentials.</summary>
+        ConnectionString,
+        /// <summary>An email address (PII).</summary>
+        Email,
+        /// <summary>A phone number (PII).</summary>
+        PhoneNumber,
+        /// <summary>A payment-card number.</summary>
+        CreditCard,
+        /// <summary>A US Social Security Number (PII).</summary>
+        SSN,
+        /// <summary>An IP address.</summary>
+        IPAddress,
+        /// <summary>A JSON Web Token.</summary>
+        JWT,
+        /// <summary>A webhook URL (e.g. Slack/Discord).</summary>
+        Webhook
     }
 
     /// <summary>Severity level for a detected secret.</summary>
-    public enum SecretSeverity { Low, Medium, High, Critical }
+    public enum SecretSeverity
+    {
+        /// <summary>Low-risk finding (e.g. IP address).</summary>
+        Low,
+        /// <summary>Medium-risk finding (e.g. PII such as email/phone).</summary>
+        Medium,
+        /// <summary>High-risk finding (e.g. generic secrets/tokens).</summary>
+        High,
+        /// <summary>Critical finding (e.g. cloud/API keys, private keys).</summary>
+        Critical
+    }
 
     /// <summary>A secret detection rule with pattern and metadata.</summary>
     public sealed class SecretRule
     {
+        /// <summary>Stable identifier for the rule.</summary>
         public string Id { get; }
+        /// <summary>Human-readable rule name.</summary>
         public string Name { get; }
+        /// <summary>Category of secret this rule detects.</summary>
         public SecretCategory Category { get; }
+        /// <summary>Severity assigned to matches of this rule.</summary>
         public SecretSeverity Severity { get; }
+        /// <summary>Compiled, case-insensitive detection pattern.</summary>
         public Regex Pattern { get; }
+        /// <summary>Description of what the rule detects.</summary>
         public string Description { get; }
 
+        /// <summary>Creates a secret detection rule from a regex pattern and metadata.</summary>
         public SecretRule(string id, string name, SecretCategory category,
             SecretSeverity severity, string pattern, string description)
         {
@@ -46,11 +85,17 @@ namespace Prompt
     /// <summary>A single finding from a secret scan.</summary>
     public sealed class SecretFinding
     {
+        /// <summary>The rule that produced this finding.</summary>
         public SecretRule Rule { get; }
+        /// <summary>The exact text that matched the rule.</summary>
         public string MatchedText { get; }
+        /// <summary>The redacted form of the matched text.</summary>
         public string RedactedText { get; }
+        /// <summary>Zero-based character offset of the match in the source text.</summary>
         public int Position { get; }
+        /// <summary>Length of the matched text in characters.</summary>
         public int Length { get; }
+        /// <summary>One-based line number of the match.</summary>
         public int Line { get; }
 
         internal SecretFinding(SecretRule rule, string matched, string redacted,
@@ -68,11 +113,17 @@ namespace Prompt
     /// <summary>Result of scanning a prompt for secrets.</summary>
     public sealed class SecretScanResult
     {
+        /// <summary>All findings from the scan, ordered by position.</summary>
         public IReadOnlyList<SecretFinding> Findings { get; }
+        /// <summary>True when at least one secret was detected.</summary>
         public bool HasSecrets => Findings.Count > 0;
+        /// <summary>Total number of findings.</summary>
         public int TotalFindings => Findings.Count;
+        /// <summary>Highest severity across all findings (Low when none).</summary>
         public SecretSeverity HighestSeverity { get; }
+        /// <summary>The original, unredacted input text.</summary>
         public string OriginalText { get; }
+        /// <summary>The input text with detected secrets redacted.</summary>
         public string RedactedText { get; }
 
         internal SecretScanResult(string original, string redacted,
@@ -124,6 +175,7 @@ namespace Prompt
         private readonly HashSet<string> _allowlist = new(StringComparer.OrdinalIgnoreCase);
         private SecretSeverity _minSeverity = SecretSeverity.Low;
 
+        /// <summary>Creates a scanner preloaded with the built-in detection rules.</summary>
         public PromptSecretScanner()
         {
             LoadBuiltInRules();
@@ -157,7 +209,7 @@ namespace Prompt
             return this;
         }
 
-        /// <summary>Get all currently active rules.</summary>
+        /// <summary>Gets all currently active rules.</summary>
         public IReadOnlyList<SecretRule> Rules => _rules.AsReadOnly();
 
         /// <summary>Scan prompt text for secrets.</summary>
