@@ -79,76 +79,122 @@ namespace Prompt
     /// <summary>A single call outcome for a prompt.</summary>
     public class CallOutcome
     {
+        /// <summary>Identifier of the prompt/circuit this call belongs to.</summary>
         public string PromptId { get; set; } = "";
+        /// <summary>When the call completed (UTC).</summary>
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        /// <summary>True if the call succeeded.</summary>
         public bool Success { get; set; }
+        /// <summary>Observed call latency in milliseconds.</summary>
         public double LatencyMs { get; set; }
+        /// <summary>Optional error category for a failed call (null when successful).</summary>
         public string? ErrorCategory { get; set; }
     }
 
     /// <summary>Point-in-time snapshot of a circuit's state.</summary>
     public class CircuitSnapshot
     {
+        /// <summary>Identifier of the prompt/circuit.</summary>
         public string PromptId { get; set; } = "";
+        /// <summary>Current circuit state (Closed / Open / HalfOpen).</summary>
         public CBCircuitState State { get; set; }
+        /// <summary>Composite health score, 0–100 (higher is healthier).</summary>
         public double HealthScore { get; set; }
+        /// <summary>Fraction of failing calls in the current window, 0–1.</summary>
         public double FailureRate { get; set; }
+        /// <summary>Average call latency in the current window, in milliseconds.</summary>
         public double AvgLatencyMs { get; set; }
+        /// <summary>Number of consecutive failing calls.</summary>
         public int ConsecutiveFailures { get; set; }
+        /// <summary>Total calls recorded for this circuit.</summary>
         public int TotalCalls { get; set; }
+        /// <summary>How many times this circuit has tripped.</summary>
         public int TripCount { get; set; }
+        /// <summary>When the circuit last tripped (UTC), or null if it never has.</summary>
         public DateTime? LastTripTime { get; set; }
+        /// <summary>Why the circuit last tripped, or null if it never has.</summary>
         public TripReason? LastTripReason { get; set; }
+        /// <summary>Number of call outcomes currently in the sliding window.</summary>
         public int CurrentWindowSize { get; set; }
     }
 
     /// <summary>Record of a circuit trip event.</summary>
     public class TripEvent
     {
+        /// <summary>Identifier of the prompt/circuit that tripped.</summary>
         public string PromptId { get; set; } = "";
+        /// <summary>When the trip occurred (UTC).</summary>
         public DateTime Timestamp { get; set; }
+        /// <summary>What triggered the trip.</summary>
         public TripReason Reason { get; set; }
+        /// <summary>Failure rate at the moment of the trip, 0–1.</summary>
         public double FailureRate { get; set; }
+        /// <summary>Consecutive failures at the moment of the trip.</summary>
         public int ConsecutiveFailures { get; set; }
+        /// <summary>Average latency (ms) at the moment of the trip.</summary>
         public double AvgLatencyMs { get; set; }
+        /// <summary>Human-readable explanation of the trip.</summary>
         public string Description { get; set; } = "";
     }
 
     /// <summary>Recovery assessment for a HalfOpen circuit.</summary>
     public class RecoveryReport
     {
+        /// <summary>Identifier of the prompt/circuit being assessed.</summary>
         public string PromptId { get; set; } = "";
+        /// <summary>Recovery verdict for the HalfOpen probe results.</summary>
         public RecoveryVerdict Verdict { get; set; }
+        /// <summary>Per-probe success (true) / failure (false) results.</summary>
         public List<bool> ProbeResults { get; set; } = new();
+        /// <summary>Fraction of probes that succeeded, 0–1.</summary>
         public double ProbeSuccessRate { get; set; }
+        /// <summary>Elapsed time since the circuit tripped.</summary>
         public TimeSpan TimeSinceTrip { get; set; }
+        /// <summary>Recommended next action for the circuit.</summary>
         public string Recommendation { get; set; } = "";
     }
 
     /// <summary>Fleet-wide circuit breaker health report.</summary>
     public class FleetHealthReport
     {
+        /// <summary>Total number of circuits in the fleet.</summary>
         public int TotalCircuits { get; set; }
+        /// <summary>How many circuits are Closed (healthy).</summary>
         public int ClosedCount { get; set; }
+        /// <summary>How many circuits are Open (tripped).</summary>
         public int OpenCount { get; set; }
+        /// <summary>How many circuits are HalfOpen (probing recovery).</summary>
         public int HalfOpenCount { get; set; }
+        /// <summary>Fleet-wide composite health score, 0–100.</summary>
         public double OverallHealthScore { get; set; }
+        /// <summary>The least-healthy circuits, worst first.</summary>
         public List<CircuitSnapshot> MostFragile { get; set; } = new();
+        /// <summary>Recent trip events across the fleet.</summary>
         public List<TripEvent> TripHistory { get; set; } = new();
+        /// <summary>Autonomously generated observations about fleet health.</summary>
         public List<string> AutonomousInsights { get; set; } = new();
     }
 
     /// <summary>Configuration for the circuit breaker engine.</summary>
     public class CircuitBreakerConfig
     {
+        /// <summary>Failure rate (0–1) at which the circuit trips.</summary>
         public double FailureThreshold { get; set; } = 0.5;
+        /// <summary>Consecutive failures that trip the circuit regardless of rate.</summary>
         public int ConsecutiveFailureLimit { get; set; } = 5;
+        /// <summary>Latency (ms) above which a call is considered slow.</summary>
         public double LatencyThresholdMs { get; set; } = 5000;
+        /// <summary>Fraction of slow calls (0–1) that trips the circuit.</summary>
         public double SlowCallThreshold { get; set; } = 0.3;
+        /// <summary>Size of the sliding window of recent call outcomes.</summary>
         public int WindowSize { get; set; } = 20;
+        /// <summary>Seconds an Open circuit waits before probing recovery.</summary>
         public double CooldownSeconds { get; set; } = 60;
+        /// <summary>Maximum probe calls allowed while HalfOpen.</summary>
         public int HalfOpenMaxProbes { get; set; } = 3;
+        /// <summary>Probe success rate (0–1) required to close a HalfOpen circuit.</summary>
         public double HalfOpenSuccessThreshold { get; set; } = 0.67;
+        /// <summary>Minimum calls recorded before the circuit is allowed to trip.</summary>
         public int MinCallsBeforeTrip { get; set; } = 10;
     }
 
@@ -178,6 +224,8 @@ namespace Prompt
         private readonly CircuitBreakerConfig _config;
         private readonly Dictionary<string, CircuitData> _circuits = new();
 
+        /// <summary>Create an engine, optionally overriding the default configuration.</summary>
+        /// <param name="config">Trip/recovery thresholds; defaults are used when null.</param>
         public PromptCircuitBreakerEngine(CircuitBreakerConfig? config = null)
         {
             _config = config ?? new CircuitBreakerConfig();
