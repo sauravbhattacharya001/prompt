@@ -55,12 +55,19 @@ namespace Prompt
         /// <summary>JSON Schema parameter types.</summary>
         public enum ParamType
         {
+            /// <summary>A UTF-8 text value (JSON Schema <c>string</c>).</summary>
             String,
+            /// <summary>A floating-point number (JSON Schema <c>number</c>).</summary>
             Number,
+            /// <summary>A whole number (JSON Schema <c>integer</c>).</summary>
             Integer,
+            /// <summary>A true/false value (JSON Schema <c>boolean</c>).</summary>
             Boolean,
+            /// <summary>An ordered list of items (JSON Schema <c>array</c>).</summary>
             Array,
+            /// <summary>A nested object with its own properties (JSON Schema <c>object</c>).</summary>
             Object,
+            /// <summary>A string constrained to a fixed set of allowed values (JSON Schema <c>enum</c>).</summary>
             Enum
         }
 
@@ -78,22 +85,34 @@ namespace Prompt
         /// <summary>Defines a single parameter in a tool's input schema.</summary>
         public class ToolParam
         {
+            /// <summary>The parameter name as exposed to the model.</summary>
             public string Name { get; set; } = "";
+            /// <summary>The JSON Schema type of the parameter.</summary>
             public ParamType Type { get; set; } = ParamType.String;
+            /// <summary>Human-readable description shown to the model.</summary>
             public string Description { get; set; } = "";
+            /// <summary>Whether the model must supply this parameter.</summary>
             public bool Required { get; set; } = false;
+            /// <summary>Optional default value emitted in the schema; <c>null</c> for none.</summary>
             public string? DefaultValue { get; set; }
+            /// <summary>Allowed values when <see cref="Type"/> is <see cref="ParamType.Enum"/>.</summary>
             public string[]? EnumValues { get; set; }
+            /// <summary>Item type when <see cref="Type"/> is <see cref="ParamType.Array"/>.</summary>
             public ParamType? ArrayItemType { get; set; }
+            /// <summary>Nested properties when <see cref="Type"/> is <see cref="ParamType.Object"/>.</summary>
             public List<ToolParam>? ObjectProperties { get; set; }
         }
 
         /// <summary>A complete tool definition with name, description, and parameters.</summary>
         public class ToolDefinition
         {
+            /// <summary>The tool/function name the model calls.</summary>
             public string Name { get; set; } = "";
+            /// <summary>Description of what the tool does, shown to the model.</summary>
             public string Description { get; set; } = "";
+            /// <summary>The tool's input parameters.</summary>
             public List<ToolParam> Parameters { get; set; } = new();
+            /// <summary>Whether to emit strict-mode schema (OpenAI structured outputs).</summary>
             public bool Strict { get; set; } = false;
 
             /// <summary>Validates the tool definition for completeness.</summary>
@@ -214,10 +233,15 @@ namespace Prompt
         /// <summary>Result of formatting tools for a provider.</summary>
         public class FormatResult
         {
+            /// <summary>The provider the tools were formatted for.</summary>
             public ToolProvider Provider { get; set; }
+            /// <summary>The formatted tool objects, ready to serialize.</summary>
             public List<Dictionary<string, object>> Tools { get; set; } = new();
+            /// <summary>Number of tools included in the result.</summary>
             public int ToolCount { get; set; }
+            /// <summary>The provider-specific tool_choice value, or <c>null</c> if omitted.</summary>
             public object? ToolChoiceValue { get; set; }
+            /// <summary>Estimated token overhead of the formatted tool definitions.</summary>
             public int EstimatedTokens { get; set; }
         }
 
