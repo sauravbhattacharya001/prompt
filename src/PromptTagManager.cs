@@ -732,26 +732,37 @@ namespace Prompt
         /// </summary>
         public class TagStatistics
         {
+            /// <summary>Total number of tagged prompts.</summary>
             [JsonPropertyName("totalPrompts")]
             public int TotalPrompts { get; set; }
+            /// <summary>Total number of unique tags in use.</summary>
             [JsonPropertyName("totalTags")]
             public int TotalTags { get; set; }
+            /// <summary>Total number of registered auto-tag rules.</summary>
             [JsonPropertyName("totalAutoTagRules")]
             public int TotalAutoTagRules { get; set; }
+            /// <summary>Total number of registered tag aliases.</summary>
             [JsonPropertyName("totalAliases")]
             public int TotalAliases { get; set; }
+            /// <summary>Total number of registered tag descriptions.</summary>
             [JsonPropertyName("totalDescriptions")]
             public int TotalDescriptions { get; set; }
+            /// <summary>Average number of tags per prompt.</summary>
             [JsonPropertyName("averageTagsPerPrompt")]
             public double AverageTagsPerPrompt { get; set; }
+            /// <summary>Up to the ten most frequently used tags.</summary>
             [JsonPropertyName("mostUsedTags")]
             public List<TagUsageInfo>? MostUsedTags { get; set; }
+            /// <summary>Up to the ten least frequently used tags.</summary>
             [JsonPropertyName("leastUsedTags")]
             public List<TagUsageInfo>? LeastUsedTags { get; set; }
+            /// <summary>Count of tags grouped by their top-level category segment.</summary>
             [JsonPropertyName("categoryBreakdown")]
             public Dictionary<string, int>? CategoryBreakdown { get; set; }
+            /// <summary>Tags that have no associated prompts (should normally be empty).</summary>
             [JsonPropertyName("orphanTags")]
             public List<string>? OrphanTags { get; set; }
+            /// <summary>Prompts that are tracked but currently carry no tags.</summary>
             [JsonPropertyName("untaggedPrompts")]
             public List<string>? UntaggedPrompts { get; set; }
         }
@@ -761,8 +772,10 @@ namespace Prompt
         /// </summary>
         public class AutoTagRule
         {
+            /// <summary>Case-insensitive substring matched against prompt IDs.</summary>
             [JsonPropertyName("pattern")]
             public string Pattern { get; set; } = "";
+            /// <summary>Tag applied when the pattern matches a prompt ID.</summary>
             [JsonPropertyName("tag")]
             public string Tag { get; set; } = "";
         }
