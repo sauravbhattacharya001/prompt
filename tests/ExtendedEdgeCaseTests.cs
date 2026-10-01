@@ -611,7 +611,7 @@ public class ExtendedEdgeCaseTests : IDisposable
     // ═══════════════════════════════════════════════════════════════
 
     [Fact]
-    public void Conversation_ConcurrentHistoryAccess_DoesNotThrow()
+    public async Task Conversation_ConcurrentHistoryAccess_DoesNotThrow()
     {
         var conv = new Conversation("System");
         for (int i = 0; i < 50; i++)
@@ -628,12 +628,12 @@ public class ExtendedEdgeCaseTests : IDisposable
             tasks.Add(Task.Run(() => conv.SaveToJson()));
         }
 
-        Task.WaitAll(tasks.ToArray());
+        await Task.WhenAll(tasks);
         // No exception means thread safety holds
     }
 
     [Fact]
-    public void Conversation_ConcurrentClearAndAdd_DoesNotThrow()
+    public async Task Conversation_ConcurrentClearAndAdd_DoesNotThrow()
     {
         var conv = new Conversation("System");
 
@@ -647,7 +647,7 @@ public class ExtendedEdgeCaseTests : IDisposable
                 tasks.Add(Task.Run(() => conv.AddUserMessage($"Msg {idx}")));
         }
 
-        Task.WaitAll(tasks.ToArray());
+        await Task.WhenAll(tasks);
         // Should not crash
     }
 
@@ -740,7 +740,7 @@ public class ExtendedEdgeCaseTests : IDisposable
     // ═══════════════════════════════════════════════════════════════
 
     [Fact]
-    public void GetOrCreateChatClient_ConcurrentDifferentRetries_NoDeadlock()
+    public async Task GetOrCreateChatClient_ConcurrentDifferentRetries_NoDeadlock()
     {
         SetupEnvVars();
 
@@ -748,7 +748,7 @@ public class ExtendedEdgeCaseTests : IDisposable
             .Select(i => Task.Run(() => Main.GetOrCreateChatClient(i % 5)))
             .ToArray();
 
-        Task.WaitAll(tasks);
+        await Task.WhenAll(tasks);
         // No deadlock or exception means the locking is correct
     }
 
