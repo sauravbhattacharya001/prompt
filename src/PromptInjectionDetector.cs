@@ -31,18 +31,35 @@ namespace Prompt
     }
 
     /// <summary>Risk level of a detected injection attempt.</summary>
-    public enum InjectionRisk { Low, Medium, High, Critical }
+    public enum InjectionRisk
+    {
+        /// <summary>Low risk — weak or ambiguous signal.</summary>
+        Low,
+        /// <summary>Medium risk — plausible injection attempt.</summary>
+        Medium,
+        /// <summary>High risk — strong injection signal.</summary>
+        High,
+        /// <summary>Critical risk — clear, dangerous injection.</summary>
+        Critical
+    }
 
     /// <summary>A rule that matches a particular injection pattern.</summary>
     public sealed class InjectionRule
     {
+        /// <summary>Stable identifier for this rule.</summary>
         public string Id { get; }
+        /// <summary>Human-readable rule name.</summary>
         public string Name { get; }
+        /// <summary>Injection technique this rule detects.</summary>
         public InjectionCategory Category { get; }
+        /// <summary>Risk level assigned to matches of this rule.</summary>
         public InjectionRisk Risk { get; }
+        /// <summary>Compiled regular expression that matches the pattern.</summary>
         public Regex Pattern { get; }
+        /// <summary>Description of what the rule matches and why it matters.</summary>
         public string Description { get; }
 
+        /// <summary>Creates an injection rule from a regex pattern and metadata.</summary>
         public InjectionRule(string id, string name, InjectionCategory category,
             InjectionRisk risk, string pattern, string description)
         {
@@ -64,11 +81,16 @@ namespace Prompt
     /// <summary>A single injection detection finding.</summary>
     public sealed class InjectionFinding
     {
+        /// <summary>Rule that produced this finding.</summary>
         public InjectionRule Rule { get; }
+        /// <summary>Substring of the input that matched the rule.</summary>
         public string MatchedText { get; }
+        /// <summary>Zero-based start index of the match in the input.</summary>
         public int Position { get; }
+        /// <summary>Length in characters of the matched text.</summary>
         public int Length { get; }
 
+        /// <summary>Creates a finding for a matched rule at the given position.</summary>
         public InjectionFinding(InjectionRule rule, string matchedText, int position, int length)
         {
             Rule = rule ?? throw new ArgumentNullException(nameof(rule));
@@ -77,6 +99,7 @@ namespace Prompt
             Length = length;
         }
 
+        /// <summary>Returns a readable summary of the finding.</summary>
         public override string ToString() =>
             $"[{Rule.Risk}] {Rule.Name} at position {Position}: \"{StringHelpers.Truncate(MatchedText, 60)}\"";
 
@@ -85,12 +108,18 @@ namespace Prompt
     /// <summary>Aggregate result of an injection scan.</summary>
     public sealed class InjectionScanResult
     {
+        /// <summary>Truncated preview of the scanned input (max 120 chars).</summary>
         public string InputPreview { get; }
+        /// <summary>All findings detected during the scan.</summary>
         public IReadOnlyList<InjectionFinding> Findings { get; }
+        /// <summary>Highest risk level across all findings.</summary>
         public InjectionRisk OverallRisk { get; }
+        /// <summary>True when no findings were detected.</summary>
         public bool IsClean => Findings.Count == 0;
+        /// <summary>Normalized aggregate risk score for the input.</summary>
         public double RiskScore { get; }
 
+        /// <summary>Aggregates findings for a scanned input into a result.</summary>
         public InjectionScanResult(string input, IReadOnlyList<InjectionFinding> findings)
         {
             InputPreview = input.Length <= 120 ? input : input.Substring(0, 117) + "...";
