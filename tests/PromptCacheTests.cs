@@ -803,7 +803,7 @@ namespace Prompt.Tests
         // ================================================================
 
         [Fact]
-        public void ConcurrentPutAndGet_DoesNotThrow()
+        public async Task ConcurrentPutAndGet_DoesNotThrow()
         {
             var cache = new PromptCache(capacity: 100);
             var tasks = new List<Task>();
@@ -828,13 +828,13 @@ namespace Prompt.Tests
                 }));
             }
 
-            Task.WaitAll(tasks.ToArray());
+            await Task.WhenAll(tasks);
             Assert.True(cache.Count <= 100);
             Assert.True(cache.Count > 0);
         }
 
         [Fact]
-        public void ConcurrentPurge_DoesNotThrow()
+        public async Task ConcurrentPurge_DoesNotThrow()
         {
             var cache = new PromptCache(defaultTtl: TimeSpan.FromMilliseconds(10));
             for (int i = 0; i < 50; i++)
@@ -846,7 +846,7 @@ namespace Prompt.Tests
             for (int i = 0; i < 5; i++)
                 tasks.Add(Task.Run(() => cache.PurgeExpired()));
 
-            Task.WaitAll(tasks.ToArray());
+            await Task.WhenAll(tasks);
         }
 
         // ================================================================

@@ -355,7 +355,7 @@ public class ConversationTests : IDisposable
     // ───────────── Thread safety smoke test ─────────────
 
     [Fact]
-    public void AddMessages_HandlesParallelCalls()
+    public async Task AddMessages_HandlesParallelCalls()
     {
         var conv = new Conversation();
         var tasks = Enumerable.Range(0, 100)
@@ -367,7 +367,7 @@ public class ConversationTests : IDisposable
                     conv.AddAssistantMessage($"Assistant {i}");
             }));
 
-        Task.WaitAll(tasks.ToArray());
+        await Task.WhenAll(tasks);
 
         Assert.Equal(100, conv.MessageCount);
     }

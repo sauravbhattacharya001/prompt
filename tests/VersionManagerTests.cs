@@ -760,7 +760,7 @@ namespace Prompt.Tests
         // ================================================================
 
         [Fact]
-        public void ConcurrentCreateVersion_DoesNotThrow()
+        public async Task ConcurrentCreateVersion_DoesNotThrow()
         {
             var vm = new PromptVersionManager();
             var tasks = new List<Task>();
@@ -772,12 +772,12 @@ namespace Prompt.Tests
                     vm.CreateVersion("concurrent", $"version-{idx}");
                 }));
             }
-            Task.WaitAll(tasks.ToArray());
+            await Task.WhenAll(tasks);
             Assert.Equal(20, vm.GetVersionCount("concurrent"));
         }
 
         [Fact]
-        public void ConcurrentGetLatest_DoesNotThrow()
+        public async Task ConcurrentGetLatest_DoesNotThrow()
         {
             var vm = new PromptVersionManager();
             for (int i = 0; i < 10; i++)
@@ -794,7 +794,7 @@ namespace Prompt.Tests
                     Assert.NotNull(latest);
                 }));
             }
-            Task.WaitAll(tasks.ToArray());
+            await Task.WhenAll(tasks);
         }
 
         // ================================================================

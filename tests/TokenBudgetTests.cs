@@ -625,7 +625,7 @@ public class TokenBudgetTests
     // ──────────────── Thread Safety ────────────────
 
     [Fact]
-    public void ConcurrentAddMessages_DoesNotThrow()
+    public async Task ConcurrentAddMessages_DoesNotThrow()
     {
         var budget = new TokenBudget();
         var tasks = new List<Task>();
@@ -639,7 +639,7 @@ public class TokenBudgetTests
             }));
         }
 
-        Task.WaitAll(tasks.ToArray());
+        await Task.WhenAll(tasks);
 
         // Should have all messages (no trimming on large budget)
         Assert.True(budget.MessageCount > 0);
