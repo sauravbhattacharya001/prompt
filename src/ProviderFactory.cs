@@ -72,7 +72,15 @@ namespace Prompt
         /// </exception>
         public static ILlmProvider Create(string provider, int maxRetries = 3)
         {
-            switch ((provider ?? "").Trim().ToLowerInvariant())
+            // Normalize once, up front, into a non-null local. Switching on and passing
+            // this normalized name (rather than the raw, possibly-null `provider`) keeps
+            // the matched value and the value handed to Key/Model/error messages in sync —
+            // previously the switch matched on the trimmed/lowercased form but the helpers
+            // received the raw argument, so an input like " OpenAI " matched "openai" yet
+            // surfaced with odd casing/whitespace in errors (and tripped the nullable
+            // analyzer, since the `?? ""` had flow-narrowed `provider` to maybe-null).
+            string name = (provider ?? "").Trim().ToLowerInvariant();
+            switch (name)
             {
                 case "":
                 case "azure":
@@ -81,42 +89,42 @@ namespace Prompt
                     return new AzureOpenAIProvider(maxRetries);
 
                 case "openai":
-                    return OpenAICompatProvider.OpenAI(Key("OPENAI_API_KEY", provider), Model(provider));
+                    return OpenAICompatProvider.OpenAI(Key("OPENAI_API_KEY", name), Model(name));
                 case "mistral":
-                    return OpenAICompatProvider.Mistral(Key("MISTRAL_API_KEY", provider), Model(provider));
+                    return OpenAICompatProvider.Mistral(Key("MISTRAL_API_KEY", name), Model(name));
                 case "groq":
-                    return OpenAICompatProvider.Groq(Key("GROQ_API_KEY", provider), Model(provider));
+                    return OpenAICompatProvider.Groq(Key("GROQ_API_KEY", name), Model(name));
                 case "deepseek":
-                    return OpenAICompatProvider.DeepSeek(Key("DEEPSEEK_API_KEY", provider), Model(provider));
+                    return OpenAICompatProvider.DeepSeek(Key("DEEPSEEK_API_KEY", name), Model(name));
                 case "grok":
                 case "xai":
-                    return OpenAICompatProvider.Grok(Key("XAI_API_KEY", "GROK_API_KEY", provider), Model(provider));
+                    return OpenAICompatProvider.Grok(Key("XAI_API_KEY", "GROK_API_KEY", name), Model(name));
                 case "openrouter":
-                    return OpenAICompatProvider.OpenRouter(Key("OPENROUTER_API_KEY", provider), Model(provider));
+                    return OpenAICompatProvider.OpenRouter(Key("OPENROUTER_API_KEY", name), Model(name));
                 case "together":
-                    return OpenAICompatProvider.Together(Key("TOGETHER_API_KEY", provider), Model(provider));
+                    return OpenAICompatProvider.Together(Key("TOGETHER_API_KEY", name), Model(name));
                 case "fireworks":
-                    return OpenAICompatProvider.Fireworks(Key("FIREWORKS_API_KEY", provider), Model(provider));
+                    return OpenAICompatProvider.Fireworks(Key("FIREWORKS_API_KEY", name), Model(name));
 
                 case "ollama":
                     // API key optional; base URL optional (defaults to localhost).
                     return OpenAICompatProvider.Ollama(
-                        Model(provider),
+                        Model(name),
                         baseUrl: GetEnv(BaseUrlEnvVar),
                         apiKey: GetEnv(ApiKeyEnvVar) ?? GetEnv("OLLAMA_API_KEY"));
 
                 case "anthropic":
                 case "claude":
                     return new AnthropicProvider(
-                        Key("ANTHROPIC_API_KEY", provider),
-                        Model(provider),
+                        Key("ANTHROPIC_API_KEY", name),
+                        Model(name),
                         baseUrl: GetEnv(BaseUrlEnvVar));
 
                 case "gemini":
                 case "google":
                     return new GeminiProvider(
-                        Key("GEMINI_API_KEY", "GOOGLE_API_KEY", provider),
-                        Model(provider),
+                        Key("GEMINI_API_KEY", "GOOGLE_API_KEY", name),
+                        Model(name),
                         baseUrl: GetEnv(BaseUrlEnvVar));
 
                 default:
