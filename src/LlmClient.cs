@@ -1,7 +1,6 @@
 namespace Prompt
 {
     using System.Collections.Generic;
-    using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -80,7 +79,7 @@ namespace Prompt
             string prompt,
             string? systemPrompt = null,
             PromptOptions? options = null,
-            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default)
         {
             var messages = BuildMessages(prompt, systemPrompt);
             return _provider.CompleteStreamAsync(messages, options ?? new PromptOptions(), cancellationToken);

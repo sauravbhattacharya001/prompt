@@ -47,7 +47,7 @@ namespace Prompt
         public abstract IAsyncEnumerable<StreamChunk> CompleteStreamAsync(
             IReadOnlyList<ChatMsg> messages,
             PromptOptions options,
-            [EnumeratorCancellation] CancellationToken ct = default);
+            CancellationToken ct = default);
 
         /// <summary>
         /// Sends a request and reads the response body as Server-Sent Events,

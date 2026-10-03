@@ -1,7 +1,6 @@
 namespace Prompt
 {
     using System.Collections.Generic;
-    using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -43,6 +42,6 @@ namespace Prompt
         IAsyncEnumerable<StreamChunk> CompleteStreamAsync(
             IReadOnlyList<ChatMsg> messages,
             PromptOptions options,
-            [EnumeratorCancellation] CancellationToken ct = default);
+            CancellationToken ct = default);
     }
 }
