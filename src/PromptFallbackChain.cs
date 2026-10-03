@@ -378,10 +378,15 @@ namespace Prompt
                     // Apply per-tier timeout if configured
                     CancellationToken token = cancellationToken;
                     CancellationTokenSource? cts = null;
+                    // Capture the concrete timeout alongside the cts so the invariant
+                    // "cts != null ⇒ a real timeout was set" is carried in a non-nullable
+                    // local rather than re-read via Nullable<T>.Value in the catch filter.
+                    TimeSpan tierTimeout = default;
                     if (tier.Timeout.HasValue)
                     {
+                        tierTimeout = tier.Timeout.Value;
                         cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                        cts.CancelAfter(tier.Timeout.Value);
+                        cts.CancelAfter(tierTimeout);
                         token = cts.Token;
                     }
 
@@ -399,7 +404,7 @@ namespace Prompt
                     {
                         // Per-tier timeout — convert to a descriptive exception
                         throw new TimeoutException(
-                            $"Tier '{tier.Name}' timed out after {tier.Timeout.Value.TotalSeconds:F1}s.");
+                            $"Tier '{tier.Name}' timed out after {tierTimeout.TotalSeconds:F1}s.");
                     }
                     finally
                     {
