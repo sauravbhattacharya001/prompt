@@ -307,30 +307,44 @@ namespace Prompt
             return cat switch
             {
                 SecretCategory.Email => RedactEmail(value),
-                SecretCategory.CreditCard => RedactCard(value),
-                SecretCategory.SSN => "***-**-" + value[^4..],
-                SecretCategory.PhoneNumber => "***-***-" + value[^4..],
+                SecretCategory.CreditCard => MaskDigits(value, keepLastDigits: 4),
+                SecretCategory.SSN => MaskDigits(value, keepLastDigits: 0),
+                SecretCategory.PhoneNumber => MaskDigits(value, keepLastDigits: 4),
                 _ => RedactGeneric(value)
             };
         }
 
         /// <summary>
-        /// Redacts a payment-card number by masking every character except the
-        /// last four, preserving the original length and any grouping separators
-        /// (spaces/hyphens). Unlike a fixed <c>"****-****-****-"</c> prefix, this
-        /// is correct for BOTH 16-digit brands and 15-digit Amex (grouped 4-6-5):
-        /// the old fixed prefix fabricated a 16-digit 4-4-4-4 shape for every
-        /// card, misrepresenting a 15-digit Amex and inflating the redaction
-        /// length past the original (breaking length-preserving substitution).
+        /// Masks the digits of a grouped numeric secret (card / phone / SSN) while
+        /// preserving the original length and any grouping separators (spaces,
+        /// hyphens, parentheses, '+'), revealing only the trailing
+        /// <paramref name="keepLastDigits"/> digits. This is the length- and
+        /// separator-preserving shape every grouped-number category needs: a fixed
+        /// prefix like <c>"****-****-****-"</c> or <c>"***-***-"</c> fabricates a
+        /// canonical grouping for every match, misrepresenting a 15-digit Amex, a
+        /// space-separated SSN, or a <c>+1 (NNN)</c> phone, and can inflate the
+        /// redaction past the original length (breaking length-preserving
+        /// substitution). Only digits are masked, so separators survive verbatim.
         /// </summary>
-        private static string RedactCard(string value)
+        /// <param name="value">The matched secret text.</param>
+        /// <param name="keepLastDigits">
+        /// How many trailing digits to leave visible (0 masks every digit). For an
+        /// SSN this is 0: the last four digits are the most sensitive part of an
+        /// SSN (they are used as an identity verifier), so none are revealed.
+        /// </param>
+        private static string MaskDigits(string value, int keepLastDigits)
         {
             var chars = value.ToCharArray();
-            // Reveal the trailing four DIGITS; mask everything before the last
-            // four characters (the card rule guarantees the value ends in \d{4}).
-            int keepFrom = chars.Length - 4;
-            for (int i = 0; i < keepFrom; i++)
-                if (char.IsLetterOrDigit(chars[i])) chars[i] = '*';
+            // Walk from the end; leave the last `keepLastDigits` DIGITS intact and
+            // mask every digit before them. Non-digit separators are never touched,
+            // so the original grouping/length is preserved exactly.
+            int seenDigits = 0;
+            for (int i = chars.Length - 1; i >= 0; i--)
+            {
+                if (!char.IsDigit(chars[i])) continue;
+                if (seenDigits < keepLastDigits) { seenDigits++; continue; }
+                chars[i] = '*';
+            }
             return new string(chars);
         }
 
