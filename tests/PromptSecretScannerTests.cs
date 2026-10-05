@@ -214,11 +214,17 @@ public class PromptSecretScannerTests
             red.Substring(expectedReveal, bodyLen - 2 * expectedReveal));
     }
 
-    [Fact]
-    public void DetectsPrivateKeyHeader()
+    [Theory]
+    [InlineData("-----BEGIN PRIVATE KEY-----\nMIIE...")]
+    [InlineData("-----BEGIN RSA PRIVATE KEY-----\nMIIE...")]
+    [InlineData("-----BEGIN EC PRIVATE KEY-----\nMHcC...")]
+    [InlineData("-----BEGIN OPENSSH PRIVATE KEY-----\nb3Bl...")]
+    [InlineData("-----BEGIN ENCRYPTED PRIVATE KEY-----\nMIIF...")]
+    [InlineData("-----BEGIN PGP PRIVATE KEY BLOCK-----\nlQOY...")]
+    public void DetectsPrivateKeyHeader(string input)
     {
         var scanner = new PromptSecretScanner();
-        var result = scanner.Scan("-----BEGIN RSA PRIVATE KEY-----\nMIIE...");
+        var result = scanner.Scan(input);
         Assert.True(result.HasSecrets);
         Assert.Contains(result.Findings, f => f.Rule.Category == SecretCategory.PrivateKey);
     }

@@ -457,7 +457,12 @@ namespace Prompt
 
                 new SecretRule("private-key", "Private Key Block", SecretCategory.PrivateKey,
                     SecretSeverity.Critical,
-                    @"-----BEGIN\s+(RSA|EC|DSA|OPENSSH)?\s*PRIVATE KEY-----",
+                    // Covers every standard PEM/PGP private-key header: the bare
+                    // PKCS#8 header (no type), the typed RSA/EC/DSA/OPENSSH headers,
+                    // the PKCS#8 ENCRYPTED header, and the ASCII-armored PGP block.
+                    // The previous (RSA|EC|DSA|OPENSSH)? group silently skipped the
+                    // ENCRYPTED and PGP headers, a detection gap on a Critical rule.
+                    @"-----BEGIN\s+(?:(?:RSA|EC|DSA|OPENSSH|ENCRYPTED)\s+)?PRIVATE KEY-----|-----BEGIN\s+PGP\s+PRIVATE KEY BLOCK-----",
                     "PEM private key header"),
 
                 new SecretRule("connection-string", "Connection String", SecretCategory.ConnectionString,
