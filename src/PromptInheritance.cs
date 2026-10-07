@@ -307,6 +307,8 @@ namespace Prompt
         /// Resolves a block's content by walking the inheritance chain.
         /// The most-derived override wins.
         /// </summary>
+        /// <param name="blockName">The block whose effective content is resolved.</param>
+        /// <param name="defaultContent">The block content to use when no override exists.</param>
         /// <param name="wasOverridden">
         /// Set to <c>true</c> when an override for <paramref name="blockName"/> was
         /// found somewhere in the inheritance chain (even if it resolves to the same
