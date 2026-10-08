@@ -515,7 +515,7 @@ public class PromptComposerTests
             .WithTask("Task")
             .WithClosingInstruction("Do it now.")
             .Build();
-        Assert.True(prompt.EndsWith("Do it now."));
+        Assert.EndsWith("Do it now.", prompt);
     }
 
     [Fact]

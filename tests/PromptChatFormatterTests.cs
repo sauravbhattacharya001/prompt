@@ -89,7 +89,7 @@ namespace Prompt.Tests
                 ChatProvider.OpenAI);
             Assert.Equal(ChatProvider.OpenAI, result.Provider);
             Assert.Null(result.SystemMessage);
-            Assert.True(result.Messages.Any(m => m.Role == "system"));
+            Assert.Contains(result.Messages, m => m.Role == "system");
         }
 
         [Fact]

@@ -26,7 +26,7 @@ namespace Prompt.Tests
         public void Estimate_NullString_ReturnsZeroCounts()
         {
             var counter = new PromptTokenCounter();
-            var result = counter.Estimate(null);
+            var result = counter.Estimate(null!);
             Assert.Equal(0, result.TokenCount);
             Assert.Equal(0, result.CharCount);
             Assert.Equal(0, result.WordCount);
@@ -98,7 +98,7 @@ namespace Prompt.Tests
         public void EstimateBatch_NullInput_ThrowsArgumentNullException()
         {
             var counter = new PromptTokenCounter();
-            Assert.Throws<ArgumentNullException>(() => counter.EstimateBatch(null));
+            Assert.Throws<ArgumentNullException>(() => counter.EstimateBatch(null!));
         }
 
         [Fact]
@@ -317,7 +317,7 @@ namespace Prompt.Tests
         public void AddModel_NullPricing_ThrowsArgumentNullException()
         {
             var counter = new PromptTokenCounter();
-            Assert.Throws<ArgumentNullException>(() => counter.AddModel(null));
+            Assert.Throws<ArgumentNullException>(() => counter.AddModel(null!));
         }
 
         [Fact]

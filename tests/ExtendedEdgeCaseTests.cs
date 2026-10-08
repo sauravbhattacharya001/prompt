@@ -37,7 +37,7 @@ public class ExtendedEdgeCaseTests : IDisposable
     // ═══════════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task GetOrCreateChatClient_RecreatesOnRetryPolicyChange()
+    public void GetOrCreateChatClient_RecreatesOnRetryPolicyChange()
     {
         // Set up valid env vars so client creation succeeds
         SetupEnvVars();
@@ -51,7 +51,7 @@ public class ExtendedEdgeCaseTests : IDisposable
     }
 
     [Fact]
-    public async Task GetOrCreateChatClient_ZeroRetries_Succeeds()
+    public void GetOrCreateChatClient_ZeroRetries_Succeeds()
     {
         SetupEnvVars();
         var client = Main.GetOrCreateChatClient(0);
