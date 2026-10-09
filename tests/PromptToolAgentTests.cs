@@ -304,7 +304,7 @@ namespace Prompt.Tests
         }
 
         [Fact]
-        public async Task AddTool_RemoveTool_WorksCorrectly()
+        public void AddTool_RemoveTool_WorksCorrectly()
         {
             var agent = new PromptToolAgent();
             var tool = CreateCalculatorTool();

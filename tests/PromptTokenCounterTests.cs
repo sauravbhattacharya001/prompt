@@ -288,7 +288,7 @@ namespace Prompt.Tests
         public void EstimateBatchCost_NullTexts_ThrowsArgumentNullException()
         {
             var counter = new PromptTokenCounter();
-            Assert.Throws<ArgumentNullException>(() => counter.EstimateBatchCost(null, "gpt-4o"));
+            Assert.Throws<ArgumentNullException>(() => counter.EstimateBatchCost(null!, "gpt-4o"));
         }
 
         [Fact]
