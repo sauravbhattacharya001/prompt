@@ -270,6 +270,12 @@ namespace Prompt
             if (profile == null) throw new ArgumentNullException(nameof(profile));
             if (string.IsNullOrWhiteSpace(profile.Name))
                 throw new ArgumentException("Profile name cannot be empty.", nameof(profile));
+            if (profile.RequestsPerMinute <= 0)
+                throw new ArgumentOutOfRangeException(nameof(profile), "Requests per minute must be positive.");
+            if (profile.TokensPerMinute <= 0)
+                throw new ArgumentOutOfRangeException(nameof(profile), "Tokens per minute must be positive.");
+            if (profile.MaxConcurrent <= 0)
+                throw new ArgumentOutOfRangeException(nameof(profile), "Maximum concurrency must be positive.");
 
             lock (_lock)
             {
@@ -328,6 +334,8 @@ namespace Prompt
         {
             if (string.IsNullOrWhiteSpace(profileName))
                 return Denied(profileName ?? "", "Profile name is required.");
+            if (estimatedTokens < 0)
+                throw new ArgumentOutOfRangeException(nameof(estimatedTokens), "Estimated tokens cannot be negative.");
 
             lock (_lock)
             {
@@ -493,6 +501,8 @@ namespace Prompt
         public void RecordCompletion(string profileName, int actualTokens = 0, long acquireTimestamp = 0)
         {
             if (string.IsNullOrWhiteSpace(profileName)) return;
+            if (actualTokens < 0)
+                throw new ArgumentOutOfRangeException(nameof(actualTokens), "Actual tokens cannot be negative.");
 
             lock (_lock)
             {

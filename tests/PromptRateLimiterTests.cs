@@ -52,6 +52,28 @@ public class PromptRateLimiterTests
         Assert.Equal(50, profile!.RequestsPerMinute);
     }
 
+    [Theory]
+    [InlineData(0, 100, 10)]
+    [InlineData(-1, 100, 10)]
+    [InlineData(100, 0, 10)]
+    [InlineData(100, -1, 10)]
+    [InlineData(100, 100, 0)]
+    [InlineData(100, 100, -1)]
+    public void AddProfile_NonPositiveLimits_ThrowsArgumentOutOfRange(
+        int requestsPerMinute, int tokensPerMinute, int maxConcurrent)
+    {
+        var limiter = new PromptRateLimiter();
+        var profile = new RateLimitProfile
+        {
+            Name = "invalid",
+            RequestsPerMinute = requestsPerMinute,
+            TokensPerMinute = tokensPerMinute,
+            MaxConcurrent = maxConcurrent
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => limiter.AddProfile(profile));
+    }
+
     [Fact]
     public void RemoveProfile_Existing_ReturnsTrue()
     {
@@ -283,6 +305,16 @@ public class PromptRateLimiterTests
     }
 
     [Fact]
+    public void TryAcquire_NegativeEstimatedTokens_ThrowsArgumentOutOfRange()
+    {
+        var limiter = new PromptRateLimiter();
+        limiter.AddProfile(new RateLimitProfile { Name = "m" });
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            limiter.TryAcquire("m", estimatedTokens: -1));
+    }
+
+    [Fact]
     public void TryAcquire_ReportsCurrentState()
     {
         var limiter = new PromptRateLimiter();
@@ -365,6 +397,18 @@ public class PromptRateLimiterTests
         limiter.RecordCompletion("m");
         var usage = limiter.GetUsage("m");
         Assert.Equal(0, usage!.ConcurrentRequests);
+    }
+
+    [Fact]
+    public void RecordCompletion_NegativeActualTokens_ThrowsArgumentOutOfRange()
+    {
+        var limiter = new PromptRateLimiter();
+        limiter.AddProfile(new RateLimitProfile { Name = "m" });
+        var acquisition = limiter.TryAcquire("m");
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            limiter.RecordCompletion("m", actualTokens: -1, acquisition.AcquireTimestamp));
+        Assert.Equal(1, limiter.GetUsage("m")!.ConcurrentRequests);
     }
 
     [Fact]
