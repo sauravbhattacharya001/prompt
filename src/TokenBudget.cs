@@ -489,6 +489,9 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(model))
                 throw new ArgumentException(
                     "Model name cannot be null or empty.", nameof(model));
+            if (reserveForResponse < 0)
+                throw new ArgumentOutOfRangeException(
+                    nameof(reserveForResponse), "Response reserve cannot be negative.");
 
             int contextWindow = model.ToLowerInvariant() switch
             {

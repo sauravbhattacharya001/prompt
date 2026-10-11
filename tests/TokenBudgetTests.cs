@@ -487,6 +487,17 @@ public class TokenBudgetTests
     }
 
     [Fact]
+    public void ForModel_ThrowsOnNegativeReserve()
+    {
+        // Regression: clamping a negative value with Math.Min left it negative,
+        // and the constructor then accepted it because it only guarded values
+        // at or above MaxTokens. Reject invalid caller input at this factory
+        // boundary instead of creating a budget with inflated availability.
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => TokenBudget.ForModel("gpt-4", reserveForResponse: -1));
+    }
+
+    [Fact]
     public void ForModel_ThrowsOnEmptyModel()
     {
         Assert.Throws<ArgumentException>(() => TokenBudget.ForModel(""));
