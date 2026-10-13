@@ -425,6 +425,8 @@ namespace Prompt.Tests
             cache.Put("prompt", "response");
             Thread.Sleep(100);
             Assert.False(cache.Contains("prompt"));
+            Assert.Equal(0, cache.Count);
+            Assert.Equal(1, cache.GetStats().Evictions);
         }
 
         [Fact]

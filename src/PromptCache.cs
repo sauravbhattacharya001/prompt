@@ -386,7 +386,17 @@ namespace Prompt
             {
                 if (!_map.TryGetValue(key, out var node))
                     return false;
-                return !node.Value.Entry.IsExpired;
+
+                if (!node.Value.Entry.IsExpired)
+                    return true;
+
+                // Keep the cache's observable state consistent: an expired entry
+                // is absent, so remove it just as Get does instead of leaving Count
+                // and capacity occupied until a later purge.
+                _order.Remove(node);
+                _map.Remove(key);
+                _evictions++;
+                return false;
             }
         }
 
