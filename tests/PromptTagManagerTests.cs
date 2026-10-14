@@ -161,6 +161,27 @@ public class PromptTagManagerTests
     }
 
     [Fact]
+    public void FindSimilar_NegativeLimit_ThrowsEvenWhenPromptIsUnknown()
+    {
+        var m = new PromptTagManager();
+
+        var error = Assert.Throws<ArgumentOutOfRangeException>(
+            () => m.FindSimilar("unknown", -1));
+
+        Assert.Equal("maxResults", error.ParamName);
+    }
+
+    [Fact]
+    public void FindSimilar_ZeroLimit_ReturnsNoResults()
+    {
+        var m = new PromptTagManager();
+        m.Tag("source", "shared");
+        m.Tag("candidate", "shared");
+
+        Assert.Empty(m.FindSimilar("source", 0));
+    }
+
+    [Fact]
     public void ExportImport_RoundTrips_TagsAliasesAndRules()
     {
         var m = new PromptTagManager();

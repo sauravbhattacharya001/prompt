@@ -405,10 +405,16 @@ namespace Prompt
         /// (tag-based similarity).
         /// </summary>
         /// <param name="promptId">The reference prompt.</param>
-        /// <param name="maxResults">Maximum number of results to return.</param>
+        /// <param name="maxResults">Maximum number of results to return. Must be non-negative.</param>
         /// <returns>List of (promptId, sharedTagCount, sharedTags) tuples, sorted by similarity.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// Thrown when <paramref name="maxResults"/> is negative.
+        /// </exception>
         public List<TagSimilarityResult> FindSimilar(string promptId, int maxResults = 10)
         {
+            if (maxResults < 0)
+                throw new ArgumentOutOfRangeException(nameof(maxResults),
+                    maxResults, "Maximum results must be non-negative.");
             if (!_promptTags.ContainsKey(promptId))
                 return new List<TagSimilarityResult>();
 
