@@ -279,7 +279,11 @@ namespace Prompt
 
             lock (_lock)
             {
-                _profiles[profile.Name] = new ProfileState { Profile = profile };
+                // Store an owned snapshot. Keeping the caller's mutable instance would
+                // let later property changes silently bypass validation and alter live
+                // limits without synchronization.
+                var snapshot = CopyProfile(profile);
+                _profiles[snapshot.Name] = new ProfileState { Profile = snapshot };
             }
         }
 
@@ -319,7 +323,9 @@ namespace Prompt
             if (string.IsNullOrWhiteSpace(profileName)) return null;
             lock (_lock)
             {
-                return _profiles.TryGetValue(profileName, out var state) ? state.Profile : null;
+                return _profiles.TryGetValue(profileName, out var state)
+                    ? CopyProfile(state.Profile)
+                    : null;
             }
         }
 
@@ -743,6 +749,16 @@ namespace Prompt
         }
 
         // --- Private helpers ---
+
+        private static RateLimitProfile CopyProfile(RateLimitProfile profile) =>
+            new()
+            {
+                Name = profile.Name,
+                RequestsPerMinute = profile.RequestsPerMinute,
+                TokensPerMinute = profile.TokensPerMinute,
+                MaxConcurrent = profile.MaxConcurrent,
+                Priority = profile.Priority
+            };
 
         private static RateLimitResult Denied(string profileName, string reason) =>
             new RateLimitResult

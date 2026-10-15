@@ -75,6 +75,45 @@ public class PromptRateLimiterTests
     }
 
     [Fact]
+    public void AddProfile_CallerMutation_DoesNotChangeLiveLimits()
+    {
+        var limiter = new PromptRateLimiter();
+        var profile = new RateLimitProfile
+        {
+            Name = "m",
+            RequestsPerMinute = 1,
+            TokensPerMinute = 1000,
+            MaxConcurrent = 10
+        };
+        limiter.AddProfile(profile);
+
+        profile.RequestsPerMinute = 100;
+
+        var first = limiter.TryAcquire("m");
+        limiter.RecordCompletion("m", acquireTimestamp: first.AcquireTimestamp);
+        Assert.False(limiter.TryAcquire("m").Permitted);
+    }
+
+    [Fact]
+    public void GetProfile_ReturnedMutation_DoesNotChangeLiveLimits()
+    {
+        var limiter = new PromptRateLimiter();
+        limiter.AddProfile(new RateLimitProfile
+        {
+            Name = "m",
+            RequestsPerMinute = 1,
+            TokensPerMinute = 1000,
+            MaxConcurrent = 10
+        });
+
+        limiter.GetProfile("m")!.RequestsPerMinute = 100;
+
+        var first = limiter.TryAcquire("m");
+        limiter.RecordCompletion("m", acquireTimestamp: first.AcquireTimestamp);
+        Assert.False(limiter.TryAcquire("m").Permitted);
+    }
+
+    [Fact]
     public void RemoveProfile_Existing_ReturnsTrue()
     {
         var limiter = new PromptRateLimiter();
