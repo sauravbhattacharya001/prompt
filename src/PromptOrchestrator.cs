@@ -596,8 +596,17 @@ namespace Prompt
 
         private static double? ExtractConfidence(string output)
         {
-            var match = Regex.Match(output, @"\[confidence:\s*([\d.]+)\]", RegexOptions.IgnoreCase);
-            if (match.Success && double.TryParse(match.Groups[1].Value, out double val))
+            var match = Regex.Match(
+                output,
+                @"\[confidence:\s*(\d+(?:\.\d+)?)\s*\]",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                TimeSpan.FromMilliseconds(500));
+
+            if (match.Success && double.TryParse(
+                    match.Groups[1].Value,
+                    System.Globalization.NumberStyles.AllowDecimalPoint,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out double val))
                 return Math.Clamp(val, 0.0, 1.0);
             return null;
         }

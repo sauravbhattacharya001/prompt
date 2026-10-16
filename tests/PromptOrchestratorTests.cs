@@ -286,6 +286,46 @@ namespace Prompt.Tests
             Assert.True(exec.Results["after"].Success);
         }
 
+        [Theory]
+        [InlineData("result [confidence: 0..9]", null)]
+        [InlineData("result [confidence: .9]", null)]
+        [InlineData("result [confidence: 0.9.1]", null)]
+        public async Task ExecuteAsync_MalformedConfidenceMarker_IsNotPartiallyParsed(
+            string output, double? expectedConfidence)
+        {
+            var plan = new OrchestratorPlan { EntryNodeId = "n" };
+            plan.Nodes.Add(new OrchestratorNode("n", "p"));
+            var orch = new PromptOrchestrator(_ => Task.FromResult(output));
+
+            var exec = await orch.ExecuteAsync(plan);
+
+            Assert.Equal(expectedConfidence, exec.Results["n"].Confidence);
+        }
+
+        [Fact]
+        public async Task ExecuteAsync_ConfidenceMarker_UsesInvariantDecimalSyntax()
+        {
+            var previousCulture = System.Globalization.CultureInfo.CurrentCulture;
+            try
+            {
+                System.Globalization.CultureInfo.CurrentCulture =
+                    System.Globalization.CultureInfo.GetCultureInfo("fr-FR");
+
+                var plan = new OrchestratorPlan { EntryNodeId = "n" };
+                plan.Nodes.Add(new OrchestratorNode("n", "p"));
+                var orch = new PromptOrchestrator(_ =>
+                    Task.FromResult("result [confidence: 0.75 ]"));
+
+                var exec = await orch.ExecuteAsync(plan);
+
+                Assert.Equal(0.75, exec.Results["n"].Confidence);
+            }
+            finally
+            {
+                System.Globalization.CultureInfo.CurrentCulture = previousCulture;
+            }
+        }
+
         // ── ExecuteAsync: router ─────────────────────────────
 
         [Fact]
