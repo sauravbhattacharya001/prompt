@@ -14,6 +14,10 @@ namespace Prompt
     /// </summary>
     public class PromptBlock
     {
+        private static readonly Regex NamePattern = new Regex(
+            @"^[a-zA-Z_][a-zA-Z0-9_]*$", RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(500));
+
         /// <summary>Gets the block name.</summary>
         public string Name { get; }
 
@@ -29,7 +33,7 @@ namespace Prompt
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Block name cannot be null or empty.", nameof(name));
-            if (!Regex.IsMatch(name, @"^[a-zA-Z_]\w*$"))
+            if (!NamePattern.IsMatch(name))
                 throw new ArgumentException(
                     $"Block name '{name}' is invalid. Use letters, digits, and underscores.", nameof(name));
             Name = name;

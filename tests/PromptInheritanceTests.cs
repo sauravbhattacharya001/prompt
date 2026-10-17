@@ -361,10 +361,16 @@ namespace Prompt.Tests
             Assert.Equal("ok", prompt.Render());
         }
 
-        [Fact]
-        public void PromptBlock_InvalidName_Throws()
+        [Theory]
+        [InlineData("invalid-name!")]
+        [InlineData("nameé")]
+        [InlineData("name١")]
+        public void PromptBlock_InvalidName_Throws(string name)
         {
-            Assert.Throws<ArgumentException>(() => new PromptBlock("invalid-name!", "content"));
+            // Block syntax documents ASCII letters, digits, and underscores.
+            // Regex \w is Unicode-aware and previously accepted non-ASCII
+            // letters/digits after the first character, violating that contract.
+            Assert.Throws<ArgumentException>(() => new PromptBlock(name, "content"));
         }
 
         [Fact]
