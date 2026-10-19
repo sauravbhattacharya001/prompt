@@ -39,6 +39,46 @@ namespace Prompt.Tests
             Assert.Single(result.Attempts);
         }
 
+        [Fact]
+        public void InvalidDurations_AreRejectedAtConstruction()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptRetryPolicy(
+                new RetryPolicyConfig { BaseDelay = TimeSpan.FromMilliseconds(-1) }));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptRetryPolicy(
+                new RetryPolicyConfig { MaxDelay = TimeSpan.FromMilliseconds(-1) }));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptRetryPolicy(
+                new RetryPolicyConfig { CircuitBreakerWindow = TimeSpan.Zero }));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptRetryPolicy(
+                new RetryPolicyConfig { CircuitBreakerCooldown = TimeSpan.FromMilliseconds(-1) }));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptRetryPolicy(
+                new RetryPolicyConfig { TotalTimeout = TimeSpan.Zero }));
+        }
+
+        [Fact]
+        public void InvalidCategoryOverrides_AreRejectedAtConstruction()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptRetryPolicy(
+                new RetryPolicyConfig
+                {
+                    CategoryPolicies = new()
+                    {
+                        [ErrorCategory.ServerError] = new ErrorCategoryPolicy { MaxRetries = -1 }
+                    }
+                }));
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptRetryPolicy(
+                new RetryPolicyConfig
+                {
+                    CategoryPolicies = new()
+                    {
+                        [ErrorCategory.ServerError] = new ErrorCategoryPolicy
+                        {
+                            BaseDelay = TimeSpan.FromMilliseconds(-1)
+                        }
+                    }
+                }));
+        }
+
         [Theory]
         [InlineData("429 Too Many Requests", ErrorCategory.RateLimit)]
         [InlineData("rate limit exceeded", ErrorCategory.RateLimit)]

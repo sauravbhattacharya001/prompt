@@ -167,6 +167,25 @@ namespace Prompt
             if (_config.JitterFactor > 1) _config.JitterFactor = 1;
             if (_config.CircuitBreakerThreshold < 1) _config.CircuitBreakerThreshold = 1;
 
+            if (_config.BaseDelay < TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(config), "Base delay cannot be negative.");
+            if (_config.MaxDelay < TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(config), "Maximum delay cannot be negative.");
+            if (_config.CircuitBreakerWindow <= TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(config), "Circuit breaker window must be positive.");
+            if (_config.CircuitBreakerCooldown < TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(config), "Circuit breaker cooldown cannot be negative.");
+            if (_config.TotalTimeout.HasValue && _config.TotalTimeout.Value <= TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(config), "Total timeout must be positive when specified.");
+
+            foreach (var categoryPolicy in _config.CategoryPolicies.Values)
+            {
+                if (categoryPolicy.MaxRetries < 0)
+                    throw new ArgumentOutOfRangeException(nameof(config), "Category maximum retries cannot be negative.");
+                if (categoryPolicy.BaseDelay < TimeSpan.Zero)
+                    throw new ArgumentOutOfRangeException(nameof(config), "Category base delay cannot be negative.");
+            }
+
             if (!_config.CategoryPolicies.ContainsKey(ErrorCategory.AuthError))
                 _config.CategoryPolicies[ErrorCategory.AuthError] = new ErrorCategoryPolicy { ShouldRetry = false };
             if (!_config.CategoryPolicies.ContainsKey(ErrorCategory.BadRequest))
