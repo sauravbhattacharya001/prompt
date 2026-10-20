@@ -277,11 +277,16 @@ namespace Prompt
         /// <exception cref="ArgumentNullException">
         /// Thrown when <paramref name="prompt"/> or <paramref name="response"/> is null.
         /// </exception>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// Thrown when <paramref name="ttl"/> is zero or negative.
+        /// </exception>
         public void Put(string prompt, string response, string? model = null,
             TimeSpan? ttl = null, Dictionary<string, string>? metadata = null)
         {
             if (prompt == null) throw new ArgumentNullException(nameof(prompt));
             if (response == null) throw new ArgumentNullException(nameof(response));
+            if (ttl.HasValue && ttl.Value <= TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(ttl), "TTL must be positive.");
 
             string key = ComputeKey(prompt, model);
             var effectiveTtl = ttl ?? _defaultTtl;

@@ -201,6 +201,20 @@ namespace Prompt.Tests
             Assert.Throws<ArgumentNullException>(() => cache.Put("prompt", null!));
         }
 
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-1)]
+        public void Put_NonPositiveTtl_Throws(long ticks)
+        {
+            var cache = new PromptCache();
+
+            var error = Assert.Throws<ArgumentOutOfRangeException>(
+                () => cache.Put("prompt", "response", ttl: TimeSpan.FromTicks(ticks)));
+
+            Assert.Equal("ttl", error.ParamName);
+            Assert.Equal(0, cache.Count);
+        }
+
         [Fact]
         public void Get_NullPrompt_Throws()
         {
