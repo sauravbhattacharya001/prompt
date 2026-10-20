@@ -1,4 +1,4 @@
-﻿namespace Prompt
+namespace Prompt
 {
     using System.Collections.Concurrent;
     using System.Diagnostics;
