@@ -226,9 +226,36 @@ namespace Prompt
 
         /// <summary>Create an engine, optionally overriding the default configuration.</summary>
         /// <param name="config">Trip/recovery thresholds; defaults are used when null.</param>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// Thrown when <paramref name="config"/> carries a degenerate threshold: a ratio
+        /// outside [0,1] (or NaN), a non-positive window/probe/consecutive-failure limit,
+        /// a negative minimum-call count, or a negative (or NaN) cooldown/latency threshold.
+        /// </exception>
         public PromptCircuitBreakerEngine(CircuitBreakerConfig? config = null)
         {
             _config = config ?? new CircuitBreakerConfig();
+
+            // Degenerate thresholds fail silently at runtime (NaN comparisons are always
+            // false, so rate tripping just stops working; a zero consecutive-failure limit
+            // trips the circuit on any recorded outcome, even a success), so reject them here.
+            if (double.IsNaN(_config.FailureThreshold) || _config.FailureThreshold < 0 || _config.FailureThreshold > 1)
+                throw new ArgumentOutOfRangeException(nameof(config), "Failure threshold must be a finite value between 0 and 1.");
+            if (double.IsNaN(_config.SlowCallThreshold) || _config.SlowCallThreshold < 0 || _config.SlowCallThreshold > 1)
+                throw new ArgumentOutOfRangeException(nameof(config), "Slow call threshold must be a finite value between 0 and 1.");
+            if (double.IsNaN(_config.HalfOpenSuccessThreshold) || _config.HalfOpenSuccessThreshold < 0 || _config.HalfOpenSuccessThreshold > 1)
+                throw new ArgumentOutOfRangeException(nameof(config), "Half-open success threshold must be a finite value between 0 and 1.");
+            if (_config.WindowSize < 1)
+                throw new ArgumentOutOfRangeException(nameof(config), "Window size must be at least 1.");
+            if (_config.ConsecutiveFailureLimit < 1)
+                throw new ArgumentOutOfRangeException(nameof(config), "Consecutive failure limit must be at least 1.");
+            if (_config.HalfOpenMaxProbes < 1)
+                throw new ArgumentOutOfRangeException(nameof(config), "Half-open probe limit must be at least 1.");
+            if (_config.MinCallsBeforeTrip < 0)
+                throw new ArgumentOutOfRangeException(nameof(config), "Minimum calls before trip cannot be negative.");
+            if (double.IsNaN(_config.CooldownSeconds) || _config.CooldownSeconds < 0)
+                throw new ArgumentOutOfRangeException(nameof(config), "Cooldown must be a finite, non-negative number of seconds.");
+            if (double.IsNaN(_config.LatencyThresholdMs) || _config.LatencyThresholdMs < 0)
+                throw new ArgumentOutOfRangeException(nameof(config), "Latency threshold must be a finite, non-negative number of milliseconds.");
         }
 
         /// <summary>Record a call outcome and evaluate circuit state.</summary>

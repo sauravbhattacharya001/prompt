@@ -868,5 +868,106 @@ namespace Prompt.Tests
             if (report.TripHistory.Count > 1)
                 Assert.True(report.TripHistory[0].Timestamp >= report.TripHistory[1].Timestamp);
         }
+
+        // ─── Configuration Validation ─────────────────
+
+        [Theory]
+        [InlineData(-0.5)]
+        [InlineData(1.5)]
+        [InlineData(double.NaN)]
+        [InlineData(double.PositiveInfinity)]
+        [InlineData(double.NegativeInfinity)]
+        public void InvalidFailureThreshold_IsRejected(double value)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptCircuitBreakerEngine(
+                new CircuitBreakerConfig { FailureThreshold = value }));
+        }
+
+        [Theory]
+        [InlineData(-0.1)]
+        [InlineData(1.1)]
+        [InlineData(double.NaN)]
+        public void InvalidSlowCallThreshold_IsRejected(double value)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptCircuitBreakerEngine(
+                new CircuitBreakerConfig { SlowCallThreshold = value }));
+        }
+
+        [Theory]
+        [InlineData(-0.1)]
+        [InlineData(1.1)]
+        [InlineData(double.NaN)]
+        public void InvalidHalfOpenSuccessThreshold_IsRejected(double value)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptCircuitBreakerEngine(
+                new CircuitBreakerConfig { HalfOpenSuccessThreshold = value }));
+        }
+
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-5)]
+        public void NonPositiveWindowSize_IsRejected(int value)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptCircuitBreakerEngine(
+                new CircuitBreakerConfig { WindowSize = value }));
+        }
+
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-2)]
+        public void NonPositiveConsecutiveFailureLimit_IsRejected(int value)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptCircuitBreakerEngine(
+                new CircuitBreakerConfig { ConsecutiveFailureLimit = value }));
+        }
+
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-1)]
+        public void NonPositiveHalfOpenMaxProbes_IsRejected(int value)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptCircuitBreakerEngine(
+                new CircuitBreakerConfig { HalfOpenMaxProbes = value }));
+        }
+
+        [Fact]
+        public void DegenerateTimingAndCountKnobs_AreRejected()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptCircuitBreakerEngine(
+                new CircuitBreakerConfig { CooldownSeconds = -1 }));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptCircuitBreakerEngine(
+                new CircuitBreakerConfig { CooldownSeconds = double.NaN }));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptCircuitBreakerEngine(
+                new CircuitBreakerConfig { LatencyThresholdMs = -100 }));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptCircuitBreakerEngine(
+                new CircuitBreakerConfig { LatencyThresholdMs = double.NaN }));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PromptCircuitBreakerEngine(
+                new CircuitBreakerConfig { MinCallsBeforeTrip = -1 }));
+        }
+
+        [Fact]
+        public void BoundaryValidConfig_IsAccepted()
+        {
+            var engine = new PromptCircuitBreakerEngine(new CircuitBreakerConfig
+            {
+                FailureThreshold = 0,
+                SlowCallThreshold = 1,
+                HalfOpenSuccessThreshold = 0,
+                WindowSize = 1,
+                ConsecutiveFailureLimit = 1,
+                HalfOpenMaxProbes = 1,
+                MinCallsBeforeTrip = 0,
+                CooldownSeconds = 0,
+                LatencyThresholdMs = 0
+            });
+            Assert.NotNull(engine);
+        }
+
+        [Fact]
+        public void NullConfig_UsesDefaults()
+        {
+            var engine = new PromptCircuitBreakerEngine(null);
+            Assert.NotNull(engine);
+        }
     }
 }
