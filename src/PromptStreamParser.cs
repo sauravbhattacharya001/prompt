@@ -778,7 +778,7 @@ namespace Prompt
 
         private void EmitContent(StreamContent content)
         {
-            _extracted.Add(content);            var args = new StreamContentEventArgs { Content = content, Index = _extracted.Count - 1 };
+            _extracted.Add(content); var args = new StreamContentEventArgs { Content = content, Index = _extracted.Count - 1 };
 
             if (content.IsPartial)
                 OnPartialContent?.Invoke(this, args);

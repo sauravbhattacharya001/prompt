@@ -496,10 +496,22 @@ namespace Prompt
             {
                 switch (c)
                 {
-                    case '{': case '}': case '[': case ']':
-                    case '(': case ')': case ';': case ':':
-                    case '<': case '>': case '=': case '|':
-                    case '&': case '!': case '@': case '#':
+                    case '{':
+                    case '}':
+                    case '[':
+                    case ']':
+                    case '(':
+                    case ')':
+                    case ';':
+                    case ':':
+                    case '<':
+                    case '>':
+                    case '=':
+                    case '|':
+                    case '&':
+                    case '!':
+                    case '@':
+                    case '#':
                         specialChars++;
                         break;
                     case '\n':

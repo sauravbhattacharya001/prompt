@@ -363,7 +363,7 @@ namespace Prompt
             };
         }
 
-                /// <summary>
+        /// <summary>
         /// Estimate how many calls you can make within a budget.
         /// </summary>
         /// <param name="modelId">The model to estimate for.</param>

@@ -288,49 +288,56 @@ namespace Prompt
             // === Gender bias ===
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Gender, Severity = BiasSeverity.Medium,
+                Category = BiasCategory.Gender,
+                Severity = BiasSeverity.Medium,
                 Pattern = new Regex(@"\b(businessman|businessmen)\b", ic, timeout),
                 Description = "Gendered professional term",
                 Suggestion = "business professional"
             });
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Gender, Severity = BiasSeverity.Medium,
+                Category = BiasCategory.Gender,
+                Severity = BiasSeverity.Medium,
                 Pattern = new Regex(@"\b(chairman)\b", ic, timeout),
                 Description = "Gendered leadership term",
                 Suggestion = "chairperson"
             });
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Gender, Severity = BiasSeverity.Medium,
+                Category = BiasCategory.Gender,
+                Severity = BiasSeverity.Medium,
                 Pattern = new Regex(@"\b(fireman|firemen)\b", ic, timeout),
                 Description = "Gendered occupation term",
                 Suggestion = "firefighter"
             });
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Gender, Severity = BiasSeverity.Medium,
+                Category = BiasCategory.Gender,
+                Severity = BiasSeverity.Medium,
                 Pattern = new Regex(@"\b(policeman|policemen)\b", ic, timeout),
                 Description = "Gendered occupation term",
                 Suggestion = "police officer"
             });
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Gender, Severity = BiasSeverity.Medium,
+                Category = BiasCategory.Gender,
+                Severity = BiasSeverity.Medium,
                 Pattern = new Regex(@"\b(mankind)\b", ic, timeout),
                 Description = "Gendered collective term",
                 Suggestion = "humankind"
             });
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Gender, Severity = BiasSeverity.Low,
+                Category = BiasCategory.Gender,
+                Severity = BiasSeverity.Low,
                 Pattern = new Regex(@"\b(manpower)\b", ic, timeout),
                 Description = "Gendered resource term",
                 Suggestion = "workforce"
             });
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Gender, Severity = BiasSeverity.Low,
+                Category = BiasCategory.Gender,
+                Severity = BiasSeverity.Low,
                 Pattern = new Regex(@"\b(man-made)\b", ic, timeout),
                 Description = "Gendered adjective",
                 Suggestion = "synthetic"
@@ -339,21 +346,24 @@ namespace Prompt
             // === Confirmation bias (leading questions) ===
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Confirmation, Severity = BiasSeverity.High,
+                Category = BiasCategory.Confirmation,
+                Severity = BiasSeverity.High,
                 Pattern = new Regex(@"\b(obviously|clearly|undeniably|undoubtedly|of course)\b", ic, timeout),
                 Description = "Presuppositional language that biases the response",
                 Suggestion = ""
             });
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Confirmation, Severity = BiasSeverity.Medium,
+                Category = BiasCategory.Confirmation,
+                Severity = BiasSeverity.Medium,
                 Pattern = new Regex(@"\bdon'?t you (?:think|agree)\b", ic, timeout),
                 Description = "Leading question that presupposes agreement",
                 Suggestion = "what do you think about"
             });
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Confirmation, Severity = BiasSeverity.Medium,
+                Category = BiasCategory.Confirmation,
+                Severity = BiasSeverity.Medium,
                 Pattern = new Regex(@"\bisn'?t it (?:true|obvious|clear) that\b", ic, timeout),
                 Description = "Leading assertion disguised as question",
                 Suggestion = "is it the case that"
@@ -362,7 +372,8 @@ namespace Prompt
             // === Anchoring bias ===
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Anchoring, Severity = BiasSeverity.Medium,
+                Category = BiasCategory.Anchoring,
+                Severity = BiasSeverity.Medium,
                 Pattern = new Regex(@"\b(?:most (?:people|experts|studies)|everyone knows|it is well known)\b", ic, timeout),
                 Description = "Anchoring to unsubstantiated consensus",
                 Suggestion = ""
@@ -371,7 +382,8 @@ namespace Prompt
             // === Authority bias ===
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Authority, Severity = BiasSeverity.Low,
+                Category = BiasCategory.Authority,
+                Severity = BiasSeverity.Low,
                 Pattern = new Regex(@"\b(?:experts say|studies show|research proves|science says)\b", ic, timeout),
                 Description = "Vague appeal to authority without citation",
                 Suggestion = ""
@@ -380,14 +392,16 @@ namespace Prompt
             // === Framing bias ===
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Framing, Severity = BiasSeverity.Medium,
+                Category = BiasCategory.Framing,
+                Severity = BiasSeverity.Medium,
                 Pattern = new Regex(@"\b(only|merely|just)\s+\d+%", ic, timeout),
                 Description = "Minimizing framing of statistics",
                 Suggestion = ""
             });
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Framing, Severity = BiasSeverity.Medium,
+                Category = BiasCategory.Framing,
+                Severity = BiasSeverity.Medium,
                 Pattern = new Regex(@"\b(as much as|a whopping|a staggering)\s+\d+", ic, timeout),
                 Description = "Amplifying framing of statistics",
                 Suggestion = ""
@@ -396,7 +410,8 @@ namespace Prompt
             // === Exclusion bias ===
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Exclusion, Severity = BiasSeverity.Medium,
+                Category = BiasCategory.Exclusion,
+                Severity = BiasSeverity.Medium,
                 Pattern = new Regex(@"\b(normal people|regular people|ordinary people)\b", ic, timeout),
                 Description = "Implies some groups are abnormal or irregular",
                 // Suggest a plain, unloaded term. "most people" was a poor debiasing
@@ -411,14 +426,16 @@ namespace Prompt
             // === Age bias ===
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Age, Severity = BiasSeverity.Medium,
+                Category = BiasCategory.Age,
+                Severity = BiasSeverity.Medium,
                 Pattern = new Regex(@"\b(elderly|old people|the aged)\b", ic, timeout),
                 Description = "Potentially ageist terminology",
                 Suggestion = "older adults"
             });
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Age, Severity = BiasSeverity.Low,
+                Category = BiasCategory.Age,
+                Severity = BiasSeverity.Low,
                 Pattern = new Regex(@"\b(young people don'?t|kids these days|millennials are)\b", ic, timeout),
                 Description = "Age-based generalization",
                 Suggestion = ""
@@ -427,7 +444,8 @@ namespace Prompt
             // === Ability bias ===
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Ability, Severity = BiasSeverity.Medium,
+                Category = BiasCategory.Ability,
+                Severity = BiasSeverity.Medium,
                 Pattern = new Regex(@"\b(crazy|insane|lame|dumb|blind(?:ed)?(?:\s+to))\b", ic, timeout),
                 Description = "Ableist language used casually",
                 Suggestion = ""
@@ -436,7 +454,8 @@ namespace Prompt
             // === Socioeconomic bias ===
             rules.Add(new BiasRule
             {
-                Category = BiasCategory.Socioeconomic, Severity = BiasSeverity.Medium,
+                Category = BiasCategory.Socioeconomic,
+                Severity = BiasSeverity.Medium,
                 Pattern = new Regex(@"\b(underprivileged|the poor|low-?class)\b", ic, timeout),
                 Description = "Stigmatizing socioeconomic language",
                 Suggestion = "under-resourced communities"
