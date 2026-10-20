@@ -324,7 +324,7 @@ namespace Prompt.Tests
         [Theory]
         [InlineData(DiffOperation.Insert, "+ hello")]
         [InlineData(DiffOperation.Delete, "- hello")]
-        [InlineData(DiffOperation.Equal,  "  hello")]
+        [InlineData(DiffOperation.Equal, "  hello")]
         public void DiffLine_ToString_UsesExpectedPrefix(DiffOperation op, string expected)
         {
             var line = new DiffLine { Operation = op, Text = "hello" };

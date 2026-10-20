@@ -253,7 +253,9 @@ public class ExtendedEdgeCaseTests : IDisposable
         var t = new PromptTemplate("{{a}}{{b}}{{c}}");
         var result = t.Render(new Dictionary<string, string>
         {
-            ["a"] = "1", ["b"] = "2", ["c"] = "3"
+            ["a"] = "1",
+            ["b"] = "2",
+            ["c"] = "3"
         });
         Assert.Equal("123", result);
     }
@@ -264,7 +266,8 @@ public class ExtendedEdgeCaseTests : IDisposable
         var t = new PromptTemplate("{{start}}middle{{end}}");
         var result = t.Render(new Dictionary<string, string>
         {
-            ["start"] = "[", ["end"] = "]"
+            ["start"] = "[",
+            ["end"] = "]"
         });
         Assert.Equal("[middle]", result);
     }
@@ -539,7 +542,9 @@ public class ExtendedEdgeCaseTests : IDisposable
 
         var vars = new Dictionary<string, string>
         {
-            ["out1"] = "resp1", ["out2"] = "resp2", ["out3"] = "resp3"
+            ["out1"] = "resp1",
+            ["out2"] = "resp2",
+            ["out3"] = "resp3"
         };
 
         var result = new ChainResult(steps, vars, TimeSpan.FromMilliseconds(600));

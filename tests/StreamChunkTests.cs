@@ -173,8 +173,11 @@ public class StreamChunkTests
         var chunk2 = new StreamChunk { Delta = " world", FullText = "Hello world", TokensUsed = 2 };
         var chunk3 = new StreamChunk
         {
-            Delta = "!", FullText = "Hello world!",
-            IsComplete = true, FinishReason = "stop", TokensUsed = 3
+            Delta = "!",
+            FullText = "Hello world!",
+            IsComplete = true,
+            FinishReason = "stop",
+            TokensUsed = 3
         };
 
         Assert.Equal("Hello", chunk1.Delta);

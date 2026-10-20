@@ -30,7 +30,8 @@ public class PerformanceOptimizationTests
         int tokensNo = PromptGuard.EstimateTokens(noNewlines);
         int tokensWith = PromptGuard.EstimateTokens(withNewlines);
         // Newlines should add ~0.5 tokens each, so more newlines = more tokens
-        Assert.True(tokensWith >= tokensNo, 
+        Assert.True(tokensWith >= tokensNo,
+            
             $"With newlines ({tokensWith}) should be >= without ({tokensNo})");
     }
 
@@ -218,8 +219,10 @@ public class PerformanceOptimizationTests
         // Small budget that will force trimming
         var budget = new TokenBudget(200, 50);
         budget.AddMessage("system", "System prompt here.");
+
         
         // Add messages until trimming occurs
+        
         for (int i = 0; i < 20; i++)
         {
             budget.AddMessage("user", $"Message number {i} with some content to use tokens");
@@ -267,6 +270,7 @@ public class PerformanceOptimizationTests
     public void GetSummary_ManyMessages_CorrectCounts()
     {
         var budget = new TokenBudget(1_000_000, 1000);
+
         
         for (int i = 0; i < 50; i++)
         {

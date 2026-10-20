@@ -465,45 +465,45 @@ namespace Prompt
             {
                 case ToolProvider.OpenAI:
                 case ToolProvider.Mistral:
-                {
-                    var fn = new Dictionary<string, object>
                     {
-                        ["name"] = tool.Name,
-                        ["description"] = tool.Description,
-                        ["parameters"] = schema,
-                    };
-                    if (tool.Strict && provider == ToolProvider.OpenAI)
-                        fn["strict"] = true;
-
-                    return new Dictionary<string, object>
-                    {
-                        ["type"] = "function",
-                        ["function"] = fn,
-                    };
-                }
-
-                case ToolProvider.Anthropic:
-                {
-                    return new Dictionary<string, object>
-                    {
-                        ["name"] = tool.Name,
-                        ["description"] = tool.Description,
-                        ["input_schema"] = schema,
-                    };
-                }
-
-                case ToolProvider.Gemini:
-                {
-                    return new Dictionary<string, object>
-                    {
-                        ["functionDeclarations"] = new Dictionary<string, object>
+                        var fn = new Dictionary<string, object>
                         {
                             ["name"] = tool.Name,
                             ["description"] = tool.Description,
                             ["parameters"] = schema,
-                        }
-                    };
-                }
+                        };
+                        if (tool.Strict && provider == ToolProvider.OpenAI)
+                            fn["strict"] = true;
+
+                        return new Dictionary<string, object>
+                        {
+                            ["type"] = "function",
+                            ["function"] = fn,
+                        };
+                    }
+
+                case ToolProvider.Anthropic:
+                    {
+                        return new Dictionary<string, object>
+                        {
+                            ["name"] = tool.Name,
+                            ["description"] = tool.Description,
+                            ["input_schema"] = schema,
+                        };
+                    }
+
+                case ToolProvider.Gemini:
+                    {
+                        return new Dictionary<string, object>
+                        {
+                            ["functionDeclarations"] = new Dictionary<string, object>
+                            {
+                                ["name"] = tool.Name,
+                                ["description"] = tool.Description,
+                                ["parameters"] = schema,
+                            }
+                        };
+                    }
 
                 default:
                     throw new ArgumentException($"Unknown provider: {provider}");

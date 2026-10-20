@@ -525,7 +525,9 @@ public class PromptTemplateTests : IDisposable
         var combined = a.Compose(b, " ").Compose(c, " ");
         var result = combined.Render(new Dictionary<string, string>
         {
-            ["a"] = "1", ["b"] = "2", ["c"] = "3"
+            ["a"] = "1",
+            ["b"] = "2",
+            ["c"] = "3"
         });
         Assert.Equal("A=1 B=2 C=3", result);
     }
