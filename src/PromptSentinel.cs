@@ -164,9 +164,9 @@ namespace Prompt
     {
         /// <summary>Categories to scan (null = all).</summary>
         public ISet<ThreatCategory>? EnabledCategories { get; set; }
-        /// <summary>Minimum severity to report.</summary>
+        /// <summary>Minimum severity to report. Must be a defined <see cref="ThreatSeverity"/> value; <see cref="PromptSentinel"/> rejects out-of-range values at construction.</summary>
         public ThreatSeverity MinSeverity { get; set; } = ThreatSeverity.Info;
-        /// <summary>Maximum findings before stopping early.</summary>
+        /// <summary>Maximum findings before stopping early. Must be at least 1; <see cref="PromptSentinel"/> rejects non-positive values at construction (0 or negative would silently disable scanning — every scan would return Clean).</summary>
         public int MaxFindings { get; set; } = 50;
         /// <summary>Custom rules to add to the built-in set.</summary>
         public IList<(string id, string name, ThreatCategory cat, ThreatSeverity sev, string pattern, string rec)> CustomRules { get; set; }
@@ -193,9 +193,34 @@ namespace Prompt
         private readonly SentinelConfig _config;
 
         /// <summary>Creates a new sentinel with optional configuration.</summary>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// Thrown when <paramref name="config"/> carries a degenerate limit: a non-positive
+        /// <see cref="SentinelConfig.MaxFindings"/> (0 or negative makes every scan return
+        /// Clean, silently disabling detection) or an undefined
+        /// <see cref="SentinelConfig.MinSeverity"/> (an out-of-range severity suppresses
+        /// every rule's findings the same way).
+        /// </exception>
+        /// <exception cref="ArgumentNullException">
+        /// Thrown when <paramref name="config"/> carries a null
+        /// <see cref="SentinelConfig.CustomRules"/> list (it would otherwise surface as a
+        /// bare NullReferenceException while building the rule set).
+        /// </exception>
         public PromptSentinel(SentinelConfig? config = null)
         {
             _config = config ?? new SentinelConfig();
+
+            // Degenerate limits fail silently at runtime: Scan breaks out of its rule
+            // loop as soon as findings.Count >= MaxFindings, so a non-positive cap
+            // reports Clean for any input, and an out-of-range minimum severity
+            // filters out every rule. Reject them here, at the only point where the
+            // misconfiguration is diagnosable.
+            if (_config.MaxFindings < 1)
+                throw new ArgumentOutOfRangeException(nameof(config), "Maximum findings must be at least 1.");
+            if (!Enum.IsDefined(_config.MinSeverity))
+                throw new ArgumentOutOfRangeException(nameof(config), "Minimum severity must be a defined ThreatSeverity value.");
+            if (_config.CustomRules == null)
+                throw new ArgumentNullException(nameof(config), "Custom rules list cannot be null.");
+
             _rules = BuildRules();
         }
 
